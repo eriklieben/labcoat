@@ -1,0 +1,113 @@
+/* Reset + base element styles (body, links, focus ring, kbd, scrollbars, .icon). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--lc-bg-page);
+  color: var(--lc-fg);
+  font-family: var(--lc-font-sans);
+  font-size: var(--lc-font-size);
+  line-height: var(--lc-line-height);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.is-dragging {
+  cursor: col-resize;
+  user-select: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--lc-link);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--lc-link-hover);
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--lc-focus-ring);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+code,
+kbd,
+pre,
+.mono {
+  font-family: var(--lc-font-mono);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--lc-stroke);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--lc-bg-surface);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--lc-fg-muted);
+}
+
+.dim {
+  color: var(--lc-fg-muted);
+}
+
+::-webkit-scrollbar {
+  width: var(--lc-scrollbar-size);
+  height: var(--lc-scrollbar-size);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--lc-scrollbar-thumb);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--lc-scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--lc-scrollbar-thumb) transparent;
+  }
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.icon svg {
+  width: 100%;
+  height: 100%;
+}

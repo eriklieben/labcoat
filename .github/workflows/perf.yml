@@ -1,0 +1,272 @@
+name: Performance
+
+# Nightly + manual scale and soak checks of the web UI on the in-browser mock backend (no .NET needed):
+#   check:perf:huge            ?mock=huge           20,000 tests in 8 projects
+#   check:perf:many-projects   ?mock=many-projects  40 projects × 300 tests
+#   check:soak                 ?mock=huge&fast      40 watch-triggered partial runs + 10 full runs
+# Budgets: ui/perf-budgets.json. Reports: the job summary and the "perf-report" artifact (Markdown + JSON).
+# The real-backend run (eng/perf-real.mjs: generated 20k-test MSTest suite + a published host) is local only, see
+# CONTRIBUTING.md "Performance and soak checks".
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # nightly, 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      repeat:
+        description: "Measurements per scale scenario (the median is compared with the budgets)"
+        default: "3"
+      soak:
+        description: "Soak variant: short (CI) or long (200 partial + 50 full runs, ~1 h)"
+        type: choice
+        options: [short, long]
+        default: short
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+
+# ubuntu-24.04, not ubuntu-latest, and actions pinned to commit SHAs: see the comment in ci.yml.
+
+jobs:
+  ui-perf:
+    name: UI scale + soak (mock backend)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Scale check, 20,000 tests (?mock=huge)
+        id: huge
+        run: npm run check:perf:huge -- --repeat=${{ inputs.repeat || '3' }}
+
+      - name: Scale check, 40 projects × 300 tests (?mock=many-projects)
+        id: many
+        if: ${{ !cancelled() }}
+        run: npm run check:perf:many-projects -- --repeat=${{ inputs.repeat || '3' }}
+
+      - name: Existing 2000-test perf + leak checks
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p perf-results
+          npm run check:perf | tee perf-results/perf-large.txt
+          npm run check:leaks | tee perf-results/leaks-large.txt
+
+      - name: Soak (short)
+        if: ${{ !cancelled() && (inputs.soak || 'short') == 'short' }}
+        run: npm run check:soak
+
+      - name: Soak (long)
+        if: ${{ !cancelled() && inputs.soak == 'long' }}
+        run: npm run check:soak:long
+
+      - name: Results summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "# Labcoat performance ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})"
+            echo
+            for f in perf-results/perf-huge.md perf-results/perf-many-projects.md perf-results/soak-huge.md; do
+              [ -f "$f" ] && { cat "$f"; echo; }
+            done
+          } > perf-results/summary.md
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: perf-report
+          path: |
+            ui/perf-results/*.md
+            ui/perf-results/*.json
+            ui/perf-results/*.txt
+            ui/perf-results/*.heapsnapshot
+          if-no-files-found: warn
+          retention-days: 30
+
+  # UI micro-benchmarks (ui/bench/*.bench.ts, Vitest bench + happy-dom; CONTRIBUTING.md "Benchmarks → UI (Vitest
+  # bench)"). Non-gating: it reports numbers, it never fails the workflow. BENCH_TIME=250 = 250 ms measured per task.
+  # Results: the job summary, the "ui-bench-results" artifact (Vitest json reporter output) and, when the previous run
+  # of this workflow on the branch uploaded one, a comparison with it (ui/scripts/bench-compare.mjs, changed tasks only).
+  ui-bench:
+    name: UI micro-benchmarks (Vitest bench)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read # gh run download: the previous run's results
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run benchmarks
+        env:
+          BENCH_TIME: "250"
+        run: npm run bench:ci
+
+      - name: Download the previous run's results
+        id: previous
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow perf.yml --branch "$GITHUB_REF_NAME" --limit 15 \
+            --json databaseId,status --jq ".[] | select(.status == \"completed\" and .databaseId != $GITHUB_RUN_ID) | .databaseId")
+          for id in $ids; do
+            if gh run download "$id" --repo "$GITHUB_REPOSITORY" --name ui-bench-results --dir bench-previous 2>/dev/null; then
+              echo "run=$id" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
+
+      - name: Results summary
+        if: ${{ !cancelled() }}
+        env:
+          PREVIOUS_RUN: ${{ steps.previous.outputs.run }}
+        run: |
+          [ -f bench-results/ui-bench.json ] || { echo "No UI benchmark results (see the run step)." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          {
+            echo "# UI micro-benchmarks ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})"
+            echo
+            echo "Vitest bench in happy-dom on a shared runner: compare trends, not single values. DOM-heavy tasks measure happy-dom, not a browser."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$PREVIOUS_RUN" ] && [ -f bench-previous/ui-bench.json ]; then
+            echo "## Compared with run [$PREVIOUS_RUN]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$PREVIOUS_RUN)" >> "$GITHUB_STEP_SUMMARY"
+            echo >> "$GITHUB_STEP_SUMMARY"
+            node scripts/bench-compare.mjs bench-previous/ui-bench.json bench-results/ui-bench.json --changed --out="$GITHUB_STEP_SUMMARY" > bench-results/compare.md
+            echo >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "## Results" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          node scripts/bench-compare.mjs bench-results/ui-bench.json --out="$GITHUB_STEP_SUMMARY" > bench-results/summary.md
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-bench-results
+          path: |
+            ui/bench-results/*.json
+            ui/bench-results/*.md
+          if-no-files-found: warn
+          retention-days: 30
+
+  # .NET micro-benchmarks of the host's hot paths (benchmarks/Labcoat.Benchmarks, BenchmarkDotNet; CONTRIBUTING.md
+  # "Benchmarks"). Non-gating: it reports numbers, it never fails the workflow. `--quick` = 1 launch, 1 warm-up and
+  # 3 measured iterations per case (shared runners are noisy anyway; compare trends, not one night). Results: the job
+  # summary, the "bdn-results" artifact (GitHub Markdown, JSON, CSV per class) and, when the previous run of this
+  # workflow on the branch uploaded one, a comparison with it (eng/bdn-compare.mjs, changes over 10% only).
+  dotnet-bench:
+    name: .NET micro-benchmarks (BenchmarkDotNet)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read # gh run download: the previous run's results
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      BDN_ARTIFACTS: ${{ github.workspace }}/artifacts/bdn
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build
+        run: dotnet build benchmarks/Labcoat.Benchmarks -c Release -warnaserror
+
+      - name: Run benchmarks (quick job)
+        run: >-
+          dotnet run -c Release --project benchmarks/Labcoat.Benchmarks --no-build --
+          --filter '*' --quick --artifacts "$BDN_ARTIFACTS"
+
+      - name: Download the previous run's results
+        id: previous
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow perf.yml --branch "$GITHUB_REF_NAME" --limit 15 \
+            --json databaseId,status --jq ".[] | select(.status == \"completed\" and .databaseId != $GITHUB_RUN_ID) | .databaseId")
+          for id in $ids; do
+            if gh run download "$id" --repo "$GITHUB_REPOSITORY" --name bdn-results --dir artifacts/bdn-previous 2>/dev/null; then
+              echo "run=$id" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
+
+      - name: Results summary
+        if: ${{ !cancelled() }}
+        env:
+          PREVIOUS_RUN: ${{ steps.previous.outputs.run }}
+        run: |
+          mkdir -p "$BDN_ARTIFACTS/results"
+          {
+            echo "# .NET micro-benchmarks ($(date -u +%Y-%m-%d), ${GITHUB_SHA::7})"
+            echo
+            echo "BenchmarkDotNet, quick job (1 launch, 1 warm-up, 3 iterations) on a shared runner: compare trends, not single values."
+            echo
+            if [ -n "$PREVIOUS_RUN" ]; then
+              echo "## Compared with run [$PREVIOUS_RUN]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$PREVIOUS_RUN)"
+              echo
+              node eng/bdn-compare.mjs artifacts/bdn-previous "$BDN_ARTIFACTS/results" --only-changes --output "$BDN_ARTIFACTS/results/compare.md"
+              echo
+            fi
+            for f in "$BDN_ARTIFACTS"/results/*-report-github.md; do
+              [ -f "$f" ] || continue
+              echo "## $(basename "$f" -report-github.md | sed 's/^Labcoat\.Benchmarks\.//')"
+              echo
+              cat "$f"
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: bdn-results
+          path: |
+            artifacts/bdn/results/*.md
+            artifacts/bdn/results/*.json
+            artifacts/bdn/results/*.csv
+          if-no-files-found: warn
+          retention-days: 30

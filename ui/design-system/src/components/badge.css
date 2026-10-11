@@ -1,0 +1,43 @@
+/* Badges (.badge, .badge-status, .badge-<status>, .badge.trait). */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-4);
+  height: 22px;
+  padding: 0 var(--lc-space-8);
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-bg-badge);
+  color: var(--lc-fg);
+  font-size: var(--lc-text-sm);
+  line-height: 20px;
+  white-space: nowrap;
+}
+.badge.trait {
+  border: 1px solid var(--lc-stroke-subtle);
+}
+.trait-key {
+  color: var(--lc-fg-muted);
+}
+.trait-key::after {
+  content: ":";
+  margin-right: var(--lc-space-2);
+}
+.badge-status {
+  border: 1px solid transparent;
+  font-weight: 500;
+}
+.badge-passed {
+  border-color: var(--lc-msg-success-border);
+  background: var(--lc-msg-success-bg);
+}
+.badge-failed,
+.badge-timedOut,
+.badge-error {
+  border-color: var(--lc-msg-error-border);
+  background: var(--lc-msg-error-bg);
+}
+.badge-skipped {
+  border-color: var(--lc-msg-warning-border);
+  background: var(--lc-msg-warning-bg);
+}

@@ -1,0 +1,270 @@
+/* Suite status: run summary pill, run progress / composition bar, pending + outdated tree markers (suite-status.ts). */
+
+@layer app.components {
+  .run-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-12);
+    height: var(--lc-control-height);
+    padding: 0 var(--lc-space-12);
+    border: 1px solid var(--lc-stroke-pill);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-bg-surface);
+    font-size: var(--lc-text-md);
+    white-space: nowrap;
+  }
+  .summary-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    font-weight: 500;
+  }
+  .summary-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--lc-stroke);
+  }
+  .sum {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-4);
+    font-variant-numeric: tabular-nums;
+  }
+  .sum-time {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+
+  .run-progress {
+    --progress-ease: var(--lc-ease-emphasized); /* ease-out-quint: quick response, soft landing */
+    position: relative;
+    flex: none;
+    height: 6px;
+    margin: 0 var(--lc-space-12) var(--lc-space-10);
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--lc-bg-track);
+    transition: opacity var(--lc-motion-xslow) var(--lc-ease-standard);
+  }
+  .run-progress .layer {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    transform: scaleX(0);
+    transition: transform var(--lc-motion-progress) var(--lc-ease-emphasized);
+    will-change: transform;
+  }
+  /* Transparent click targets over each band (filter the tree); positioned without animation. */
+  .run-progress .band-hit {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color var(--lc-motion-fast) var(--lc-ease-standard);
+  }
+  .run-progress .band-hit:hover {
+    background: color-mix(in srgb, var(--lc-highlight) 28%, transparent);
+  }
+  .run-progress .band-hit:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: -2px;
+  }
+  .layer.passed {
+    background: var(--lc-status-passed);
+  }
+  .layer.failed {
+    background: var(--lc-status-failed);
+  }
+  .layer.skipped {
+    background: var(--lc-status-skipped);
+  }
+  .run-progress.complete {
+    animation: progress-settle var(--lc-motion-flash) var(--lc-ease-decelerate);
+  }
+  @keyframes progress-settle {
+    0% {
+      filter: brightness(1);
+    }
+    30% {
+      filter: brightness(1.35);
+    }
+    100% {
+      filter: brightness(1);
+    }
+  }
+  .run-progress:not(.live):not(.complete) {
+    opacity: 1;
+  }
+  /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */
+  :root[data-motion="reduced"] .run-progress .layer {
+    transition: none;
+  }
+  :root[data-motion="reduced"] .run-progress.complete,
+  :root[data-motion="reduced"] .indeterminate {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion]) .run-progress .layer {
+      transition: none;
+    }
+    :root:not([data-motion]) .run-progress.complete,
+    :root:not([data-motion]) .indeterminate {
+      animation: none;
+    }
+  }
+  .indeterminate {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--lc-accent) 70%, transparent), transparent);
+    animation: sweep var(--lc-motion-shimmer) var(--lc-ease-loop) infinite;
+  }
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(340%);
+    }
+  }
+  @media (max-width: 1100px) {
+    /* the workspace name stays visible (P2-1): it tells two Labcoat tabs apart */
+    .summary-secondary,
+    .summary-secondary-sep {
+      display: none;
+    }
+  }
+  @media (max-width: 900px) {
+    .run-summary {
+      flex: 1 1 auto;
+    }
+  }
+  @media (max-width: 640px) {
+    .run-summary {
+      gap: var(--lc-space-8);
+      overflow: hidden;
+    }
+  }
+  .tree-row.is-stale .st,
+  .tree-row.is-stale .row-duration {
+    opacity: var(--lc-dimmed-opacity);
+  }
+
+  /* Run summary: fixed-width fields so streaming counts and the ticking timer don't nudge each other. */
+  .run-summary .summary-label {
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .run-summary .sum-time {
+    min-width: calc(18px + 6ch);
+  }
+
+  /* All passed: a calm success tint on the run summary; a short glow pulse when the run just finished (confetti). */
+  .run-summary.all-passed {
+    border-color: color-mix(in srgb, var(--lc-status-passed) 45%, var(--lc-stroke-subtle));
+    background: color-mix(in srgb, var(--lc-status-passed) 7%, var(--lc-bg-surface));
+  }
+  .run-summary.all-passed .summary-label {
+    color: var(--lc-status-passed);
+    font-weight: 600;
+    min-width: 0;
+  }
+  .run-summary.celebrate {
+    animation: summary-celebrate var(--lc-motion-celebrate) var(--lc-ease-standard) 1;
+  }
+  @keyframes summary-celebrate {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--lc-status-passed) 55%, transparent);
+    }
+    60% {
+      box-shadow: 0 0 0 8px color-mix(in srgb, var(--lc-status-passed) 0%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+  /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */
+  :root[data-motion="reduced"] .run-summary.celebrate {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lc-status-passed) 30%, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion]) .run-summary.celebrate {
+      animation: none;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--lc-status-passed) 30%, transparent);
+    }
+  }
+
+  .summary-secondary {
+    overflow: hidden;
+    max-width: 34ch;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    text-overflow: ellipsis;
+  }
+  .run-summary.tone-failed .summary-label {
+    color: var(--lc-status-failed-text);
+    font-weight: 600;
+  }
+  .run-summary.is-outdated {
+    border-color: color-mix(in srgb, var(--lc-status-skipped) 70%, var(--lc-bg-surface));
+    box-shadow: inset 3px 0 0 var(--lc-status-skipped);
+  }
+  .run-summary.is-outdated .summary-secondary {
+    color: var(--lc-fg-secondary);
+  }
+  .st-outdated {
+    color: var(--lc-status-skipped);
+  }
+
+  .run-progress .rp-track {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .layer.inrun {
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--lc-status-running) 55%, transparent) 0 4px,
+      color-mix(in srgb, var(--lc-status-running) 25%, transparent) 4px 8px
+    );
+    background-size: 11.3px 100%;
+    animation: rp-stripes var(--lc-motion-stripes) linear infinite;
+    /* only while a run is live: an idle infinite animation repaints the page every frame */
+    animation-play-state: paused;
+  }
+  .run-progress.live .layer.inrun {
+    animation-play-state: running;
+  }
+  @keyframes rp-stripes {
+    to {
+      background-position: 11.3px 0;
+    }
+  }
+  .run-progress.outdated .rp-track {
+    opacity: var(--lc-dimmed-opacity);
+  }
+  /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */
+  :root[data-motion="reduced"] .layer.inrun {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion]) .layer.inrun {
+      animation: none;
+    }
+  }
+
+  .tree-row.is-pending .st {
+    opacity: var(--lc-dimmed-opacity);
+  }
+  /* dimmed by color, not opacity, so the text keeps ≥ 4.5:1 (P2-10) */
+  .tree-row.is-outdated .st {
+    opacity: var(--lc-dimmed-opacity);
+  }
+  .detail-header .detail-title-row > .st {
+    margin-left: -2px; /* off-scale: -2px */
+  }
+}

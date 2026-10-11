@@ -1,0 +1,56 @@
+name: Commit messages
+
+# Pull requests are squash merged with the PR title as the commit message, so the title decides the release
+# (feat -> minor, fix / perf -> patch, see CONTRIBUTING.md "Commit messages and releases"): it must follow the Angular
+# format. The commits inside the PR are checked too, as a warning only (squash merging replaces them).
+# Rules: commitlint.config.mjs.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-messages-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# ubuntu-24.04, not ubuntu-latest, and actions pinned to commit SHAs: see the comment in ci.yml.
+
+jobs:
+  commitlint:
+    name: PR title (Angular format)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install commitlint
+        run: npm ci --ignore-scripts
+
+      - name: PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if ! printf '%s\n' "$TITLE" | npx --no -- commitlint; then
+            echo "::error title=PR title::'$TITLE' isn't an Angular-style commit message, e.g. 'feat(ui): add a duration filter' or 'fix(host): ...'. See CONTRIBUTING.md, \"Commit messages and releases\"."
+            exit 1
+          fi
+
+      - name: Commits (advisory)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ! npx --no -- commitlint --from "$BASE" --to "$HEAD_SHA"; then
+            echo "::warning title=Commit messages::Some commits in this PR don't follow the Angular format. That's fine when the PR is squash merged: the PR title becomes the commit message."
+          fi

@@ -1,0 +1,89 @@
+/* Aspire failure context (F3): inside the failure messagebar */
+
+@layer app.components {
+  .aspire-context {
+    margin-top: var(--lc-space-8);
+  }
+  .aspire-context-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lc-space-2);
+    margin-top: var(--lc-space-4);
+    margin-left: -10px; /* off-scale: -10px */
+  }
+  .aspire-context-note {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .aspire-context-note .spinner {
+    width: 12px;
+    height: 12px;
+  }
+  .aspire-context-title {
+    margin-bottom: var(--lc-space-2);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+  }
+  .aspire-context-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+    line-height: 18px;
+  }
+  .aspire-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--lc-space-2) var(--lc-space-8);
+    min-width: 0;
+  }
+  .aspire-resource {
+    padding: 0 var(--lc-space-6);
+    border-radius: var(--lc-radius-sm);
+    background: var(--lc-bg-badge);
+    color: var(--lc-fg);
+    font-weight: 600;
+  }
+  .aspire-what {
+    color: var(--lc-fg);
+  }
+  .aspire-http {
+    color: var(--lc-fg-secondary);
+    font-weight: 600;
+  }
+  .aspire-http[data-err] {
+    color: var(--lc-status-failed-text);
+  }
+  .aspire-msg {
+    min-width: 0;
+    color: var(--lc-fg-secondary);
+    overflow-wrap: anywhere;
+  }
+  .aspire-dur {
+    margin-left: auto;
+    color: var(--lc-fg-muted);
+  }
+  .aspire-level {
+    min-width: 36px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: var(--lc-text-xs);
+  }
+  .aspire-level.lvl-error,
+  .aspire-level.lvl-critical {
+    color: var(--lc-status-failed-text);
+  }
+  .aspire-level.lvl-warning {
+    color: var(--lc-status-skipped-text);
+  }
+}

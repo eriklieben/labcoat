@@ -1,0 +1,61 @@
+/* Segmented control (.segmented[role=radiogroup] > .segment[role=radio][.on]). */
+
+.segmented {
+  display: inline-flex;
+  padding: var(--lc-space-2);
+  border: 1px solid var(--lc-stroke);
+  border-radius: var(--lc-control-radius);
+  background: var(--lc-bg-surface);
+}
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-6);
+  height: 26px;
+  padding: 0 var(--lc-space-10);
+  border: 0;
+  border-radius: calc(var(--lc-control-radius) - 1px);
+  background: transparent;
+  color: var(--lc-fg-secondary);
+  font-size: var(--lc-text-md);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lc-motion-fast) var(--lc-ease-standard),
+    color var(--lc-motion-fast) var(--lc-ease-standard),
+    transform var(--lc-motion-instant) var(--lc-ease-standard);
+}
+.segment:hover:not(:disabled) {
+  background: var(--lc-bg-subtle);
+  color: var(--lc-fg);
+}
+.segment.on {
+  background: color-mix(in srgb, var(--lc-accent) 16%, transparent);
+  color: var(--lc-fg);
+  font-weight: 600;
+}
+.segment.on:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--lc-accent) 22%, transparent);
+}
+.segment.on .icon {
+  color: var(--lc-accent);
+}
+.segment:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.segment:focus-visible {
+  outline-offset: 0;
+}
+.segment:disabled {
+  opacity: var(--lc-disabled-opacity);
+  cursor: not-allowed;
+}
+.segmented-small .segment {
+  height: 20px;
+  padding: 0 var(--lc-space-8);
+  font-size: var(--lc-text-sm);
+}
+.segmented-small .segment .icon {
+  width: 14px !important;
+  height: 14px !important;
+}

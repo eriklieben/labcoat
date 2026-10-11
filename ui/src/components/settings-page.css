@@ -1,0 +1,209 @@
+/* <lc-settings-page>. */
+
+@layer app.components {
+  .settings-page .detail-scroll {
+    padding: var(--lc-space-20) var(--lc-space-24) var(--lc-space-28);
+  }
+  .settings-note {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-20);
+    max-width: 760px;
+  }
+  .settings-section-title {
+    margin: 0 0 var(--lc-space-8);
+    color: var(--lc-fg);
+    font-size: var(--lc-text-base);
+    font-weight: 600;
+  }
+  .settings-card {
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-popup-radius);
+    background: var(--lc-bg-page);
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-24);
+    padding: var(--lc-space-14) var(--lc-space-16);
+  }
+  .setting-row + .setting-row {
+    border-top: 1px solid var(--lc-stroke-subtle);
+  }
+  .setting-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .setting-label {
+    color: var(--lc-fg);
+    font-weight: 600;
+  }
+  .setting-desc {
+    margin-top: var(--lc-space-2);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    line-height: 1.5;
+  }
+  .setting-control {
+    flex: 0 0 auto;
+  }
+
+  @media (max-width: 640px) {
+    .setting-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--lc-space-10);
+    }
+  }
+
+  /* <lc-settings-page> additions (base styles: .settings-* / .setting-* in styles.css) */
+  .settings-page .segment-sub {
+    margin-left: var(--lc-space-6);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+    font-weight: 400;
+  }
+  .settings-page .segment:disabled {
+    opacity: var(--lc-disabled-opacity);
+    cursor: not-allowed;
+  }
+  .settings-page .setting-control .segmented {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* "More themes": disclosure + radio grid of swatch cards (APG radio group, see settings-page.ts) */
+  .settings-page .setting-row-more {
+    display: block;
+  }
+  .more-themes .lc-disclosure-btn {
+    margin-left: -4px; /* off-scale: -4px */
+    padding: var(--lc-space-2) var(--lc-space-6) var(--lc-space-2) var(--lc-space-4);
+  }
+  .more-themes-summary {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--lc-space-8);
+  }
+  .more-themes-current {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--lc-space-8);
+    padding: var(--lc-space-12) var(--lc-space-2) var(--lc-space-2);
+  }
+  .theme-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-2);
+    min-width: 0;
+    padding: var(--lc-space-8) var(--lc-space-10) var(--lc-space-10);
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-bg-surface);
+    color: var(--lc-fg);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .theme-card:hover {
+    border-color: var(--lc-stroke-hover);
+    background: var(--lc-bg-hover);
+  }
+  .theme-card:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 2px;
+  }
+  .theme-card.on {
+    border-color: var(--lc-accent);
+    box-shadow: inset 0 0 0 1px var(--lc-accent);
+  }
+  .theme-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lc-space-6);
+  }
+  .theme-card-name {
+    font-weight: 600;
+  }
+  .theme-card-check {
+    display: inline-flex;
+    visibility: hidden;
+    color: var(--lc-accent);
+  }
+  .theme-card.on .theme-card-check {
+    visibility: visible;
+  }
+  .theme-card-flavors {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    line-height: 16px;
+  }
+  /* one strip per mode: the family's page background with text, accent and passed / failed / skipped */
+  .theme-card-strips {
+    display: grid;
+    margin-top: auto;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--lc-space-4);
+    padding-top: var(--lc-space-6);
+  }
+  .theme-card-strip {
+    display: flex;
+    align-items: center;
+    gap: 3px; /* off-scale: 3px */
+    height: 18px;
+    padding: 0 5px; /* off-scale: 5px */
+    border-radius: var(--lc-radius-sm);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-fg) 18%, transparent);
+  }
+  .theme-card-text {
+    flex: 0 1 14px;
+    height: 3px;
+    margin-right: auto;
+    border-radius: var(--lc-radius-xs);
+  }
+  .theme-card-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  @media (forced-colors: active) {
+    .theme-card.on {
+      outline: 2px solid Highlight;
+    }
+  }
+
+  /* Host defaults (Round 5): where a value comes from, locked rows, Reset to defaults */
+  .settings-page .settings-reset {
+    margin-left: auto;
+    flex: none;
+  }
+  .settings-page .setting-origin {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-4);
+    margin-top: var(--lc-space-4);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .settings-page .setting-origin-locked {
+    color: var(--lc-accent);
+    font-weight: 600;
+  }
+  .settings-page .setting-locked .setting-control {
+    cursor: not-allowed;
+  }
+  .settings-page .theme-card:disabled {
+    opacity: var(--lc-disabled-opacity);
+    cursor: not-allowed;
+  }
+}

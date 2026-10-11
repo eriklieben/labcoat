@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!-- A second report of the same run (another test project): hits add up, branch counts take the max. -->
+<coverage line-rate="1" branch-rate="1" version="1.9" timestamp="1791531266" lines-covered="3" lines-valid="3">
+  <sources>
+    <source>$ROOT$</source>
+  </sources>
+  <packages>
+    <package name="Shop.Core" line-rate="1" branch-rate="1" complexity="1">
+      <classes>
+        <class name="Shop.Core.Calc" filename="src/Math/Calc.cs" line-rate="1" branch-rate="1" complexity="1">
+          <methods />
+          <lines>
+            <line number="10" hits="2" branch="False" />
+            <line number="20" hits="4" branch="True" condition-coverage="50% (1/2)" />
+            <line number="31" hits="1" branch="False" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Shop.Api" line-rate="1" branch-rate="1" complexity="1">
+      <classes>
+        <class name="Shop.Api.Startup" filename="$ROOT$/api/Startup.cs" line-rate="1" branch-rate="1" complexity="1">
+          <lines>
+            <line number="1" hits="1" branch="False" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>

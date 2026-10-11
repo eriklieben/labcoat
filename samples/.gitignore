@@ -1,0 +1,2 @@
+# Verify (snapshot tests): received files are the output of a failed run; only the .verified.* files are committed.
+*.received.*

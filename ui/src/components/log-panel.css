@@ -1,0 +1,193 @@
+/* <lc-log-panel> / <lc-log-strip>: the output panel. */
+
+@layer app.components {
+  .log-wrap > .log-panel {
+    flex: 1 1 auto;
+  }
+  .log-panel .console {
+    border: 0;
+  }
+
+  .log-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-12);
+    min-height: 40px;
+    padding: var(--lc-space-4) var(--lc-space-6) var(--lc-space-4) var(--lc-space-12);
+    border-bottom: 1px solid var(--lc-stroke-pane);
+  }
+  .log-title {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-6);
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-md);
+    font-weight: 500;
+  }
+  .log-count {
+    padding: 0 var(--lc-space-6);
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-sans);
+    font-size: var(--lc-text-xs);
+    font-weight: 400;
+    line-height: 16px;
+  }
+  .project-status-strip {
+    display: flex;
+    flex: 1 1 auto;
+    gap: var(--lc-space-6);
+    min-width: 0;
+    overflow: hidden;
+  }
+  .proj-status {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-6);
+    height: 22px;
+    padding: 0 var(--lc-space-8);
+    border: 1px solid var(--lc-stroke-pill);
+    border-radius: var(--lc-radius-pill);
+    font-size: var(--lc-text-sm);
+    white-space: nowrap;
+  }
+  .proj-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--lc-radius-xs);
+  }
+  .proj-state {
+    color: var(--lc-fg-muted);
+  }
+  .ps-building .proj-state,
+  .ps-discovering .proj-state,
+  .ps-running .proj-state {
+    color: var(--lc-accent);
+  }
+  .ps-error {
+    border-color: var(--lc-msg-error-border);
+    background: var(--lc-msg-error-bg);
+  }
+  .ps-error .proj-state {
+    color: var(--lc-status-failed-count);
+  }
+  .log-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-4);
+  }
+  .log-console {
+    flex: 1 1 auto;
+    min-height: 0;
+    border-radius: 0 0 var(--lc-popup-radius) var(--lc-popup-radius);
+  }
+
+  @media (max-width: 1100px) {
+    .project-status-strip {
+      display: none;
+    }
+  }
+  @media (max-width: 900px) {
+    .log-console .console-ts {
+      display: none;
+    }
+  }
+
+  /* Output panel + the one-line status strip shown while it is closed (COVERAGE). */
+
+  .log-console:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: -2px;
+  }
+
+  /* ---- <lc-log-strip> ------------------------------------------------------------------------------ */
+  lc-log-strip {
+    display: block;
+    flex: none;
+    min-width: 0;
+    margin-top: var(--lc-space-8); /* same gap the splitter gives the open panel */
+  }
+  .log-strip-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-8);
+    width: 100%;
+    height: 28px;
+    padding: 0 var(--lc-space-8) 0 var(--lc-space-10);
+    overflow: hidden;
+    border: 1px solid var(--lc-stroke-subtle);
+    border-radius: var(--lc-popup-radius);
+    background: var(--lc-bg-surface);
+    color: var(--lc-fg-secondary);
+    font: inherit;
+    font-size: var(--lc-text-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+  .log-strip-btn:hover {
+    border-color: var(--lc-stroke-hover);
+    background: var(--lc-bg-hover);
+  }
+  .log-strip-btn > .icon {
+    flex: none;
+    color: var(--lc-fg-muted);
+  }
+  .log-strip-spinner {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-width: 1.5px;
+  }
+  .log-strip-label {
+    flex: none;
+    color: var(--lc-fg);
+    font-weight: 600;
+  }
+  .log-strip-ts {
+    flex: none;
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+  }
+  .log-strip-src {
+    flex: none;
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+  }
+  .log-strip-msg {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--lc-fg-secondary);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .log-strip-btn.lvl-warn .log-strip-msg {
+    color: var(--lc-fg);
+  }
+  .log-strip-btn.lvl-error .log-strip-msg {
+    color: var(--lc-status-failed-text);
+  }
+  .log-strip-errors {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    padding: 0 var(--lc-space-6);
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-status-failed);
+    color: var(--lc-on-status);
+    font-size: var(--lc-text-xs);
+    font-weight: 600;
+    line-height: 16px;
+  }
+  .log-strip-chevron {
+    flex: none;
+    color: var(--lc-fg-muted);
+  }
+}

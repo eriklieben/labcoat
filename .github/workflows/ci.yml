@@ -1,0 +1,359 @@
+name: CI
+
+on:
+  push:
+    # main releases; next and beta are optional prerelease branches (see release.config.mjs).
+    branches: [main, next, beta]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to a pull request cancels its older run. Pushes to a branch get a group per run and are never cancelled:
+  # every green push to a release branch must get to its release job at the end (which starts release.yml; releases are
+  # serialized there, and a run for a commit that is no longer the branch head releases nothing).
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NODE_VERSION: 22
+  # Labcoat ignores a user settings file (~/.labcoat.json) on the runners: hermetic smoke runs.
+  LABCOAT_NO_USER_CONFIG: 1
+
+# Runners: ubuntu-24.04 instead of ubuntu-latest in every workflow, because ubuntu-latest moves to Ubuntu 26.04 on
+# 2026-10-19 (a new image under the same label: other preinstalled tools, Playwright system dependencies, etc.).
+# Renovate leaves runner labels alone (.github/renovate.json5); move to the next LTS image by hand, in one PR for all
+# workflows (docs/releasing.md, "Runner images"). windows-latest and macos-latest stay: the matrix is there to catch
+# platform differences early.
+# Actions are pinned to a full commit SHA with the version in a comment; Renovate updates both.
+
+jobs:
+  # ------------------------------------------------------------------------------------------------ web UI
+  ui:
+    name: UI (typecheck, checks, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Docs links
+        working-directory: .
+        run: node eng/check-links.mjs
+
+      - name: Release script tests
+        # eng/release-commit.mjs: the API-made (verified) release commit, with a mocked GitHub
+        working-directory: .
+        run: node --test eng/release-commit.test.mjs
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests (Vitest, with coverage thresholds)
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-coverage
+          path: ui/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Reactive core tests (browser)
+        run: npm run check:reactive
+
+      - name: Accessibility (axe-core)
+        run: npm run check:a11y
+
+      - name: Keyboard checks
+        run: npm run check:keyboard
+
+      - name: Build (into src/Labcoat/wwwroot)
+        run: npm run build
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-wwwroot
+          path: src/Labcoat/wwwroot
+          if-no-files-found: error
+          retention-days: 7
+
+  # ------------------------------------------------------------------------------------------------ .NET
+  build:
+    name: Build and test (${{ matrix.os }})
+    needs: ui
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      # Pre-release version for CI packages, e.g. 1.0.0-ci.42 (MSBuild reads environment variables as properties).
+      VersionSuffix: ci.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ui-wwwroot
+          path: src/Labcoat/wwwroot
+
+      - name: Restore
+        run: dotnet restore Labcoat.slnx
+
+      - name: Build
+        run: dotnet build Labcoat.slnx -c Release --no-restore -warnaserror
+
+      - name: Test
+        if: matrix.os != 'ubuntu-24.04'
+        run: dotnet test --solution Labcoat.slnx -c Release --no-build
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Test with code coverage
+        # Runs every test project with coverage (tests/CodeCoverage.xml), merges the Cobertura reports, writes the job
+        # summary and fails when a shipped assembly is below 85% line coverage (see CONTRIBUTING.md, "Code coverage").
+        if: matrix.os == 'ubuntu-24.04'
+        run: node eng/coverage.mjs --configuration Release --no-build --files below
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.os == 'ubuntu-24.04' && always()
+        with:
+          name: coverage
+          path: artifacts/coverage
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Build samples
+        # The samples contain deliberate failures, so they are built here and run by the smoke job (not `dotnet test`).
+        run: dotnet build samples/Samples.slnx -c Release
+
+      - name: Pack
+        run: dotnet pack Labcoat.slnx -c Release --no-build -o artifacts
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          name: nupkgs
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------------------------------------ end to end
+  smoke:
+    name: Smoke test (${{ matrix.os }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nupkgs
+          path: artifacts
+
+      - name: Install the Labcoat tool from the local feed
+        shell: bash
+        run: |
+          pkg=$(ls artifacts/Labcoat.[0-9]*.nupkg)
+          version=$(basename "$pkg" .nupkg); version=${version#Labcoat.}
+          echo "Installing Labcoat $version"
+          dotnet tool install Labcoat --tool-path .tools --add-source artifacts --version "$version"
+          .tools/labcoat --version
+
+      - name: Run the samples through Labcoat
+        # samples/Samples.slnx: MSTest (17 tests: 7 failing, 2 of them Verify snapshots, 1 skipped) + NUnit, xUnit v3 and TUnit (6 tests each:
+        # 1 failing, 1 skipped). Labcoat builds, discovers and runs them; the counts must match exactly.
+        shell: bash
+        run: >-
+          node eng/smoke-test.mjs
+          --tool ${{ runner.os == 'Windows' && '.tools/labcoat.exe' || '.tools/labcoat' }}
+          --port 4500 --total 35 --failed 10 --skipped 4
+          -- samples/Samples.slnx
+
+  # ------------------------------------------------------------------------------------------------ code analysis
+  sonar:
+    name: SonarQube Cloud
+    # Off until the repository variable SONAR_ORGANIZATION is set (and the secret SONAR_TOKEN): docs/releasing.md, "Code
+    # analysis (Snyk / SonarQube Cloud)". Runs for pushes to main and for pull requests from branches of this repository;
+    # fork pull requests get no secrets, so it's skipped for them (CodeQL and the other jobs still run).
+    # Reuses the coverage of the ui job (lcov) and the ubuntu build leg (Cobertura): no second test run. The build here
+    # is the one the scanner observes (begin / build / end), without -warnaserror: Sonar's analyzer reports issues as
+    # warnings, and the warnings-as-errors gate stays in the build job. Not needed by the release job: an outage of
+    # SonarQube Cloud never holds up a release.
+    needs: [ui, build]
+    if: >-
+      vars.SONAR_ORGANIZATION != '' &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/main') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0  # blame information: new code, issue assignment
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage
+          path: artifacts/coverage
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ui-coverage
+          path: ui/coverage
+
+      - name: Coverage paths
+        # Vitest writes paths relative to ui/ (SF:src/...), SonarQube Cloud resolves them against the repository root.
+        # The raw Cobertura reports of eng/coverage.mjs have absolute paths of the same checkout directory.
+        run: |
+          sed -i 's#^SF:#SF:ui/#' ui/coverage/lcov.info
+          ls artifacts/coverage/raw/*.cobertura.xml
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Install the scanner (.config/dotnet-tools.json)
+        run: dotnet tool restore
+
+      - name: Begin analysis
+        # SonarScanner for .NET doesn't read sonar-project.properties: the settings are the /d: arguments below
+        # (docs/releasing.md, "Code analysis", explains each choice). It downloads a JRE itself (no setup-java).
+        # Multi-language analysis (sonar.scanner.scanAll, on by default) adds the TypeScript, JavaScript and CSS files
+        # next to the C# of the MSBuild projects. The scanner classifies tests/** and ui/test/** as test code: analysed
+        # with the test rules, not counted as lines of code. sonar.exclusions only applies to main code; the test
+        # patterns in it are a guard in case a test file is ever classified as main code.
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'eriklieben_labcoat' }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_ORGANIZATION is set but the secret SONAR_TOKEN is missing (docs/releasing.md, \"Code analysis (Snyk / SonarQube Cloud)\")."
+            exit 1
+          fi
+          args=(
+            /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION"
+            # Not shipped: samples, benchmarks, build output, generated code, the mock backend (?mock), the design
+            # system gallery, build and release scripts, tool configuration.
+            /d:sonar.exclusions="samples/**,benchmarks/**,artifacts/**,**/wwwroot/**,**/bin/**,**/obj/**,**/*.g.cs,**/node_modules/**,ui/coverage/**,ui/test/**,ui/design-system/test/**,ui/scripts/**,ui/bench/**,**/*.test.ts,**/*.bench.ts,ui/src/mock/**,ui/design-system/gallery/**,eng/**,*.mjs,ui/*.config.ts"
+            /d:sonar.coverage.exclusions="eng/**,*.mjs,*.js,ui/*.ts,ui/*.mjs,ui/design-system/*.ts,ui/design-system/gallery/**,ui/src/mock/**,ui/src/main.ts,**/*.d.ts,**/*.css,**/*.html"
+            # Theme data: the families repeat the same token blocks on purpose.
+            /d:sonar.cpd.exclusions="ui/design-system/src/themes/families.ts"
+            /d:sonar.cs.cobertura.reportsPaths="artifacts/coverage/raw/*.cobertura.xml"
+            /d:sonar.javascript.lcov.reportPaths="ui/coverage/lcov.info"
+            # Compiler and analyzer warnings (CA*, MSTEST*, SYSLIB*) are not imported: the build job gates them with
+            # -warnaserror, and the info-level ones would show up twice (as external issues next to Sonar's own rules).
+            /d:sonar.cs.roslyn.ignoreIssues=true
+            # Issue ignores: conventions and false positives only, each scoped as narrowly as the scanner allows (the
+            # reasons are in docs/releasing.md, "Code analysis").
+            /d:sonar.issue.ignore.multicriteria="e1,e2,e3,e4,e5,e6,e7"
+            # S1444 "public static should be readonly": static defaults / hostClass / observedAttributes on custom
+            # elements, which subclasses override.
+            /d:sonar.issue.ignore.multicriteria.e1.ruleKey="typescript:S1444"
+            /d:sonar.issue.ignore.multicriteria.e1.resourceKey="ui/**/components/**"
+            # S2245 Math.random: confetti animation and reconnect backoff jitter, nothing security-relevant.
+            /d:sonar.issue.ignore.multicriteria.e2.ruleKey="typescript:S2245"
+            /d:sonar.issue.ignore.multicriteria.e2.resourceKey="ui/src/confetti.ts"
+            /d:sonar.issue.ignore.multicriteria.e3.ruleKey="typescript:S2245"
+            /d:sonar.issue.ignore.multicriteria.e3.resourceKey="ui/src/transport.ts"
+            # S4782 "redundant | undefined": the undefined comes from shared aliases (Child, ClassValue, AttrValue,
+            # MaybeReactive<T | undefined>), not from the property declarations.
+            /d:sonar.issue.ignore.multicriteria.e4.ruleKey="typescript:S4782"
+            /d:sonar.issue.ignore.multicriteria.e4.resourceKey="ui/design-system/src/**"
+            # S1874 deprecated execCommand("copy"): the fallback when navigator.clipboard is unavailable (insecure context).
+            /d:sonar.issue.ignore.multicriteria.e5.ruleKey="typescript:S1874"
+            /d:sonar.issue.ignore.multicriteria.e5.resourceKey="ui/design-system/src/components/copy-button.ts"
+            # S7758 codePointAt: the project accent hash must keep its values (charCodeAt), or colours would change.
+            /d:sonar.issue.ignore.multicriteria.e6.ruleKey="typescript:S7758"
+            /d:sonar.issue.ignore.multicriteria.e6.resourceKey="ui/src/util.ts"
+            # S5906 in a test that compares identity without .not.toBe on purpose (its failure message deep-compares trees).
+            /d:sonar.issue.ignore.multicriteria.e7.ruleKey="typescript:S5906"
+            /d:sonar.issue.ignore.multicriteria.e7.resourceKey="ui/test/app/tree-filter.test.ts"
+          )
+          dotnet dotnet-sonarscanner begin "${args[@]}" /d:sonar.token="$SONAR_TOKEN"
+
+      - name: Build
+        run: dotnet build Labcoat.slnx -c Release
+
+      - name: End analysis (upload)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
+  # ------------------------------------------------------------------------------------------------ release
+  release:
+    name: Release
+    # Only after everything above passed, for pushes to a release branch: starts the Release workflow (release.yml) for
+    # this commit, which runs semantic-release; that decides from the commit messages whether there is anything to
+    # release (see release.config.mjs and docs/releasing.md).
+    # Not `uses: ./.github/workflows/release.yml`: NuGet trusted publishing fails inside a reusable workflow
+    # (https://github.com/NuGet/login/issues/6), and a top-level run of release.yml matches the nuget.org policy. A
+    # GITHUB_TOKEN may start workflow_dispatch runs (unlike pushes and most other events it causes).
+    needs: [ui, build, smoke]
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/next' || github.ref == 'refs/heads/beta')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write   # start the Release workflow (workflow_dispatch)
+      contents: read   # gh reads release.yml to check its inputs
+    steps:
+      - name: Start the Release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow run release.yml --ref "$GITHUB_REF_NAME" -f dry_run=false -f commit="$GITHUB_SHA"
+          url="https://github.com/$GH_REPO/actions/workflows/release.yml?query=branch%3A$GITHUB_REF_NAME"
+          echo "Started the Release workflow for $GITHUB_SHA on $GITHUB_REF_NAME: $url"
+          echo "Started the [Release workflow]($url) for \`$GITHUB_SHA\` on \`$GITHUB_REF_NAME\`." >> "$GITHUB_STEP_SUMMARY"

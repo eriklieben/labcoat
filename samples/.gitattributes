@@ -1,0 +1,4 @@
+# Verify snapshots: compare byte for byte on every OS (no CRLF conversion on checkout).
+*.verified.txt text eol=lf working-tree-encoding=UTF-8
+*.verified.json text eol=lf working-tree-encoding=UTF-8
+*.verified.png binary

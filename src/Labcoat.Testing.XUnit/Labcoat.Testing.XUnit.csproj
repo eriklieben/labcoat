@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Loaded into the test application: net8.0 like Labcoat.Testing (xUnit v3 supports net8.0 too). -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Same namespace as Labcoat.Testing: `using Labcoat.Testing;` covers the core and the adapter. -->
+    <RootNamespace>Labcoat.Testing</RootNamespace>
+    <AssemblyName>Labcoat.Testing.XUnit</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Shipped code, not tests: the SonarQube scanner classifies a project that references a test framework as a test
+         project (no main-code rules, coverage or lines of code) unless told otherwise. -->
+    <SonarQubeTestProject>false</SonarQubeTestProject>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.Testing.XUnit</PackageId>
+    <Description>xUnit v3 adapter for Labcoat.Testing: per-test OpenTelemetry traces for xUnit v3 + Aspire.Hosting.Testing integration tests on Microsoft.Testing.Platform, so Labcoat can link each test to its trace and logs in the Aspire dashboard. Registers itself: no code needed.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>aspire;testing;xunit;xunit-v3;opentelemetry;tracing;integration-testing;microsoft-testing-platform;labcoat</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Labcoat.Testing\Labcoat.Testing.csproj" />
+    <!-- The extensibility API only (BeforeAfterTestAttribute, TestContext): no runner, no assertion library. -->
+    <PackageReference Include="xunit.v3.extensibility.core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.Testing.XUnit.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- build/ (not buildTransitive/): only the project that references the package gets the assembly attribute. -->
+    <None Include="build\Labcoat.Testing.XUnit.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
+</Project>

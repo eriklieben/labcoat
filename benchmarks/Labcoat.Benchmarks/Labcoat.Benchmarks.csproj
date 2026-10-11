@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Micro-benchmarks of the host's hot paths (BenchmarkDotNet): benchmarks/README.md, CONTRIBUTING.md "Benchmarks".
+    Not a test project (dotnet test skips it), not packed, not measured by eng/coverage.mjs (only tests/ projects run).
+    Run it in Release with dotnet run (see the README for the options: quick, filter, compare).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The same GC as the Labcoat host (src/Labcoat/Labcoat.csproj): workstation, concurrent. BenchmarkDotNet's
+         generated runner copies these settings, so allocations and pauses are measured like in the tool. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <!-- BenchmarkDotNet needs symbols and an optimized build; it refuses to run a Debug build of the benchmarks. -->
+    <DebugType>portable</DebugType>
+    <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <!-- Labcoat is an ASP.NET Core app; its types (RequestGuard: HttpContext) load against the shared framework. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\src\Labcoat\Labcoat.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,324 @@
+name: Release
+run-name: Release${{ inputs.dry_run && ' (dry run)' || '' }}${{ inputs.commit != '' && format(' of {0}', inputs.commit) || '' }}
+
+# semantic-release: works out the next version from the commit messages since the last tag (Angular format, see
+# CONTRIBUTING.md), then updates CHANGELOG.md, <VersionPrefix> and the package validation baseline, packs and pushes the
+# eight NuGet packages (each with its SBOM), tags v<version> and creates the GitHub release; then attests the build
+# provenance of the released packages and their SBOMs, and each package's SBOM (job sbom-attestation). Configuration:
+# release.config.mjs. Setup and recovery: docs/releasing.md.
+#
+# Runs only as a top-level workflow_dispatch run, never as a reusable workflow:
+# - started by ci.yml (job `release`, `gh workflow run`) after every CI job passed on a push to main, next or beta, with
+#   dry_run=false and commit=<the CI run's commit>. If the branch has moved on by then, this run releases nothing: the
+#   CI run of the newer commit starts a release of its own, which includes this commit.
+# - by hand (Actions > Release > Run workflow): a dry run by default (prints the next version and its notes, publishes
+#   nothing). A real manual run requires a green CI run for the branch head (e.g. to retry a failed release).
+#
+# Why not `workflow_call` from ci.yml: NuGet/login in a reusable workflow fails with 401 "No matching trust policy"
+# (https://github.com/NuGet/login/issues/6). A GITHUB_TOKEN may start workflow_dispatch runs (with repository_dispatch
+# the only events it can trigger), so ci.yml starts this workflow instead: a top-level run of `release.yml`, the
+# workflow file the nuget.org policy names.
+#
+# NuGet credentials, first match wins:
+# - trusted publishing (recommended): repository variable NUGET_USER = the nuget.org USERNAME of the account that created
+#   the trusted publishing policy (`erik.lieben` here; not the package owner `LabCoat`, not a display name or e-mail),
+#   and that policy on nuget.org: repository owner eriklieben, repository labcoat, workflow file `release.yml`,
+#   environment `release`. NuGet/login exchanges the job's OIDC token for an API key valid for one hour. A wrong user
+#   fails with "Token exchange failed (401): No matching trust policy owned by user '<NUGET_USER>' was found."
+#   (docs/releasing.md, "Troubleshooting trusted publishing").
+# - repository or environment secret NUGET_API_KEY: a nuget.org API key that can push the Labcoat* packages.
+#
+# Actions are pinned to a commit SHA (the version in the comment); Renovate updates both (.github/renovate.json5).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run (show the next version and its release notes, publish nothing)
+        type: boolean
+        default: true
+      commit:
+        description: "Set by CI: release only while the branch is still at this commit (leave empty by hand)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  check:
+    name: Check the commit
+    # ubuntu-24.04, not ubuntu-latest: see the comment in ci.yml.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read          # look up the CI run of the commit
+    outputs:
+      release: ${{ steps.head.outputs.release }}
+    steps:
+      - name: Still the branch head
+        id: head
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          # GITHUB_SHA is the head of the branch when this run was started.
+          if [ -n "$COMMIT" ] && [ "$COMMIT" != "$GITHUB_SHA" ]; then
+            msg="$GITHUB_REF_NAME has moved on from $COMMIT to $GITHUB_SHA: nothing to release here, the CI run of the newer commit starts the release."
+            echo "::notice::$msg"
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require a green CI run for this commit
+        if: steps.head.outputs.release == 'true' && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A CI run counts when every job except its own Release job passed. That Release job (the one that started
+          # this run) is still running, or it failed (a manual retry), so it is left out; a run with other jobs still
+          # pending doesn't count. Completed and in-progress runs are both listed.
+          ok=0
+          for id in $(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}" --jq '.workflow_runs[].id'); do
+            bad=$(gh api "repos/${{ github.repository }}/actions/runs/$id/jobs?per_page=100" \
+              --jq '[.jobs[] | select((.name | startswith("Release")) | not) | select(.conclusion != "success" and .conclusion != "skipped")] | length')
+            if [ "$bad" = "0" ]; then ok=1; break; fi
+          done
+          if [ "$ok" = "0" ]; then
+            echo "::error::No green CI run for ${{ github.sha }}: push it and let CI pass (CI then releases by itself)."
+            exit 1
+          fi
+
+  release:
+    name: semantic-release${{ inputs.dry_run && ' (dry run)' || '' }}
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Restrict this environment to the main, next and beta branches (Settings > Environments); the trusted publishing
+    # policy requires it.
+    environment: release
+    # One release at a time per branch; a queued run never cancels a running one.
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write        # GitHub release and its assets; without the App also the release commit and the tag
+      issues: write          # comments on released issues, the "release is failing" issue
+      pull-requests: write   # comments on released pull requests
+      id-token: write        # NuGet trusted publishing (OIDC), build provenance attestations (Sigstore)
+      attestations: write    # build provenance attestations of the released packages
+    outputs:
+      # Empty when nothing was released (or in a dry run): the sbom-attestation job then doesn't run.
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The whole history and all tags: semantic-release reads the commits since the last v* tag.
+          fetch-depth: 0
+          # semantic-release pushes the tag (and, without the App, the release commit) with its own credentials (below).
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ui/package-lock.json
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Install semantic-release
+        # --ignore-scripts: no install scripts in a job with publishing credentials (and no local git hooks).
+        run: npm ci --ignore-scripts
+
+      - name: GitHub App key present
+        # RELEASE_APP_ID set without the key would otherwise fall through to a less clear error (or, if the token step
+        # were skipped, to an unverified release commit nobody asked for): stop with a clear message instead.
+        if: vars.RELEASE_APP_ID != ''
+        env:
+          HAS_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Variable RELEASE_APP_ID is set but the secret RELEASE_APP_PRIVATE_KEY is missing from the release environment. Add it (docs/releasing.md, \"Verified release commits (GitHub App)\") or delete the variable to release with GITHUB_TOKEN (unverified release commit)."
+            exit 1
+          fi
+
+      - name: GitHub App token
+        # Optional (docs/releasing.md, "Verified release commits (GitHub App)"): with repository variable RELEASE_APP_ID
+        # and environment secret RELEASE_APP_PRIVATE_KEY of the "labcoat-release" GitHub App, the release commit is made
+        # through the GitHub API with this token (eng/release-commit.mjs): GitHub signs it ("Verified", author
+        # labcoat-release[bot]), and the App is the bypass actor of the branch ruleset on main. The token is limited to
+        # this repository and Contents: write (the commit, the tag and its git note).
+        # Without the variable: @semantic-release/git pushes the commit with GITHUB_TOKEN ("Unverified").
+        # client-id (v3; app-id is deprecated) accepts the numeric App ID as well as the Client ID.
+        id: app-token
+        if: vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: NuGet login (trusted publishing)
+        id: nuget-login
+        if: ${{ !inputs.dry_run && vars.NUGET_USER != '' }}
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          # The nuget.org username of the account that created the trusted publishing policy (see the top of this file).
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Trusted publishing claims
+        # Only when the login failed: the claims nuget.org matches a policy against (repository, workflow file,
+        # environment), to compare with the policy. Never the token itself: only these claims from its payload, which
+        # are not secret, and the user NuGet/login sent (it must be the username of the policy's creator).
+        if: ${{ failure() && steps.nuget-login.outcome == 'failure' }}
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          echo "NuGet/login user: $NUGET_USER"
+          token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://www.nuget.org" | jq -r .value)
+          payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
+          unset token
+          while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
+          printf '%s' "$payload" | base64 -d | jq '{repository, repository_owner, workflow_ref, job_workflow_ref, environment, ref, event_name}'
+          echo "::error::NuGet trusted publishing login failed: compare these claims and the user with the policy on nuget.org (docs/releasing.md, \"Troubleshooting trusted publishing\")."
+
+      - name: semantic-release
+        env:
+          # The GitHub release, its assets, the comments on released issues and PRs and the "release is failing" issue:
+          # always the job's GITHUB_TOKEN (permissions above), so the App needs no Issues / Pull requests permission.
+          GITHUB_TOKEN: ${{ github.token }}
+          # Empty without the App: then the git plugin commits and pushes with GITHUB_TOKEN, as before.
+          RELEASE_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY || secrets.NUGET_API_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -n "$RELEASE_APP_TOKEN" ]; then
+            # The release commit through the GitHub API as the App (release.config.mjs), and semantic-release's own git
+            # pushes (the tag v<version> and its git note) with the App token too: GIT_CREDENTIALS comes before
+            # GITHUB_TOKEN in semantic-release's lookup, so a ruleset that only the App may bypass also covers tags.
+            export LABCOAT_RELEASE_COMMIT=api
+            export GIT_CREDENTIALS="x-access-token:$RELEASE_APP_TOKEN"
+          else
+            unset RELEASE_APP_TOKEN
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            npx --no -- semantic-release --dry-run
+          else
+            npx --no -- semantic-release
+          fi
+
+      - name: Release tag
+        id: tag
+        if: ${{ !cancelled() && !inputs.dry_run }}
+        run: |
+          tag=$(git tag --points-at HEAD --list 'v*' | head -n 1)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        # Signed SLSA build provenance for the released packages (exactly the files semantic-release packed, attached to
+        # the GitHub release and pushed) and their SBOMs (release assets too), stored in the repository's attestations:
+        # `gh attestation verify <file> --repo eriklieben/labcoat` (docs/releasing.md, "Verifying packages"). It runs
+        # after semantic-release because packing and publishing happen inside it; the attestation is bound to the file
+        # digests, so the order doesn't matter.
+        # Also runs when the NuGet push failed after the tag (the packages are released on GitHub then).
+        # Artifact attestations need a public repository (or GitHub Enterprise Cloud): skipped while the repo is private.
+        if: ${{ !cancelled() && !inputs.dry_run && steps.tag.outputs.tag != '' && !github.event.repository.private }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+            artifacts/*.spdx.json
+            artifacts/*.cdx.json
+
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          tag=$(git tag --points-at HEAD --list 'v*' | head -n 1)
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run: the semantic-release log shows the next version and its release notes." >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$tag" ]; then
+            echo "Released **$tag**: https://github.com/${{ github.repository }}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Nothing released: no feat, fix, perf or breaking-change commit since the last tag (or see the log)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # The released packages, also when the NuGet push failed: they can be pushed by hand (docs/releasing.md). With
+        # their SBOMs, for the sbom-attestation job.
+        if: ${{ !cancelled() && !inputs.dry_run }}
+        with:
+          name: release-nupkgs
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+            artifacts/*.spdx.json
+            artifacts/*.cdx.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  sbom-attestation:
+    # Signed SBOM attestations: each released .nupkg with the SPDX 2.2 SBOM it carries (also a release asset,
+    # <id>.<version>.spdx.json), and the three packages that bundle the UI with the UI's CycloneDX SBOM
+    # (labcoat-ui.<version>.cdx.json). `gh attestation verify <file> --repo eriklieben/labcoat --predicate-type
+    # https://spdx.dev/Document/v2.2` (docs/releasing.md, "Verifying packages"). actions/attest takes one SBOM per call,
+    # hence one job per package. actions/attest-sbom is deprecated in favour of actions/attest with `sbom-path`.
+    # Same conditions as "Attest build provenance": a release tag was made (also when the NuGet push failed after it),
+    # and the repository is public (artifact attestations need that, or GitHub Enterprise Cloud).
+    name: SBOM attestation (${{ matrix.package }})
+    needs: release
+    if: ${{ !cancelled() && needs.release.outputs.tag != '' && !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - Labcoat
+          - Labcoat.Aspire.Hosting
+          - Labcoat.Testing
+          - Labcoat.Testing.MSTest
+          - Labcoat.Testing.NUnit
+          - Labcoat.Testing.TUnit
+          - Labcoat.Testing.XUnit
+          - Labcoat.TestingPlatform
+    permissions:
+      id-token: write        # Sigstore signing (OIDC)
+      attestations: write    # SBOM attestations of the released packages
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-nupkgs
+          path: artifacts
+
+      - name: Attest the package SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/${{ matrix.package }}.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/${{ matrix.package }}.${{ env.VERSION }}.spdx.json
+
+      - name: Attest the UI SBOM
+        # Once, for the three packages that bundle the UI (wwwroot and sbom/ui.cdx.json).
+        if: matrix.package == 'Labcoat'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/Labcoat.${{ env.VERSION }}.nupkg
+            artifacts/Labcoat.Aspire.Hosting.${{ env.VERSION }}.nupkg
+            artifacts/Labcoat.TestingPlatform.${{ env.VERSION }}.nupkg
+          sbom-path: artifacts/labcoat-ui.${{ env.VERSION }}.cdx.json

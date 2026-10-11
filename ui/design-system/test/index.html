@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Reactive core tests</title></head>
+  <body>
+    <pre id="out">running…</pre>
+    <script type="module">
+      import { runAll } from "./reactive.test.ts";
+      const results = await runAll();
+      window.__results = results;
+      document.getElementById("out").textContent = results.map((r) => `${r.ok ? "PASS" : "FAIL"} ${r.name}${r.error ? "\n  " + r.error : ""}`).join("\n");
+    </script>
+  </body>
+</html>

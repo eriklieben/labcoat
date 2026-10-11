@@ -1,0 +1,97 @@
+/* <lc-live-console> (live-console.ts): live console output of a running test. --lc-* tokens only. */
+
+@layer app.components {
+  .live-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .live-title h3 {
+    margin: 0;
+    color: var(--lc-fg);
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-base);
+    font-weight: 500;
+  }
+
+  /* subtle "Live" indicator: a small dot (pulses unless motion is reduced / off, see tokens/motion.css) + text */
+  .live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+    letter-spacing: 0.02em;
+  }
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--lc-status-running);
+  }
+
+  .live-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .live-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--lc-text-sm);
+    color: var(--lc-fg-muted);
+  }
+  .live-toggle.on {
+    color: var(--lc-link);
+  }
+
+  .live-body {
+    position: relative;
+  }
+  /* the console scrolls itself (auto-scroll sticks to its bottom) */
+  .live-scroll {
+    max-height: min(60vh, 520px);
+    overscroll-behavior: contain;
+  }
+  .live-jump {
+    position: absolute;
+    right: 16px;
+    bottom: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 10px;
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-bg-popup);
+    color: var(--lc-fg);
+    font-size: var(--lc-text-sm);
+    box-shadow: var(--lc-shadow-popup);
+    cursor: pointer;
+  }
+  .live-jump:hover {
+    background: var(--lc-bg-hover);
+  }
+  .live-jump:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* line tags: host (process output, by timing) and shared (several tests running) are de-emphasized */
+  .console-stream.live-tag-host,
+  .console-stream.live-tag-shared {
+    color: var(--lc-console-muted);
+  }
+  .console-line.live-shared .console-text {
+    color: var(--lc-console-muted);
+  }
+  .console-line.live-omitted .console-text {
+    color: var(--lc-console-muted);
+    font-style: italic;
+  }
+
+  .live-note {
+    margin: 0 0 6px;
+  }
+}

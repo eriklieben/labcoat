@@ -1,0 +1,38 @@
+/* Theme switch fade (theme.ts). Only while a theme change runs: html.theme-vt (View Transitions) or
+   html.theme-transitioning (fallback). No colors here: the themes' --lc-* tokens do the rest. */
+
+@layer app.utilities {
+  html.theme-vt::view-transition-old(root),
+  html.theme-vt::view-transition-new(root) {
+    animation-duration: var(--lc-motion-base);
+    animation-timing-function: var(--lc-ease-decelerate);
+  }
+  html.theme-vt::view-transition-group(root) {
+    animation-duration: var(--lc-motion-base);
+  }
+
+  html.theme-transitioning,
+  html.theme-transitioning *:not(canvas),
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition:
+      background-color var(--lc-motion-base) var(--lc-ease-decelerate),
+      color var(--lc-motion-base) var(--lc-ease-decelerate),
+      border-color var(--lc-motion-base) var(--lc-ease-decelerate),
+      fill var(--lc-motion-base) var(--lc-ease-decelerate),
+      stroke var(--lc-motion-base) var(--lc-ease-decelerate) !important;
+    transition-delay: 0s !important;
+  }
+
+  /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */
+  html[data-motion="reduced"].theme-vt::view-transition-old(root),
+  html[data-motion="reduced"].theme-vt::view-transition-new(root) {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html:not([data-motion]).theme-vt::view-transition-old(root),
+    html:not([data-motion]).theme-vt::view-transition-new(root) {
+      animation: none;
+    }
+  }
+}

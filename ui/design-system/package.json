@@ -1,0 +1,38 @@
+{
+  "name": "@eriklieben/labcoat-design-system",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Labcoat design system: a tiny reactive core (alien-signals' graph algorithm with our own non-re-entrant scheduler + typed h() DOM builder + custom element base), Aspire-derived design tokens and reusable lc-* web components. Consumed as TypeScript source.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eriklieben/labcoat",
+    "directory": "ui/design-system"
+  },
+  "type": "module",
+  "scripts": {
+    "gallery": "vite --config gallery/vite.config.ts",
+    "gallery:build": "vite build --config gallery/vite.config.ts"
+  },
+  "sideEffects": [
+    "*.css",
+    "./src/components/*.ts",
+    "./src/index.ts"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./components": "./src/components/index.ts",
+    "./styles.css": "./src/styles.css",
+    "./themes": "./src/themes/families.ts",
+    "./tokens/*": "./src/tokens/*",
+    "./assets/*": "./src/assets/*"
+  },
+  "dependencies": {
+    "@fluentui/svg-icons": "^1.1.343",
+    "alien-signals": "3.2.1"
+  },
+  "devDependencies": {
+    "axe-core": "^4.14.0"
+  }
+}

@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Facts the labcoat launcher needs at run time, recorded in the test app's runtimeconfig.json (AppContext data):
+    - which project to open (Labcoat builds and runs it like any other test project);
+    - where the runner bundled in this package lives (tools/labcoat/Labcoat.dll), so nothing is copied to bin/.
+    LabcoatPath can be overridden (MSBuild property, or LABCOAT_PATH at run time) to use a locally built runner.
+  -->
+  <PropertyGroup>
+    <LabcoatPath Condition="'$(LabcoatPath)' == ''">$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', 'tools', 'labcoat', 'Labcoat.dll'))</LabcoatPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="Labcoat.TestingPlatform.ProjectPath" Value="$(MSBuildProjectFullPath)" />
+    <RuntimeHostConfigurationOption Include="Labcoat.TestingPlatform.LabcoatPath" Value="$(LabcoatPath)" />
+  </ItemGroup>
+</Project>

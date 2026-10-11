@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-theme-family="aspire" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Labcoat Design System</title>
+    <!-- cascade layer order, first in the document: a lazily loaded CSS chunk can be linked before the main bundle, and
+         the first appearance of a layer name fixes its position (same list as design-system/src/styles.css) -->
+    <style>
+      @layer lc.reset, lc.tokens, lc.themes, lc.components, lc.motion, app.base, app.shell, app.components, app.utilities;
+    </style>
+    <script>
+      // apply the saved / requested theme before first paint
+      try {
+        const q = new URLSearchParams(location.search).get("theme");
+        const [f, m] = (q || localStorage.getItem("lc-gallery-theme") || "").split("-");
+        if (f) document.documentElement.dataset.themeFamily = f;
+        if (m) document.documentElement.dataset.theme = m;
+        else if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "dark";
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

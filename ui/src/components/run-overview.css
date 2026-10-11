@@ -1,0 +1,50 @@
+/* <lc-run-overview>: the run summary shown with nothing selected. */
+
+@layer app.components {
+  .dist-bar {
+    display: flex;
+    height: 6px;
+    margin-bottom: var(--lc-space-20);
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--lc-bg-subtle);
+    position: relative;
+  }
+
+  /* <lc-run-overview> (display: contents; inside section.detail-pane) */
+  .run-overview .overview-run {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .overview-h {
+    margin: 0;
+    color: var(--lc-fg);
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-base);
+    font-weight: 500;
+  }
+  .overview-section.tone-new .overview-h::after {
+    content: "failing now, passed in the previous full run";
+    margin-left: var(--lc-space-8);
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-sans);
+    font-size: var(--lc-text-sm);
+    font-weight: 400;
+  }
+  .failure-item.is-next {
+    box-shadow: inset 3px 0 0 var(--lc-accent);
+    background: color-mix(in srgb, var(--lc-accent) 7%, transparent);
+  }
+  .next-hint {
+    flex: none;
+    align-self: center;
+  }
+  .overview-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lc-space-4);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+}

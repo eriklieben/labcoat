@@ -1,0 +1,10 @@
+<Project>
+  <!-- Self-registers the extension in the generated Microsoft.Testing.Platform entry point
+       (SelfRegisteredExtensions.AddSelfRegisteredExtensions -> Labcoat.TestingPlatform.TestingPlatformBuilderHook.AddExtensions). -->
+  <ItemGroup>
+    <TestingPlatformBuilderHook Include="6D1A3E0B-3C59-4C8E-9B7C-1F2A3B4C5D6E">
+      <DisplayName>Labcoat</DisplayName>
+      <TypeFullName>Labcoat.TestingPlatform.TestingPlatformBuilderHook</TypeFullName>
+    </TestingPlatformBuilderHook>
+  </ItemGroup>
+</Project>

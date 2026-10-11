@@ -1,0 +1,480 @@
+/* <lc-code-view>: source view (line numbers, coverage / range / failure tints, annotations) + highlight.js token colors. */
+
+@layer app.components {
+  /* line tints: --lc-coverage-* (gutter) and --lc-coverage-*-line (full-line tint, lighter in light themes) */
+  .source-code {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--lc-space-6) 0 var(--lc-space-16);
+    overflow: auto;
+    border-radius: 0 0 var(--lc-popup-radius) var(--lc-popup-radius);
+    background: var(--lc-console-bg);
+    color: var(--lc-console-fg);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-md);
+    line-height: var(--lc-line-height);
+  }
+  .src-line {
+    display: flex;
+    min-width: max-content;
+  }
+  .src-line > span {
+    flex: none;
+  }
+  .src-ln {
+    width: 44px;
+    padding-right: var(--lc-space-12);
+    color: var(--lc-console-muted);
+    text-align: right;
+    user-select: none;
+  }
+  .src-hits {
+    width: 56px;
+    padding-right: var(--lc-space-10);
+    border-right: 1px solid color-mix(in srgb, var(--lc-console-muted) 30%, transparent);
+    color: var(--lc-console-muted);
+    font-size: var(--lc-text-xs);
+    text-align: right;
+    user-select: none;
+  }
+  .src-branch {
+    width: 46px;
+    padding: 0 var(--lc-space-6);
+    text-align: center;
+    user-select: none;
+  }
+  .src-text {
+    padding-right: var(--lc-space-24);
+    white-space: pre;
+  }
+  .src-line.cov {
+    background: var(--lc-coverage-covered-line);
+  }
+  .src-line.cov .src-hits {
+    color: color-mix(in srgb, var(--lc-status-passed) var(--lc-src-tint-mix), var(--lc-src-tint-text));
+    box-shadow: inset -2px 0 0 var(--lc-status-passed);
+  }
+  .src-line.uncov {
+    background: var(--lc-coverage-uncovered-line);
+  }
+  .src-line.uncov .src-hits {
+    color: color-mix(in srgb, var(--lc-status-failed) var(--lc-src-tint-mix), var(--lc-src-tint-text));
+    font-weight: 600;
+    box-shadow: inset -2px 0 0 var(--lc-status-failed);
+  }
+  .src-line.partial {
+    background: var(--lc-coverage-partial-line);
+  }
+  .src-line.partial .src-hits {
+    color: color-mix(in srgb, var(--lc-status-skipped) var(--lc-src-tint-mix), var(--lc-src-tint-text));
+    box-shadow: inset -2px 0 0 var(--lc-status-skipped);
+  }
+  .src-line:target {
+    filter: brightness(1.08);
+  }
+  .src-line:hover {
+    filter: brightness(var(--lc-src-hover-brightness));
+  }
+  .branch-badge {
+    display: inline-block;
+    min-width: 28px;
+    padding: 0 var(--lc-space-4);
+    border-radius: var(--lc-radius-sm);
+    font-size: var(--lc-text-xs);
+    line-height: 16px;
+    color: var(--lc-src-tint-text);
+  }
+  .branch-badge.cov {
+    background: color-mix(in srgb, var(--lc-status-passed) 12%, var(--lc-console-bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-status-passed) 45%, transparent);
+  }
+  .branch-badge.partial {
+    background: color-mix(in srgb, var(--lc-status-skipped) 12%, var(--lc-console-bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-status-skipped) 50%, transparent);
+  }
+  .branch-badge.uncov {
+    background: color-mix(in srgb, var(--lc-status-failed) 12%, var(--lc-console-bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-status-failed) 45%, transparent);
+  }
+  /* highlight.js: one --lc-code-* token per class, with the theme's italic / bold (--lc-code-<token>-style / -weight).
+     Colors read the app-local --code-<token> first (declared only on tinted source lines, see .src-line:is(…) below)
+     and fall back to the theme's --lc-code-<token>. */
+  .hljs {
+    color: var(--code-default, var(--lc-code-default));
+  }
+  .hljs-comment,
+  .hljs-quote {
+    color: var(--code-comment, var(--lc-code-comment));
+    font-style: var(--lc-code-comment-style, normal);
+    font-weight: var(--lc-code-comment-weight, normal);
+  }
+  .hljs-doctag {
+    color: var(--code-doctag, var(--lc-code-doctag));
+    font-style: var(--lc-code-doctag-style, normal);
+    font-weight: var(--lc-code-doctag-weight, normal);
+  }
+  .hljs-keyword,
+  .hljs-selector-tag {
+    color: var(--code-keyword, var(--lc-code-keyword));
+    font-style: var(--lc-code-keyword-style, normal);
+    font-weight: var(--lc-code-keyword-weight, normal);
+  }
+  .hljs-built_in {
+    color: var(--code-built-in, var(--lc-code-built-in));
+    font-style: var(--lc-code-built-in-style, normal);
+    font-weight: var(--lc-code-built-in-weight, normal);
+  }
+  .hljs-type {
+    color: var(--code-type, var(--lc-code-type));
+    font-style: var(--lc-code-type-style, normal);
+    font-weight: var(--lc-code-type-weight, normal);
+  }
+  .hljs-title,
+  .hljs-section {
+    color: var(--code-title, var(--lc-code-title));
+    font-style: var(--lc-code-title-style, normal);
+    font-weight: var(--lc-code-title-weight, normal);
+  }
+  .hljs-title.class_,
+  .hljs-title.class_.inherited__ {
+    color: var(--code-class, var(--lc-code-class));
+    font-style: var(--lc-code-class-style, normal);
+    font-weight: var(--lc-code-class-weight, normal);
+  }
+  .hljs-title.function_ {
+    color: var(--code-function, var(--lc-code-function));
+    font-style: var(--lc-code-function-style, normal);
+    font-weight: var(--lc-code-function-weight, normal);
+  }
+  .hljs-params {
+    color: var(--code-params, var(--lc-code-params));
+    font-style: var(--lc-code-params-style, normal);
+    font-weight: var(--lc-code-params-weight, normal);
+  }
+  .hljs-string {
+    color: var(--code-string, var(--lc-code-string));
+    font-style: var(--lc-code-string-style, normal);
+    font-weight: var(--lc-code-string-weight, normal);
+  }
+  .hljs-subst {
+    color: var(--code-subst, var(--lc-code-subst));
+    font-style: var(--lc-code-subst-style, normal);
+    font-weight: var(--lc-code-subst-weight, normal);
+  }
+  .hljs-number {
+    color: var(--code-number, var(--lc-code-number));
+    font-style: var(--lc-code-number-style, normal);
+    font-weight: var(--lc-code-number-weight, normal);
+  }
+  .hljs-literal {
+    color: var(--code-literal, var(--lc-code-literal));
+    font-style: var(--lc-code-literal-style, normal);
+    font-weight: var(--lc-code-literal-weight, normal);
+  }
+  .hljs-meta {
+    color: var(--code-meta, var(--lc-code-meta));
+    font-style: var(--lc-code-meta-style, normal);
+    font-weight: var(--lc-code-meta-weight, normal);
+  }
+  .hljs-attr {
+    color: var(--code-attr, var(--lc-code-attr));
+    font-style: var(--lc-code-attr-style, normal);
+    font-weight: var(--lc-code-attr-weight, normal);
+  }
+  .hljs-attribute {
+    color: var(--code-attribute, var(--lc-code-attribute));
+    font-style: var(--lc-code-attribute-style, normal);
+    font-weight: var(--lc-code-attribute-weight, normal);
+  }
+  .hljs-variable,
+  .hljs-template-variable {
+    color: var(--code-variable, var(--lc-code-variable));
+    font-style: var(--lc-code-variable-style, normal);
+    font-weight: var(--lc-code-variable-weight, normal);
+  }
+  .hljs-symbol,
+  .hljs-bullet {
+    color: var(--code-symbol, var(--lc-code-symbol));
+    font-style: var(--lc-code-symbol-style, normal);
+    font-weight: var(--lc-code-symbol-weight, normal);
+  }
+  .hljs-operator {
+    color: var(--code-operator, var(--lc-code-operator));
+    font-style: var(--lc-code-operator-style, normal);
+    font-weight: var(--lc-code-operator-weight, normal);
+  }
+  .hljs-punctuation {
+    color: var(--code-punctuation, var(--lc-code-punctuation));
+    font-style: var(--lc-code-punctuation-style, normal);
+    font-weight: var(--lc-code-punctuation-weight, normal);
+  }
+  .hljs-tag {
+    color: var(--code-tag, var(--lc-code-tag));
+    font-style: var(--lc-code-tag-style, normal);
+    font-weight: var(--lc-code-tag-weight, normal);
+  }
+  .hljs-name {
+    color: var(--code-name, var(--lc-code-name));
+    font-style: var(--lc-code-name-style, normal);
+    font-weight: var(--lc-code-name-weight, normal);
+  }
+  .hljs-addition {
+    color: var(--code-addition, var(--lc-code-addition));
+    font-style: var(--lc-code-addition-style, normal);
+    font-weight: var(--lc-code-addition-weight, normal);
+  }
+  .hljs-deletion {
+    color: var(--code-deletion, var(--lc-code-deletion));
+    font-style: var(--lc-code-deletion-style, normal);
+    font-weight: var(--lc-code-deletion-weight, normal);
+  }
+  .hljs-regexp,
+  .hljs-link {
+    color: var(--code-regexp, var(--lc-code-regexp));
+    font-style: var(--lc-code-regexp-style, normal);
+    font-weight: var(--lc-code-regexp-weight, normal);
+  }
+
+  .code-view {
+    position: relative;
+  }
+  .code-view.inline {
+    height: min(440px, 60vh);
+    border: 1px solid var(--lc-console-border);
+    border-radius: 0 0 var(--lc-radius-lg) var(--lc-radius-lg);
+    padding: var(--lc-space-6) 0;
+  }
+  .code-unavailable.inline {
+    display: flex;
+    background: var(--lc-console-bg);
+  }
+  .code-view:not(.with-cov) .src-ln {
+    border-right: 1px solid var(--lc-console-gutter-rule);
+    margin-right: var(--lc-space-12);
+  }
+  .with-cov .src-hits {
+    border-right-color: var(--lc-console-gutter-rule);
+  }
+  .src-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    color: var(--lc-status-failed);
+  }
+  .src-line.in-range {
+    background: color-mix(in srgb, var(--lc-accent) 9%, var(--lc-console-bg));
+  }
+  /* Tinted source lines (method range, failing line, coverage in full-line mode): the syntax colors keep the theme's
+     hue and chroma; only their OKLCH lightness moves by the theme's --lc-code-tint-shift (darker on light themes,
+     lighter on dark ones), the smallest step that keeps every one ≥ 4.5:1 on the tints (scripts/themes-check.mjs).
+     Keep the range / error tints in sync with DERIVED_BG there. */
+  .src-line:is(.in-range, .err-line, .cov, .uncov, .partial) {
+    --code-default: oklch(from var(--lc-code-default) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-comment: oklch(from var(--lc-code-comment) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-doctag: oklch(from var(--lc-code-doctag) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-keyword: oklch(from var(--lc-code-keyword) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-built-in: oklch(from var(--lc-code-built-in) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-type: oklch(from var(--lc-code-type) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-title: oklch(from var(--lc-code-title) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-class: oklch(from var(--lc-code-class) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-function: oklch(from var(--lc-code-function) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-params: oklch(from var(--lc-code-params) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-string: oklch(from var(--lc-code-string) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-subst: oklch(from var(--lc-code-subst) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-number: oklch(from var(--lc-code-number) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-literal: oklch(from var(--lc-code-literal) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-meta: oklch(from var(--lc-code-meta) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-attr: oklch(from var(--lc-code-attr) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-attribute: oklch(from var(--lc-code-attribute) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-variable: oklch(from var(--lc-code-variable) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-symbol: oklch(from var(--lc-code-symbol) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-operator: oklch(from var(--lc-code-operator) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-punctuation: oklch(from var(--lc-code-punctuation) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-tag: oklch(from var(--lc-code-tag) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-name: oklch(from var(--lc-code-name) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-addition: oklch(from var(--lc-code-addition) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-deletion: oklch(from var(--lc-code-deletion) calc(l + var(--lc-code-tint-shift, 0)) c h);
+    --code-regexp: oklch(from var(--lc-code-regexp) calc(l + var(--lc-code-tint-shift, 0)) c h);
+  }
+  /* "Gutter only" coverage leaves the code on the console background: no shift there */
+  .cov-gutter-only .src-line:is(.cov, .uncov, .partial):not(.in-range, .err-line) {
+    --code-default: var(--lc-code-default);
+    --code-comment: var(--lc-code-comment);
+    --code-doctag: var(--lc-code-doctag);
+    --code-keyword: var(--lc-code-keyword);
+    --code-built-in: var(--lc-code-built-in);
+    --code-type: var(--lc-code-type);
+    --code-title: var(--lc-code-title);
+    --code-class: var(--lc-code-class);
+    --code-function: var(--lc-code-function);
+    --code-params: var(--lc-code-params);
+    --code-string: var(--lc-code-string);
+    --code-subst: var(--lc-code-subst);
+    --code-number: var(--lc-code-number);
+    --code-literal: var(--lc-code-literal);
+    --code-meta: var(--lc-code-meta);
+    --code-attr: var(--lc-code-attr);
+    --code-attribute: var(--lc-code-attribute);
+    --code-variable: var(--lc-code-variable);
+    --code-symbol: var(--lc-code-symbol);
+    --code-operator: var(--lc-code-operator);
+    --code-punctuation: var(--lc-code-punctuation);
+    --code-tag: var(--lc-code-tag);
+    --code-name: var(--lc-code-name);
+    --code-addition: var(--lc-code-addition);
+    --code-deletion: var(--lc-code-deletion);
+    --code-regexp: var(--lc-code-regexp);
+  }
+  .src-line.in-range .src-ln {
+    color: color-mix(in srgb, var(--lc-accent) var(--lc-src-range-mix), var(--lc-src-tint-text));
+    box-shadow: inset -2px 0 0 var(--lc-accent);
+  }
+  .src-line.err-line,
+  .src-line.err-line.in-range {
+    background: color-mix(in srgb, var(--lc-status-failed) 16%, var(--lc-console-bg));
+  }
+  .src-line.err-line .src-ln {
+    box-shadow: inset -2px 0 0 var(--lc-status-failed);
+    font-weight: 600;
+  }
+  /* the method range keeps its number color on the failing line too (the bar and weight come from .err-line);
+     :where() keeps the specificity of the rules around it */
+  .src-line.err-line:where(:not(.in-range)) .src-ln {
+    color: color-mix(in srgb, var(--lc-status-failed) var(--lc-src-tint-mix), var(--lc-src-tint-text));
+  }
+  .src-annotation {
+    position: sticky;
+    left: 0;
+    width: 100%;
+    min-width: 0;
+    padding: var(--lc-space-4) var(--lc-space-16) var(--lc-space-8) 76px; /* off-scale: 76px */
+    font-family: var(--lc-font-sans);
+  }
+  .with-cov .src-annotation {
+    padding-left: 178px; /* off-scale: 178px */
+  }
+  .src-annotation-box {
+    max-width: 760px;
+    padding: var(--lc-space-8) var(--lc-space-12);
+    border: 1px solid var(--lc-msg-error-border);
+    border-left-width: 3px;
+    border-radius: var(--lc-radius-md);
+    background: var(--lc-msg-error-bg);
+    color: var(--lc-msg-fg);
+  }
+  .src-annotation-title {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+  }
+  .src-annotation-title .icon {
+    color: var(--lc-status-failed);
+  }
+  .src-annotation pre {
+    margin: var(--lc-space-4) 0 0;
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+    line-height: 18px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* contrast on tinted source lines (axe, all families): line numbers and hit counts lean toward the text color */
+  .src-line:is(.cov, .uncov, .partial) .src-ln {
+    color: color-mix(in srgb, var(--lc-console-muted) var(--lc-src-tint-mix), var(--lc-src-tint-text));
+  }
+
+  /* <lc-code-view>: the host is the React root div.code-view (block box, scroll container when ready). */
+  lc-code-view {
+    display: block;
+  }
+  lc-code-view.code-unavailable {
+    display: flex;
+  }
+  lc-code-view:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: -2px;
+  }
+  .src-hits-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .src-hits-btn:hover {
+    color: var(--lc-link);
+    text-decoration: underline;
+  }
+  /* one-line annotation: only the exception type (the failure box above shows the message) */
+  .src-annotation.short {
+    padding-top: var(--lc-space-2);
+    padding-bottom: var(--lc-space-4);
+  }
+  .src-annotation.short .src-annotation-box {
+    display: inline-block;
+    max-width: 100%;
+    padding: var(--lc-space-2) var(--lc-space-10);
+  }
+  .src-annotation.short .src-annotation-title {
+    font-weight: 500;
+  }
+
+  /* tests declared in the file: gutter icon (select) + ▶ on hover (run), and the method name as a link */
+  .src-test {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    width: 34px;
+    padding-left: var(--lc-space-2);
+    user-select: none;
+  }
+  .src-test-btn,
+  .src-test-run {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lc-radius-sm);
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .src-test-btn:hover,
+  .src-test-btn:focus-visible {
+    background: color-mix(in srgb, var(--lc-console-fg) 12%, transparent);
+  }
+  .src-test-btn:focus-visible,
+  .src-test-run:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 0;
+  }
+  .src-test-run {
+    color: var(--lc-console-muted);
+    opacity: 0;
+    transition: opacity var(--lc-motion-instant) var(--lc-ease-standard);
+  }
+  .src-line.has-test:hover .src-test-run,
+  .src-test:focus-within .src-test-run {
+    opacity: 1;
+  }
+  .src-test-run:hover {
+    color: var(--lc-status-passed);
+    background: color-mix(in srgb, var(--lc-console-fg) 12%, transparent);
+  }
+  .src-test-name {
+    border-radius: var(--lc-radius-xs);
+    cursor: pointer;
+  }
+  .src-test-name:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}

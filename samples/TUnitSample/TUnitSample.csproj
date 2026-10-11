@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- TUnit is built on Microsoft.Testing.Platform (no extra switch; the TUnit package includes code coverage). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.73.19" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SampleTests.Lib\SampleTests.Lib.csproj" />
+  </ItemGroup>
+
+</Project>

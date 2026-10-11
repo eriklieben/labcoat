@@ -1,0 +1,23 @@
+name: Documentation
+description: Something in the README or the docs is wrong, unclear or missing.
+labels: [documentation, "area: docs", needs-triage]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The page or file, ideally a link (e.g. docs/aspire.md#per-test-traces).
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong or missing?
+      description: What did you expect to find, and what does the page say instead?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording
+      description: Optional. Small fixes are also welcome as a pull request.

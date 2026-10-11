@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Loaded into the test application: net8.0 like Labcoat.TestingPlatform, so test projects on .NET 8/9/10 can use it
+         (Aspire.Hosting 13 supports net8.0 too). No test framework dependency: the adapters (Labcoat.Testing.MSTest,
+         Labcoat.Testing.TUnit, Labcoat.Testing.NUnit, Labcoat.Testing.XUnit) bring theirs. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Labcoat.Testing</RootNamespace>
+    <AssemblyName>Labcoat.Testing</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.Testing</PackageId>
+    <Description>Test-side core for Labcoat, framework neutral: per-test OpenTelemetry traces for Aspire.Hosting.Testing integration tests, so Labcoat can link each test to its trace and logs in the Aspire dashboard. Use it through a framework adapter: Labcoat.Testing.MSTest, Labcoat.Testing.TUnit, Labcoat.Testing.NUnit or Labcoat.Testing.XUnit.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>aspire;testing;opentelemetry;tracing;integration-testing;microsoft-testing-platform;labcoat</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.Testing.Tests" />
+    <InternalsVisibleTo Include="Labcoat.Testing.MSTest.Tests" />
+    <InternalsVisibleTo Include="Labcoat.Testing.TUnit.Tests" />
+    <InternalsVisibleTo Include="Labcoat.Testing.NUnit.Tests" />
+    <InternalsVisibleTo Include="Labcoat.Testing.XUnit.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

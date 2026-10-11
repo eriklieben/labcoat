@@ -1,0 +1,39 @@
+/* Everything the design system needs. The app imports this once, before its own CSS.
+   Cascade layers (declared once, here, before anything else): between layers the layer order decides, not specificity.
+     lc.reset (base.css) < lc.tokens < lc.themes < lc.components < lc.motion (reduced / off / busy policy)
+       < app.base < app.shell < app.components < app.utilities
+   The app wraps its own files in the app.* layers. Anything unlayered (a host's or user's overrides) beats all of it.
+   !important reverses the order: an important declaration in an earlier layer wins (motion policy, then components). */
+@layer lc.reset, lc.tokens, lc.themes, lc.components, lc.motion, app.base, app.shell, app.components, app.utilities;
+
+@import "./tokens/tokens.css" layer(lc.tokens);
+@import "./themes/aspire.css" layer(lc.themes);
+@import "./themes/catppuccin.css" layer(lc.themes);
+@import "./themes/github.css" layer(lc.themes);
+@import "./themes/one.css" layer(lc.themes);
+@import "./themes/dracula.css" layer(lc.themes);
+@import "./themes/solarized.css" layer(lc.themes);
+@import "./themes/gruvbox.css" layer(lc.themes);
+@import "./tokens/base.css" layer(lc.reset);
+@import "./tokens/motion.css" layer(lc.motion);
+@import "./components/button.css" layer(lc.components);
+@import "./components/badge.css" layer(lc.components);
+@import "./components/status-icon.css" layer(lc.components);
+@import "./components/chip.css" layer(lc.components);
+@import "./components/switch.css" layer(lc.components);
+@import "./components/segmented.css" layer(lc.components);
+@import "./components/tabs.css" layer(lc.components);
+@import "./components/kbd.css" layer(lc.components);
+@import "./components/popover.css" layer(lc.components);
+@import "./components/tooltip.css" layer(lc.components);
+@import "./components/message-bar.css" layer(lc.components);
+@import "./components/meter.css" layer(lc.components);
+@import "./components/code-block.css" layer(lc.components);
+@import "./components/empty-state.css" layer(lc.components);
+@import "./components/property-grid.css" layer(lc.components);
+@import "./components/split-pane.css" layer(lc.components);
+@import "./components/dialog.css" layer(lc.components);
+@import "./components/brand-logo.css" layer(lc.components);
+@import "./components/copy-button.css" layer(lc.components);
+@import "./components/collapsible.css" layer(lc.components);
+@import "./components/toast.css" layer(lc.components);

@@ -1,0 +1,10 @@
+<Solution>
+  <!-- One small test project per Microsoft.Testing.Platform framework, all testing the same product library.
+       They contain deliberate failures and skipped tests: that is what Labcoat shows off. samples/AspireSample has its
+       own solution (AspireSample/AspireSample.slnx). -->
+  <Project Path="SampleTests.Lib/SampleTests.Lib.csproj" />
+  <Project Path="SampleTests/SampleTests.csproj" />
+  <Project Path="NUnitSample/NUnitSample.csproj" />
+  <Project Path="XUnitV3Sample/XUnitV3Sample.csproj" />
+  <Project Path="TUnitSample/TUnitSample.csproj" />
+</Solution>

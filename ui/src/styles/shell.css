@@ -1,0 +1,368 @@
+/* App shell (app.ts): header, nav rail, message bars, toolbar, workspace + splitters, responsive layout, debug bar. */
+
+@layer app.shell {
+  .layout {
+    display: grid;
+    width: 100vw;
+    height: 100vh;
+    grid-template-columns: var(--lc-rail-w) minmax(0, 1fr);
+    grid-template-rows: 50px auto minmax(0, 1fr);
+    grid-template-areas:
+      "head head"
+      "nav messagebar"
+      "nav main";
+    /* Shell color behind everything; the content area sits on top with a rounded inner corner. */
+    background: var(--lc-bg-shell);
+    --content-radius: var(--lc-radius-lg);
+  }
+
+  .app-header {
+    grid-area: head;
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    min-width: 0;
+    padding-right: var(--lc-space-12);
+    background: var(--lc-bg-shell);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .brand-logo {
+    display: flex;
+    flex: 0 0 var(--lc-rail-w);
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  .brand-icon {
+    color: var(--lc-accent);
+  }
+  .application-name {
+    padding: 0 var(--lc-space-2);
+    color: var(--lc-fg);
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-2xl);
+    font-weight: 500;
+    line-height: var(--lc-line-height);
+  }
+  .application-name:hover {
+    color: var(--lc-fg);
+    text-decoration: none;
+  }
+  .page-title-slot {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-12);
+    margin-inline-start: var(--lc-space-8);
+    min-width: 0;
+  }
+  .page-title-slot::before {
+    content: "";
+    width: 1px;
+    height: 1.15em;
+    background: color-mix(in srgb, var(--lc-fg-muted) 60%, transparent);
+  }
+  .page-header {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-base);
+    font-weight: 500;
+  }
+  .flex-filler {
+    flex: 1 1 auto;
+    min-width: 8px;
+  }
+
+  .nav-rail {
+    grid-area: nav;
+    display: flex;
+    flex-direction: column;
+    background: var(--lc-bg-shell);
+  }
+  .rail-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--lc-space-2);
+    height: 56px;
+    /* Inset tile: a small gap to the rail's edges (and to the content area), with rounded corners. */
+    margin: var(--lc-space-2) var(--lc-space-6);
+    border: 0;
+    border-radius: var(--lc-control-radius);
+    background: transparent;
+    color: var(--lc-fg-secondary);
+    cursor: pointer;
+  }
+  .rail-item:hover {
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg);
+  }
+  .rail-item:hover .icon {
+    color: var(--lc-accent);
+  }
+  .rail-item.active {
+    background: color-mix(in srgb, var(--lc-accent) 14%, transparent);
+    color: var(--lc-fg);
+  }
+  /* P12: the active indicator (3 px accent bar); slides between items on page switch (slideIndicator, ::before) */
+  .rail-item.active::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: -6px; /* sits on the rail's left edge, outside the inset tile */
+    width: 3px;
+    border-radius: 0 var(--lc-radius-xs) var(--lc-radius-xs) 0;
+    background: var(--lc-accent);
+  }
+  .rail-item.active .icon,
+  .rail-item.pressed .icon {
+    color: var(--lc-accent);
+  }
+  .rail-label {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: var(--lc-text-xs);
+    line-height: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap; /* rail labels are one word; never wrap onto a second line */
+  }
+  .rail-badge {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 var(--lc-space-4);
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-status-failed);
+    color: var(--lc-on-status);
+    font-size: var(--lc-text-xs);
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .messagebar-container {
+    grid-area: messagebar;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--lc-stroke);
+    border-left: 1px solid var(--lc-stroke);
+    border-top-left-radius: var(--content-radius);
+    background: var(--lc-bg-page);
+  }
+  .messagebar-container:empty {
+    display: none;
+  }
+  .messagebar-container > .messagebar,
+  .messagebar-container > .lc-reveal > .lc-reveal-inner > .messagebar {
+    margin: var(--lc-space-8) var(--lc-space-12) 0;
+  }
+
+  .body-content {
+    grid-area: main;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-left: 1px solid var(--lc-stroke);
+    background: var(--lc-bg-page);
+  }
+  /* No message bars: the main area is the top of the content, so it carries the rounded corner. */
+  .messagebar-container:empty + .body-content {
+    border-top: 1px solid var(--lc-stroke);
+    border-top-left-radius: var(--content-radius);
+  }
+
+  .toolbar {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lc-space-8) var(--lc-space-16);
+    min-height: 48px;
+    padding: var(--lc-space-10) var(--lc-space-12) var(--lc-space-8);
+  }
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-8);
+  }
+  .toolbar-sep {
+    width: 1px;
+    height: 20px;
+    margin: 0 var(--lc-space-2);
+    background: var(--lc-stroke);
+  }
+
+  .workspace {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0 var(--lc-space-12) var(--lc-space-12);
+  }
+  .split {
+    display: grid;
+    flex: 1 1 auto;
+    /* --tree-w is a percentage (P2-7); the right column keeps at least 320 px */
+    grid-template-columns: minmax(260px, min(var(--tree-w, 36%), calc(100% - 328px))) 8px minmax(0, 1fr);
+    min-height: 0;
+  }
+  .splitter-v::after,
+  .splitter-h::after {
+    transition: background-color var(--lc-motion-instant);
+  }
+  .log-wrap {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  @media (max-width: 1180px) {
+    .toolbar .btn-text-collapse {
+      display: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .page-title-slot {
+      display: none;
+    }
+  }
+
+  @media (max-width: 900px) {
+    /* stacked tree / details (also 200% zoom): never squeeze the details to 0 px — the workspace scrolls instead */
+    .workspace {
+      overflow-y: auto;
+    }
+    .split {
+      flex: none;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(200px, 45%) 8px minmax(320px, 1fr);
+      height: max(100%, 560px);
+    }
+    .splitter-v {
+      cursor: default;
+      pointer-events: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    :root {
+      --lc-rail-w: 0px;
+    }
+    .nav-rail {
+      display: none;
+    }
+    .brand-logo {
+      flex-basis: 44px;
+    }
+    .toolbar-group .btn {
+      padding: 0 var(--lc-space-8);
+    }
+  }
+
+  .right-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .right-col > .detail-pane {
+    flex: 1 1 auto;
+  }
+
+  /* Run all / Stop share one grid cell: the slot is as wide as the wider button and they crossfade. */
+  .run-slot {
+    display: inline-grid;
+  }
+  /* "Run failed" count is always rendered (neutral when 0) and wide enough for two digits. */
+  .btn-count.slot-count {
+    min-width: 24px;
+    font-variant-numeric: tabular-nums;
+    transition: background-color var(--lc-motion-fast), color var(--lc-motion-fast);
+  }
+
+  a.rail-item {
+    text-decoration: none;
+  }
+  .rail-filler {
+    flex: 1 1 auto;
+  }
+
+  /* header: the workspace name is the page's h1 */
+  h1.page-header {
+    margin: 0;
+    line-height: var(--lc-line-height);
+  }
+
+  .split-btn {
+    display: inline-flex;
+    align-items: stretch;
+  }
+  .split-btn > .btn:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .split-btn > .split-chevron {
+    width: 26px;
+    min-width: 0;
+    height: auto;
+    margin-left: -1px; /* off-scale: -1px */
+    padding: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  .watch-split.on > .btn {
+    border-color: var(--lc-accent);
+    background: var(--lc-accent-button-bg);
+    color: var(--lc-accent-button-fg);
+  }
+  .watch-split.on > .btn .icon {
+    color: var(--lc-accent-button-fg);
+  }
+  .watch-split.on > .btn:hover:not(:disabled) {
+    border-color: var(--lc-accent-button-hover-bg);
+    background: var(--lc-accent-button-hover-bg);
+    color: var(--lc-accent-button-hover-fg);
+  }
+  .watch-split.on > .split-chevron {
+    border-left-color: color-mix(in srgb, var(--lc-accent-button-fg) 35%, var(--lc-accent));
+  }
+
+  /* coverage tab context ("Coverage · Add_ReturnsSum 27%") */
+  .tab-context {
+    display: inline-block;
+    max-width: 18ch;
+    overflow: hidden;
+    color: var(--lc-fg-muted);
+    font-weight: 400;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+    white-space: nowrap;
+  }
+
+  /* the header while connecting: a placeholder, not a workspace name */
+  .page-header.is-placeholder {
+    color: var(--lc-fg-muted);
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  /* debug test message bar */
+  .debug-bar .debug-pid {
+    font-family: var(--lc-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .debug-bar .lc-copy {
+    align-self: center;
+  }
+}

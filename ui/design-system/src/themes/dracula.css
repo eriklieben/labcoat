@@ -1,0 +1,371 @@
+/* ==========================================================================================
+   Dracula theme family: Alucard Classic (light) and Dracula Classic (dark).
+   Palette: the official Dracula specification, https://draculatheme.com/spec (color palette, ANSI
+   palette, UI palette and functional colors for both variants), https://github.com/dracula/dracula-theme
+   (MIT, © 2023 Dracula Theme). "Dracula" is the project's name; Dracula PRO is a separate commercial
+   product and is not used here.
+   Selected with <html data-theme-family="dracula" data-theme="light|dark">.
+
+   The light block declares Alucard as --drac-* and maps every --lc-* token; the dark block swaps in
+   Dracula and overrides the few mappings that differ.
+   Syntax highlighting: the "syntax (light)" / "syntax (dark)" blocks below map every highlight.js class to
+   the family's official syntax colors (dark: the official dracula/highlightjs theme; light: the spec's
+   reference implementation, as there is no Alucard highlight.js theme); source, license and every
+   contrast adjustment are noted there.
+
+   Contrast (WCAG 2.x, checked against the actual backgrounds): Alucard's palette is AA on its background;
+   only muted text on the selection, failure text on the error tints and four bright ANSI colors are mixed
+   toward fg. Dracula's Comment (#6272a4, 3.0:1 on the background) is used for comments and muted text, so
+   those are mixed toward Foreground, and the failure red gets lighter variants. Noted per token.
+   ========================================================================================== */
+
+:root[data-theme-family="dracula"] {
+  color-scheme: light;
+
+  /* Alucard Classic */
+  --drac-bg: #fffbeb;
+  --drac-selection: #cfcfde;
+  --drac-fg: #1f1f1f;
+  --drac-comment: #6c664b; /* also "Current Line" */
+  --drac-red: #cb3a2a;
+  --drac-orange: #a34d14;
+  --drac-yellow: #846e15;
+  --drac-green: #14710a;
+  --drac-cyan: #036a96;
+  --drac-purple: #644ac9;
+  --drac-pink: #a3144d;
+  /* UI palette (Alucard: "lighter" … "darker" step down from the background) */
+  --drac-floating: #efeddc;
+  --drac-bg-lighter: #ece9df;
+  --drac-bg-light: #dedccf;
+  --drac-bg-dark: #ceccc0;
+  --drac-bg-darker: #bcbab3;
+  /* ANSI (Alucard) */
+  --drac-ansi-bright-red: #d74c3d;
+  --drac-ansi-bright-green: #198d0c;
+  --drac-ansi-bright-yellow: #9e841a;
+  --drac-ansi-bright-blue: #7862d0;
+  --drac-ansi-bright-magenta: #bf185a;
+  --drac-ansi-bright-cyan: #047fb4;
+  --drac-ansi-bright-white: #2c2b31;
+  /* functional colors (UI only, per spec) */
+  --drac-fn-purple: #815cd6; /* focus indicators */
+
+  /* surfaces */
+  --lc-bg-page: var(--drac-bg);
+  --lc-bg-shell: var(--drac-bg-lighter);
+  --lc-bg-surface: color-mix(in srgb, var(--drac-bg) 50%, #ffffff);
+  --lc-bg-subtle: var(--drac-bg-light);
+  --lc-bg-hover: var(--drac-floating);
+  --lc-bg-selected: var(--drac-selection);
+  --lc-bg-badge: var(--drac-bg-lighter);
+  --lc-bg-popup: var(--lc-bg-surface);
+  --lc-bg-menu-hover: var(--drac-floating);
+  --lc-shadow-popup: rgb(31 31 31 / 0.16) 0 0 2px 0, rgb(108 102 75 / 0.22) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(108 102 75 / 0.18), 0 2px 6px rgb(31 31 31 / 0.1);
+
+  /* text */
+  --lc-fg: var(--drac-fg);
+  --lc-fg-secondary: color-mix(in srgb, var(--drac-fg) 70%, var(--drac-comment));
+  --lc-fg-muted: color-mix(in srgb, var(--drac-comment) 80%, var(--drac-fg)); /* Comment is 3.8:1 on Selection */
+  --lc-fg-subtext: var(--lc-fg-muted);
+
+  /* strokes */
+  --lc-stroke: var(--drac-bg-dark);
+  --lc-stroke-subtle: var(--drac-bg-light);
+  --lc-stroke-hover: var(--drac-bg-darker);
+  --lc-stroke-grid: var(--drac-bg-light);
+
+  /* accent = purple; links = cyan; focus = functional purple */
+  --lc-accent: var(--drac-purple);
+  --lc-accent-hover: var(--drac-ansi-bright-blue);
+  --lc-on-accent: var(--drac-bg);
+  --lc-accent-button-bg: var(--drac-purple);
+  --lc-accent-button-fg: var(--drac-bg);
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--drac-purple) 85%, var(--drac-fg));
+  --lc-accent-button-hover-fg: var(--drac-bg);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--drac-purple) 75%, var(--drac-fg));
+  --lc-link: var(--drac-cyan);
+  --lc-link-hover: var(--drac-purple);
+  --lc-focus-ring: var(--drac-fn-purple);
+
+  /* status */
+  --lc-status-passed: var(--drac-green);
+  --lc-status-failed: var(--drac-red);
+  --lc-status-skipped: var(--drac-orange);
+  --lc-status-running: var(--drac-purple);
+  --lc-status-muted: var(--lc-fg-muted);
+  --lc-status-failed-text: color-mix(in srgb, var(--drac-red) 90%, var(--drac-fg)); /* red is 4.4:1 on the error tints */
+  --lc-status-passed-text: var(--lc-status-passed); /* status colors as text (counts, rates): already ≥ 4.5:1 */
+  --lc-status-skipped-text: var(--lc-status-skipped);
+  --lc-on-status: var(--drac-bg);
+  --lc-host-warm: var(--drac-orange);
+
+  /* message bars */
+  --lc-msg-success-bg: color-mix(in srgb, var(--drac-green) 8%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--drac-green) 40%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--drac-red) 8%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--drac-red) 40%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--drac-orange) 9%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--drac-orange) 40%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--drac-bg-lighter);
+  --lc-msg-info-border: var(--drac-bg-dark);
+  --lc-msg-fg: var(--drac-fg);
+  --lc-msg-action-bg: var(--lc-bg-surface);
+  --lc-msg-action-hover-bg: var(--drac-floating);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--drac-comment) 40%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--drac-comment) 65%, transparent);
+
+  /* tag palette */
+  --lc-tag-teal: var(--drac-cyan);
+  --lc-tag-marigold: var(--drac-yellow);
+  --lc-tag-peach: var(--drac-orange);
+  --lc-tag-coral: var(--drac-red);
+  --lc-tag-royal-blue: var(--drac-purple);
+  --lc-tag-orchid: var(--drac-pink);
+  --lc-tag-brand-blue: var(--drac-ansi-bright-cyan);
+  --lc-tag-seafoam: var(--drac-ansi-bright-green);
+  --lc-tag-jade: var(--drac-green);
+  --lc-tag-berry: var(--drac-ansi-bright-magenta);
+
+  /* console = the editor background */
+  --lc-console-bg: var(--drac-bg);
+  --lc-console-fg: var(--drac-fg);
+  --lc-console-muted: var(--drac-comment);
+  --lc-console-border: var(--drac-bg-dark);
+  --lc-console-hover: var(--drac-floating);
+  --lc-console-gutter-rule: var(--drac-bg-light);
+  --lc-console-error-bg: color-mix(in srgb, var(--drac-red) 9%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--drac-yellow) 12%, var(--lc-console-bg));
+  --lc-console-link: var(--drac-cyan);
+  /* ANSI: Alucard's bright red/green/yellow/cyan (3.5–4.3:1) are mixed toward fg. The spec's AnsiBlack is the background (#fffbeb) and AnsiWhite the foreground, as in a
+     light terminal; Labcoat keeps both readable on its light output (black → BrightWhite #2c2b31, white → fg) */
+  --lc-ansi-black: var(--drac-ansi-bright-white);
+  --lc-ansi-red: var(--drac-red);
+  --lc-ansi-green: var(--drac-green);
+  --lc-ansi-yellow: var(--drac-yellow);
+  --lc-ansi-blue: var(--drac-purple); /* spec: AnsiBlue = Purple */
+  --lc-ansi-magenta: var(--drac-pink);
+  --lc-ansi-cyan: var(--drac-cyan);
+  --lc-ansi-white: var(--drac-fg);
+  --lc-ansi-bright-black: var(--drac-comment);
+  --lc-ansi-bright-red: color-mix(in srgb, var(--drac-ansi-bright-red) 90%, var(--drac-fg));
+  --lc-ansi-bright-green: color-mix(in srgb, var(--drac-ansi-bright-green) 90%, var(--drac-fg));
+  --lc-ansi-bright-yellow: color-mix(in srgb, var(--drac-ansi-bright-yellow) 80%, var(--drac-fg));
+  --lc-ansi-bright-blue: var(--drac-ansi-bright-blue);
+  --lc-ansi-bright-magenta: var(--drac-ansi-bright-magenta);
+  --lc-ansi-bright-cyan: color-mix(in srgb, var(--drac-ansi-bright-cyan) 95%, var(--drac-fg));
+  --lc-ansi-bright-white: var(--drac-ansi-bright-white);
+
+  /* syntax (light), vscode source: https://draculatheme.com/spec (palette + classification; source https://github.com/dracula/draculatheme.com/blob/main/content/spec.mdx) + https://github.com/dracula/cursor dev/src/alucard.yml (spec-designated reference implementation, VS Code-format tokenColors)
+     License: MIT (© 2016-present Dracula Theme).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #1f1f1f;
+  --lc-code-comment: #6c664b;
+  --lc-code-doctag: #a3144d;
+  --lc-code-keyword: #a3144d;
+  --lc-code-built-in: #036a96;
+  --lc-code-type: #036a96;
+  --lc-code-class: #036a96;
+  --lc-code-function: #14710a;
+  --lc-code-title: #14710a;
+  --lc-code-params: #a34d14;
+  --lc-code-string: #846e15;
+  --lc-code-subst: #1f1f1f; /* as default: not distinguished by the source */
+  --lc-code-number: #644ac9;
+  --lc-code-literal: #644ac9; /* as number: not distinguished by the source */
+  --lc-code-meta: #036a96;
+  --lc-code-attr: #14710a;
+  --lc-code-attribute: #036a96;
+  --lc-code-variable: #1f1f1f; /* as default: not distinguished by the source */
+  --lc-code-symbol: #14710a;
+  --lc-code-operator: #a3144d;
+  --lc-code-punctuation: #1f1f1f; /* as default: not distinguished by the source */
+  --lc-code-tag: #1f1f1f; /* as default: not distinguished by the source */
+  --lc-code-name: #a3144d;
+  --lc-code-addition: #14710a;
+  --lc-code-deletion: #cb3a2a;
+  --lc-code-regexp: #846e15;
+  --lc-code-doctag-weight: normal;
+  --lc-code-keyword-weight: normal;
+  --lc-code-built-in-style: italic;
+  --lc-code-type-style: italic;
+  --lc-code-type-weight: normal;
+  --lc-code-class-style: normal;
+  --lc-code-class-weight: normal;
+  --lc-code-function-style: normal;
+  --lc-code-function-weight: normal;
+  --lc-code-title-style: normal;
+  --lc-code-title-weight: normal;
+  --lc-code-params-style: italic;
+  --lc-code-literal-weight: normal;
+  --lc-code-meta-style: italic;
+  --lc-code-attr-style: italic;
+  --lc-code-name-weight: normal;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--drac-green) 12%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--drac-red) 11%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--drac-yellow) 15%, var(--lc-console-bg));
+
+  /* syntax colors on tinted source lines move by this OKLCH lightness step (hue and chroma kept) to stay ≥ 4.5:1 */
+  --lc-code-tint-shift: -0.04;
+
+  --lc-confetti-1: var(--drac-purple);
+  --lc-confetti-2: var(--drac-pink);
+  --lc-confetti-3: var(--drac-green);
+  --lc-confetti-4: var(--drac-cyan);
+  --lc-confetti-5: var(--drac-yellow);
+  --lc-confetti-6: var(--drac-orange);
+  --lc-confetti-7: var(--drac-red);
+}
+
+:root[data-theme-family="dracula"][data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Dracula Classic */
+  --drac-bg: #282a36;
+  --drac-selection: #44475a;
+  --drac-fg: #f8f8f2;
+  --drac-comment: #6272a4;
+  --drac-red: #ff5555;
+  --drac-orange: #ffb86c;
+  --drac-yellow: #f1fa8c;
+  --drac-green: #50fa7b;
+  --drac-cyan: #8be9fd;
+  --drac-purple: #bd93f9;
+  --drac-pink: #ff79c6;
+  --drac-floating: #343746;
+  --drac-bg-lighter: #424450;
+  --drac-bg-light: #343746;
+  --drac-bg-dark: #21222c;
+  --drac-bg-darker: #191a21;
+  --drac-ansi-bright-red: #ff6e6e;
+  --drac-ansi-bright-green: #69ff94;
+  --drac-ansi-bright-yellow: #ffffa5;
+  --drac-ansi-bright-blue: #d6acff;
+  --drac-ansi-bright-magenta: #ff92df;
+  --drac-ansi-bright-cyan: #a4ffff;
+  --drac-ansi-bright-white: #ffffff;
+
+  /* differences from the Alucard mapping above */
+  --lc-bg-shell: var(--drac-bg-darker);
+  --lc-bg-surface: var(--drac-bg-light);
+  --lc-bg-subtle: var(--drac-bg-lighter);
+  --lc-bg-hover: color-mix(in srgb, var(--drac-selection) 46%, var(--drac-bg)); /* list hover #44475a75 */
+  --lc-bg-selected: var(--drac-selection);
+  --lc-bg-badge: var(--drac-bg-light);
+  --lc-bg-popup: var(--drac-floating);
+  --lc-bg-menu-hover: var(--drac-selection);
+  --lc-shadow-popup: rgb(0 0 0 / 0.35) 0 0 2px 0, rgb(0 0 0 / 0.45) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4), 0 2px 6px rgb(0 0 0 / 0.25);
+
+  /* Comment is 3.0:1 on the background and 2.2:1 on the selection → muted mixes Foreground in */
+  --lc-fg-secondary: color-mix(in srgb, var(--drac-fg) 85%, var(--drac-comment));
+  --lc-fg-muted: color-mix(in srgb, var(--drac-comment) 45%, var(--drac-fg));
+  --lc-fg-subtext: var(--lc-fg-muted);
+
+  --lc-stroke: var(--drac-selection);
+  --lc-stroke-subtle: var(--drac-bg-light);
+  --lc-stroke-hover: var(--drac-comment);
+  --lc-stroke-grid: var(--drac-bg-light);
+
+  --lc-accent-hover: var(--drac-ansi-bright-blue);
+  --lc-on-accent: var(--drac-bg-darker);
+  --lc-accent-button-fg: var(--drac-bg-darker);
+  --lc-accent-button-hover-bg: var(--drac-ansi-bright-blue);
+  --lc-accent-button-hover-fg: var(--drac-bg-darker);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--drac-purple) 85%, var(--drac-bg));
+  --lc-link-hover: var(--drac-ansi-bright-cyan);
+  --lc-focus-ring: var(--drac-purple); /* functional purple #815cd6 is 3.0:1 on the background, 2.5:1 on surfaces */
+
+  /* failed icon = the spec's bright red (#ff5555 is 2.9:1 on Selection); failure text mixes Foreground in
+     (red is 3.8:1 on the surface, 3.3:1 on the error tint) */
+  --lc-status-failed: var(--drac-ansi-bright-red);
+  --lc-status-failed-text: color-mix(in srgb, var(--drac-red) 65%, var(--drac-fg));
+  --lc-on-status: var(--drac-bg-darker);
+
+  --lc-msg-success-bg: color-mix(in srgb, var(--drac-green) 12%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--drac-green) 60%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--drac-red) 12%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--drac-red) 60%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--drac-orange) 12%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--drac-orange) 60%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--lc-bg-surface);
+  --lc-msg-info-border: var(--drac-selection);
+  --lc-msg-action-bg: var(--drac-bg-lighter);
+  --lc-msg-action-hover-bg: var(--drac-selection);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--drac-comment) 55%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--drac-comment) 85%, transparent);
+
+  /* console = Background Dark (the spec's AnsiBlack) */
+  --lc-console-bg: var(--drac-bg-dark);
+  --lc-console-muted: var(--lc-fg-muted);
+  --lc-console-border: var(--drac-bg-darker);
+  --lc-console-hover: var(--drac-bg);
+  --lc-console-gutter-rule: var(--drac-bg-light);
+  --lc-console-error-bg: color-mix(in srgb, var(--drac-red) 12%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--drac-yellow) 10%, var(--lc-console-bg));
+  --lc-ansi-black: var(--drac-bg-dark);
+  --lc-ansi-white: var(--drac-fg);
+  --lc-ansi-bright-black: var(--drac-comment);
+  --lc-ansi-bright-red: var(--drac-ansi-bright-red);
+  --lc-ansi-bright-green: var(--drac-ansi-bright-green);
+  --lc-ansi-bright-yellow: var(--drac-ansi-bright-yellow);
+  --lc-ansi-bright-cyan: var(--drac-ansi-bright-cyan);
+
+  /* syntax (dark), hljs-official source: https://github.com/dracula/highlightjs (dracula.css)
+     License: MIT (© 2016-present Dracula Theme).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #f8f8f2;
+  --lc-code-comment: #7788bb; /* source #6272a4 is 3.36:1 */
+  --lc-code-doctag: #7788bb; /* as comment: not distinguished by the source; source #6272a4 is 3.36:1 */
+  --lc-code-keyword: #ff79c6;
+  --lc-code-built-in: #8be9fd;
+  --lc-code-type: #f1fa8c;
+  --lc-code-class: #50fa7b;
+  --lc-code-function: #50fa7b;
+  --lc-code-title: #50fa7b;
+  --lc-code-params: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-string: #f1fa8c;
+  --lc-code-subst: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-number: #bd93f9;
+  --lc-code-literal: #bd93f9; /* as number: not distinguished by the source */
+  --lc-code-meta: #f1fa8c;
+  --lc-code-attr: #50fa7b;
+  --lc-code-attribute: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-variable: #f1fa8c;
+  --lc-code-symbol: #f1fa8c;
+  --lc-code-operator: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-punctuation: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-tag: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-name: #f1fa8c;
+  --lc-code-addition: #f1fa8c;
+  --lc-code-deletion: #7788bb; /* source #6272a4 is 3.36:1 */
+  --lc-code-regexp: #f8f8f2; /* as default: not distinguished by the source */
+  --lc-code-doctag-weight: bold;
+  --lc-code-keyword-weight: bold;
+  --lc-code-built-in-style: normal;
+  --lc-code-type-style: normal;
+  --lc-code-type-weight: bold;
+  --lc-code-class-style: italic;
+  --lc-code-class-weight: bold;
+  --lc-code-function-style: italic;
+  --lc-code-function-weight: bold;
+  --lc-code-title-style: italic;
+  --lc-code-title-weight: bold;
+  --lc-code-params-style: normal;
+  --lc-code-literal-weight: bold;
+  --lc-code-meta-style: normal;
+  --lc-code-attr-style: italic;
+  --lc-code-name-weight: bold;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--drac-green) 12%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--drac-red) 15%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--drac-yellow) 12%, var(--lc-console-bg));
+
+  --lc-code-tint-shift: 0.09;
+}

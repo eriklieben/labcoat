@@ -1,0 +1,79 @@
+<Project>
+  <!-- Shared build settings and NuGet metadata for the packages in src/. -->
+
+  <PropertyGroup Label="Version">
+    <!-- The version of local and CI builds. Don't change it by hand: semantic-release sets it to the released version
+         and commits it with CHANGELOG.md (release.config.mjs, eng/release.mjs); release builds pass
+         -p:Version=<released version>, CI builds add a suffix (VersionSuffix=ci.<run>). -->
+    <VersionPrefix>1.0.0</VersionPrefix>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package metadata">
+    <Authors>Erik Lieben</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Erik Lieben</Copyright>
+    <PackageProjectUrl>https://github.com/eriklieben/labcoat</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/eriklieben/labcoat</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>https://github.com/eriklieben/labcoat/blob/main/CHANGELOG.md</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Reproducible builds and debugging">
+    <!-- SourceLink: stamp the repository URL + commit into the package and the PDBs (shown on nuget.org). -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <Deterministic>true</Deterministic>
+    <!-- Normalized source paths in the PDBs: only on CI, local builds keep real paths for debugging. -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- Symbol packages (.snupkg) next to the .nupkg; `dotnet nuget push` uploads them to the NuGet symbol server. -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <PropertyGroup Label="SBOM">
+    <!-- Every package gets an SPDX 2.2 SBOM at _manifest/spdx_2.2/manifest.spdx.json (Microsoft.Sbom.Targets: after
+         Pack it unzips the .nupkg, runs sbom-tool and zips it again; the .snupkg is left alone). It lists every file of
+         the package with its SHA-256 (also the bundled runner of Labcoat.Aspire.Hosting / Labcoat.TestingPlatform) and
+         the NuGet packages the package depends on, transitively (the input is prepared in Directory.Build.targets).
+         docs/releasing.md, "SBOM". Package name and version default to PackageId and the package version.
+         `dotnet pack -p:GenerateSBOM=false` skips it. -->
+    <GenerateSBOM>true</GenerateSBOM>
+    <SbomGenerationPackageSupplier>$(Authors)</SbomGenerationPackageSupplier>
+    <SbomGenerationNamespaceBaseUri>https://github.com/eriklieben/labcoat</SbomGenerationNamespaceBaseUri>
+    <!-- No network lookups (ClearlyDefined licenses, NuGet metadata): the SBOM is made from what is on disk. -->
+    <SbomGenerationFetchLicenseInformation>false</SbomGenerationFetchLicenseInformation>
+    <SbomGenerationVerbosity>Warning</SbomGenerationVerbosity>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package validation">
+    <!-- `dotnet pack` checks every library package against the same package of the baseline version on nuget.org (and
+         its target frameworks against each other): a removed or changed public API fails the pack (CP0002, CP0006, ...).
+         Each release is validated against the release before it: semantic-release passes lastRelease.version to
+         eng/release.mjs prepare, which writes it here and commits it with <VersionPrefix>. So between releases, builds
+         compare with the second-to-last release (always on nuget.org by then: restore downloads it). Don't change it
+         by hand. The first release (1.0.0) has no previous release: it is packed without a baseline and leaves this
+         value as it is (0.1.0-preview.8, the last preview, still on nuget.org though unlisted), so builds compare with
+         that until the release after 1.0.0 writes 1.0.0 here.
+         An intentional break: `feat!:` / BREAKING CHANGE commit plus a CompatibilitySuppressions.xml in the project
+         (`dotnet pack -p:ApiCompatGenerateSuppressionFile=true`), see docs/releasing.md, "Package validation".
+         A package that isn't on nuget.org at the baseline version yet (a new package) sets
+         <DisablePackageBaselineValidation>true</DisablePackageBaselineValidation> in its project file until it is.
+         The Labcoat tool package opts out (Labcoat.csproj): it has no public API. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>0.1.0-preview.8</PackageValidationBaselineVersion>
+    <!-- A suppression for a break that is released stays harmless once the baseline has moved past it (delete it after
+         the next release); without this, a suppression that no longer matches anything would fail the pack. -->
+    <ApiCompatPermitUnnecessarySuppressions>true</ApiCompatPermitUnnecessarySuppressions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Sbom.Targets" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\assets\icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+</Project>

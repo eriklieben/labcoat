@@ -1,0 +1,48 @@
+/* Toasts (.lc-toaster > .lc-toast.lc-toast-<intent>), P19. */
+.lc-toaster {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: var(--lc-z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lc-space-8);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.lc-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-8);
+  max-width: min(480px, calc(100vw - 32px));
+  padding: var(--lc-space-6) var(--lc-space-6) var(--lc-space-6) var(--lc-space-12);
+  border: 1px solid var(--lc-stroke);
+  border-radius: var(--lc-radius-lg);
+  background: var(--lc-bg-popup);
+  box-shadow: var(--lc-shadow-menu);
+  color: var(--lc-fg);
+  font-size: var(--lc-text-md);
+  pointer-events: auto;
+  animation: lc-toast-in var(--lc-motion-base) var(--lc-ease-decelerate) both;
+}
+@keyframes lc-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--lc-motion-rise) * 2));
+  }
+}
+.lc-toast-icon {
+  color: var(--lc-accent);
+}
+.lc-toast-success .lc-toast-icon {
+  color: var(--lc-status-passed);
+}
+.lc-toast-error .lc-toast-icon {
+  color: var(--lc-status-failed);
+}
+.lc-toast-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

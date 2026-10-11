@@ -1,0 +1,69 @@
+/* Filter chips (.chips group, .chip, .chip-<status> dot, .chip-count, .chip-active). */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lc-space-4);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px; /* off-scale: 5px */
+  height: 24px;
+  padding: 0 3px 0 var(--lc-space-8); /* off-scale: 3px */
+  border: 1px solid var(--lc-stroke);
+  border-radius: var(--lc-radius-xl);
+  background: transparent;
+  color: var(--lc-fg-secondary);
+  font-size: var(--lc-text-sm);
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--lc-stroke-hover);
+  background: var(--lc-bg-subtle);
+  color: var(--lc-fg);
+}
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lc-status-muted);
+}
+.chip-failed .chip-dot {
+  background: var(--lc-status-failed);
+}
+.chip-passed .chip-dot {
+  background: var(--lc-status-passed);
+}
+.chip-skipped .chip-dot {
+  background: var(--lc-status-skipped);
+}
+.chip-notRun .chip-dot {
+  border: 1.5px solid var(--lc-status-muted);
+  background: transparent;
+}
+.chip-count {
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px; /* off-scale: 5px */
+  border-radius: var(--lc-radius-lg);
+  background: var(--lc-bg-subtle);
+  color: var(--lc-fg);
+  font-size: var(--lc-text-xs);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.chip-active {
+  border-color: var(--lc-focus-ring);
+  background: color-mix(in srgb, var(--lc-accent) 14%, transparent);
+  color: var(--lc-fg);
+}
+.chip-active:hover {
+  border-color: var(--lc-focus-ring);
+  background: color-mix(in srgb, var(--lc-accent) 20%, transparent);
+}
+.chip-active .chip-count {
+  background: var(--lc-accent);
+  color: var(--lc-on-accent);
+}

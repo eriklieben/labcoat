@@ -1,0 +1,100 @@
+/* Message bars (.messagebar.mb-info|success|warning|error|snapshot[.top] > .mb-icon, .mb-body > .mb-title + .mb-message). */
+
+.messagebar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lc-space-10);
+  margin-bottom: var(--lc-space-16);
+  padding: var(--lc-space-10) var(--lc-space-12);
+  border: 1px solid var(--lc-msg-info-border);
+  border-radius: var(--lc-radius-lg);
+  background: var(--lc-msg-info-bg);
+  color: var(--lc-msg-fg);
+  font-size: var(--lc-text-md);
+}
+.messagebar.top {
+  align-items: center;
+  margin-bottom: 0;
+  padding: var(--lc-space-6) var(--lc-space-8) var(--lc-space-6) var(--lc-space-12);
+}
+.mb-icon {
+  margin-top: 1px; /* off-scale: 1px */
+  color: var(--lc-accent);
+}
+.messagebar.top .mb-icon {
+  margin-top: 0;
+}
+.mb-success {
+  border-color: var(--lc-msg-success-border);
+  background: var(--lc-msg-success-bg);
+}
+.mb-success .mb-icon {
+  color: var(--lc-status-passed);
+}
+.mb-warning {
+  border-color: var(--lc-msg-warning-border);
+  background: var(--lc-msg-warning-bg);
+}
+.mb-warning .mb-icon {
+  color: var(--lc-status-skipped);
+}
+.mb-error {
+  border-color: var(--lc-msg-error-border);
+  background: var(--lc-msg-error-bg);
+}
+.mb-error .mb-icon {
+  color: var(--lc-status-failed);
+}
+.mb-snapshot {
+  border-color: color-mix(in srgb, var(--lc-accent) 45%, var(--lc-bg-surface));
+  background: color-mix(in srgb, var(--lc-accent) 8%, var(--lc-bg-surface));
+}
+.mb-snapshot .mb-icon {
+  color: var(--lc-accent);
+}
+.mb-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mb-body.inline {
+  display: flex;
+  gap: var(--lc-space-8);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.mb-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.mb-message {
+  margin: var(--lc-space-4) 0 0;
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-text-md);
+  line-height: 19px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mb-message.plain {
+  font-family: inherit;
+  font-size: var(--lc-text-md);
+}
+.mb-actions {
+  display: flex;
+  flex: none;
+  gap: var(--lc-space-6);
+}
+.mb-action {
+  flex: none;
+  background: var(--lc-msg-action-bg);
+}
+.mb-action:hover:not(:disabled) {
+  background: var(--lc-msg-action-hover-bg);
+}
+.mb-dismiss {
+  margin: -2px -4px -2px 0; /* off-scale: -2px -4px -2px */
+}

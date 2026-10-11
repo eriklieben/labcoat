@@ -1,0 +1,76 @@
+/* Status icons (.st, .st-<tone>, .spinner, .queued-dot) + the change pop (.st-anim). */
+
+.st {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+.st-passed {
+  color: var(--lc-status-passed);
+}
+.st-failed {
+  color: var(--lc-status-failed);
+}
+.st-skipped {
+  color: var(--lc-status-skipped);
+}
+.st-muted {
+  color: var(--lc-status-muted);
+}
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid color-mix(in srgb, var(--lc-status-running) 25%, transparent);
+  border-top-color: var(--lc-status-running);
+  border-radius: 50%;
+  animation: spin var(--lc-motion-spin) linear infinite;
+}
+.spinner.large {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+}
+.spin svg {
+  animation: spin 1s linear infinite;
+}
+.queued-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lc-fg-muted);
+  animation: pulse var(--lc-motion-shimmer) var(--lc-ease-loop) infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+/* Status icon change (reduced motion: a fade, motion.css): a tiny pop + fade (StatusIcon wraps the icon in .st-anim only when its status changed). */
+.st-anim {
+  display: inline-flex;
+  flex: none;
+  animation: st-in var(--lc-motion-base) cubic-bezier(0.2, 0.9, 0.3, 1.1); /* ≤ 10 % overshoot: a pop, not a bounce */
+}
+@keyframes st-in {
+  from {
+    opacity: 0.2;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

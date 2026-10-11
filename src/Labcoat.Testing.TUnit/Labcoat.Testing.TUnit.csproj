@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Loaded into the test application: net8.0 like Labcoat.Testing (TUnit supports net8.0 too). -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Same namespace as Labcoat.Testing: `using Labcoat.Testing;` covers the core and the adapter. -->
+    <RootNamespace>Labcoat.Testing</RootNamespace>
+    <AssemblyName>Labcoat.Testing.TUnit</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- A library, not a test project: no TUnit source generation or implicit usings here. -->
+    <EnableTUnitSourceGeneration>false</EnableTUnitSourceGeneration>
+    <TUnitImplicitUsings>false</TUnitImplicitUsings>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.Testing.TUnit</PackageId>
+    <Description>TUnit adapter for Labcoat.Testing: per-test OpenTelemetry traces for TUnit + Aspire.Hosting.Testing integration tests, so Labcoat can link each test to its trace and logs in the Aspire dashboard. Registers itself: no code needed.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>aspire;testing;tunit;opentelemetry;tracing;integration-testing;microsoft-testing-platform;labcoat</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Labcoat.Testing\Labcoat.Testing.csproj" />
+    <PackageReference Include="TUnit.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.Testing.TUnit.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- build/ (not buildTransitive/): only the project that references the package gets the assembly attribute. -->
+    <None Include="build\Labcoat.Testing.TUnit.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
+</Project>

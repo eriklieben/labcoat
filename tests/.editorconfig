@@ -1,0 +1,5 @@
+# Test code, on top of the repository's .editorconfig (no root = true here: the settings above still apply).
+
+[*.cs]
+# CA1861 (constant arrays as arguments): in tests, readability wins over a per-call array allocation.
+dotnet_diagnostic.CA1861.severity = none

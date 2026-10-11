@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    Labcoat.Aspire.Hosting (NuGet): copy the bundled Labcoat app from the package's tools/explorer/
+    folder into the consuming project's output directory under labcoat/. AddLabcoat() launches
+    it from there with `dotnet labcoat/Labcoat.dll`.
+    Set LabcoatCopyBundle=false to skip the copy (AddLabcoat then falls back to `dotnet tool exec`).
+  -->
+  <PropertyGroup>
+    <LabcoatPackageBundleDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../tools/explorer/'))</LabcoatPackageBundleDir>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(LabcoatCopyBundle)' != 'false' and Exists('$(LabcoatPackageBundleDir)Labcoat.dll')">
+    <None Include="$(LabcoatPackageBundleDir)**/*"
+          Link="labcoat/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Pack="false"
+          Visible="false" />
+  </ItemGroup>
+</Project>

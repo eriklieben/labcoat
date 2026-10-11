@@ -1,0 +1,87 @@
+/* "Running now" in the run summary: the longest-running test, "possibly hanging", and the list (running-now.ts). */
+
+@layer app.components {
+  .running-now-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-12);
+    min-width: 0;
+  }
+  .running-now {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    min-width: 0;
+    max-width: 22rem;
+    padding: 0 var(--lc-space-4);
+    border: 0;
+    border-radius: var(--lc-control-radius);
+    background: transparent;
+    color: var(--lc-fg-secondary);
+    font: inherit;
+    font-size: var(--lc-text-sm);
+    cursor: pointer;
+  }
+  .running-now:hover {
+    background: color-mix(in srgb, var(--lc-highlight) 28%, transparent);
+  }
+  .running-now:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 1px;
+  }
+  .running-now .rn-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .running-now .rn-time,
+  .running-now .rn-more {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .running-now.is-slow,
+  .rn-row.is-slow {
+    color: var(--lc-status-skipped-text);
+  }
+  .rn-flag {
+    flex: none;
+    font-weight: 600;
+  }
+  .running-now-list {
+    position: absolute;
+    z-index: var(--lc-z-dropdown);
+    top: calc(100% + 8px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 20rem;
+    max-width: min(36rem, 90vw);
+    padding: var(--lc-space-4);
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-popup-radius);
+    background: var(--lc-bg-popup);
+    box-shadow: var(--lc-shadow-popup);
+    white-space: nowrap;
+  }
+  .rn-row {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-8);
+    padding: var(--lc-space-4) var(--lc-space-8);
+    font-size: var(--lc-text-sm);
+  }
+  .rn-row .rn-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rn-row .rn-project {
+    color: var(--lc-fg-muted);
+  }
+  .rn-row .rn-time {
+    font-variant-numeric: tabular-nums;
+  }
+  .rn-rest {
+    color: var(--lc-fg-muted);
+  }
+}

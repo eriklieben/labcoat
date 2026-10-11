@@ -1,0 +1,19 @@
+/* Disclosure button (.lc-disclosure-btn > .lc-caret + summary); the collapsible itself is in tokens/motion.css. */
+.lc-disclosure-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-6);
+  padding: var(--lc-space-2) var(--lc-space-4);
+  border: 0;
+  border-radius: var(--lc-radius-sm);
+  background: transparent;
+  color: var(--lc-fg);
+  font-size: var(--lc-text-md);
+  cursor: pointer;
+}
+.lc-disclosure-btn:hover {
+  background: var(--lc-bg-subtle);
+}
+.lc-disclosure-btn > .lc-caret {
+  color: var(--lc-fg-muted);
+}

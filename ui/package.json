@@ -1,0 +1,50 @@
+{
+  "name": "labcoat-ui",
+  "private": true,
+  "license": "MIT",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "mock": "vite --open /?mock",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "bench": "vitest bench --run -c vitest.bench.config.ts",
+    "bench:ci": "vitest bench --run -c vitest.bench.config.ts --reporter=verbose --reporter=json --outputFile.json=bench-results/ui-bench.json",
+    "bench:compare": "node scripts/bench-compare.mjs",
+    "preview": "vite preview",
+    "check": "npm run typecheck && npm run test && npm run check:reactive && npm run check:a11y && npm run check:keyboard",
+    "check:reactive": "node scripts/wc/reactive-test.mjs",
+    "check:a11y": "node scripts/ds-axe.mjs && node scripts/shell-axe.mjs",
+    "check:keyboard": "node scripts/ds-keyboard.mjs",
+    "check:themes": "node scripts/themes-check.mjs",
+    "check:styles": "node scripts/check-styles.mjs",
+    "check:perf": "node scripts/wc/perf.mjs",
+    "check:leaks": "node scripts/wc/leak.mjs",
+    "check:perf:huge": "node scripts/wc/perf-scale.mjs --scenario=huge",
+    "check:perf:many-projects": "node scripts/wc/perf-scale.mjs --scenario=many-projects",
+    "check:soak": "node scripts/wc/soak.mjs --cycles=10 --partial=4 --warmup=3",
+    "check:soak:long": "node scripts/wc/soak.mjs --cycles=50 --partial=4 --warmup=5 --heap-snapshots",
+    "check:tree-stress": "node scripts/tree-stress.mjs",
+    "screenshots:docs": "node scripts/docs-screenshots.mjs",
+    "gallery": "npm run gallery -w design-system"
+  },
+  "dependencies": {
+    "@eriklieben/labcoat-design-system": "*",
+    "highlight.js": "^11.12.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.0.2",
+    "happy-dom": "20.14.5",
+    "playwright": "^1.64.0",
+    "typescript": "5.9",
+    "vite": "^8.3.4",
+    "vitest": "5.0.2"
+  },
+  "workspaces": [
+    "design-system"
+  ]
+}

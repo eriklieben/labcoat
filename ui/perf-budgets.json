@@ -1,0 +1,249 @@
+{
+  "$comment": "Performance budgets for the scale and soak checks (scripts/wc/perf-scale.mjs, scripts/wc/soak.mjs, eng/perf-real.mjs). max = upper bound, min = lower bound; warnOnly = reported, never fails the check. Times in ms, measured in headless Chromium on a production build.",
+  "scenarios": {
+    "huge": {
+      "tests": 20000,
+      "budgets": {
+        "initialRenderMs": {
+          "max": 1500,
+          "unit": "ms",
+          "label": "Initial render: navigation → first tree rows (excl. the in-page mock's data generation)"
+        },
+        "uiRenderMs": {
+          "max": 800,
+          "unit": "ms",
+          "label": "State snapshot handed to the UI → first tree rows painted"
+        },
+        "ttiMs": {
+          "max": 2500,
+          "unit": "ms",
+          "label": "Time to interactive (last load long task ends)"
+        },
+        "loadLongestTaskMs": {
+          "max": 400,
+          "unit": "ms",
+          "label": "Longest task while loading",
+          "warnOnly": true
+        },
+        "expandAllMs": {
+          "max": 250,
+          "unit": "ms",
+          "label": "Expand all → painted"
+        },
+        "scrollP95Ms": {
+          "max": 20,
+          "unit": "ms",
+          "label": "Scroll frame time p95 (240 px/frame)"
+        },
+        "scrollJumpP95Ms": {
+          "max": 50,
+          "unit": "ms",
+          "label": "Scroll jump frame time p95 (random positions)"
+        },
+        "filterP95Ms": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Filter keystroke → painted, p95"
+        },
+        "statusFilterMaxMs": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Status filter chip → painted, max"
+        },
+        "selectMaxMs": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Select a test → painted, max"
+        },
+        "collapseAllMs": {
+          "max": 150,
+          "unit": "ms",
+          "label": "Collapse all → painted"
+        },
+        "streamingLongestTaskMs": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Longest task while results stream (excl. run start / finish bulk updates)"
+        },
+        "bulkUpdateLongestTaskMs": {
+          "max": 400,
+          "unit": "ms",
+          "label": "Longest task with a bulk update (run start / finish, all tests at once; incl. mock clone)",
+          "warnOnly": true
+        },
+        "streamingFrameP95Ms": {
+          "max": 50,
+          "unit": "ms",
+          "label": "Frame time p95 while a full run streams"
+        },
+        "heapAfterRunMB": {
+          "max": 250,
+          "unit": "MB",
+          "label": "JS heap after a full run (after GC)"
+        }
+      }
+    },
+    "many-projects": {
+      "tests": 12000,
+      "budgets": {
+        "initialRenderMs": {
+          "max": 1500,
+          "unit": "ms",
+          "label": "Initial render: navigation → first tree rows (excl. the in-page mock's data generation)"
+        },
+        "uiRenderMs": {
+          "max": 600,
+          "unit": "ms",
+          "label": "State snapshot handed to the UI → first tree rows painted"
+        },
+        "ttiMs": {
+          "max": 2000,
+          "unit": "ms",
+          "label": "Time to interactive (last load long task ends)"
+        },
+        "loadLongestTaskMs": {
+          "max": 300,
+          "unit": "ms",
+          "label": "Longest task while loading",
+          "warnOnly": true
+        },
+        "expandAllMs": {
+          "max": 200,
+          "unit": "ms",
+          "label": "Expand all → painted"
+        },
+        "scrollP95Ms": {
+          "max": 20,
+          "unit": "ms",
+          "label": "Scroll frame time p95 (240 px/frame)"
+        },
+        "scrollJumpP95Ms": {
+          "max": 50,
+          "unit": "ms",
+          "label": "Scroll jump frame time p95 (random positions)"
+        },
+        "filterP95Ms": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Filter keystroke → painted, p95"
+        },
+        "statusFilterMaxMs": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Status filter chip → painted, max"
+        },
+        "selectMaxMs": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Select a test → painted, max"
+        },
+        "collapseAllMs": {
+          "max": 150,
+          "unit": "ms",
+          "label": "Collapse all → painted"
+        },
+        "streamingLongestTaskMs": {
+          "max": 100,
+          "unit": "ms",
+          "label": "Longest task while results stream (excl. run start / finish bulk updates)"
+        },
+        "bulkUpdateLongestTaskMs": {
+          "max": 300,
+          "unit": "ms",
+          "label": "Longest task with a bulk update (run start / finish, all tests at once; incl. mock clone)",
+          "warnOnly": true
+        },
+        "streamingFrameP95Ms": {
+          "max": 50,
+          "unit": "ms",
+          "label": "Frame time p95 while a full run streams"
+        },
+        "heapAfterRunMB": {
+          "max": 160,
+          "unit": "MB",
+          "label": "JS heap after a full run (after GC)"
+        }
+      }
+    }
+  },
+  "soak": {
+    "budgets": {
+      "heapGrowthPct": {
+        "max": 5,
+        "unit": "%",
+        "label": "JS heap growth after warm-up (fitted trend)"
+      },
+      "domNodeGrowthPct": {
+        "max": 5,
+        "unit": "%",
+        "label": "DOM node growth after warm-up"
+      },
+      "listenerGrowthPct": {
+        "max": 5,
+        "unit": "%",
+        "label": "Event listener growth after warm-up"
+      },
+      "effectGrowth": {
+        "max": 50,
+        "unit": "",
+        "label": "Live effects, last − first sample after warm-up"
+      },
+      "ownerGrowth": {
+        "max": 100,
+        "unit": "",
+        "label": "Live owners, last − first sample after warm-up"
+      },
+      "runLongestTaskMs": {
+        "max": 100,
+        "unit": "ms",
+        "label": "Longest task during the soak runs",
+        "warnOnly": true
+      }
+    }
+  },
+  "real": {
+    "$comment": "eng/perf-real.mjs against a published Labcoat host and generated MSTest projects (local only, not in CI).",
+    "budgets": {
+      "discoveryMs": {
+        "max": 120000,
+        "unit": "ms",
+        "label": "Discovery (build + list tests), cold"
+      },
+      "firstRunMs": {
+        "max": 120000,
+        "unit": "ms",
+        "label": "First full run"
+      },
+      "rerunMs": {
+        "max": 60000,
+        "unit": "ms",
+        "label": "Re-run, warm test hosts"
+      },
+      "initialRenderMs": {
+        "max": 1500,
+        "unit": "ms",
+        "label": "UI initial render with full history"
+      },
+      "ttiMs": {
+        "max": 3000,
+        "unit": "ms",
+        "label": "UI time to interactive with full history"
+      },
+      "streamingLongestTaskMs": {
+        "max": 100,
+        "unit": "ms",
+        "label": "Longest UI task while the run streams"
+      },
+      "serverRssMB": {
+        "max": 1024,
+        "unit": "MB",
+        "label": "Host RSS after the runs"
+      },
+      "leanStateKB": {
+        "max": 8192,
+        "unit": "KB",
+        "label": "GET /api/state?lean=1 size"
+      }
+    }
+  }
+}

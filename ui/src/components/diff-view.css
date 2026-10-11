@@ -1,0 +1,194 @@
+/* Expected / actual diff of assertion failures (assertionDiff() in diff-view.ts). */
+
+@layer app.components {
+  .failure-message {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-8);
+    min-width: 0;
+  }
+  .diff-block {
+    --diff-exp: var(--lc-status-passed);
+    --diff-act: var(--lc-status-failed);
+    margin-top: var(--lc-space-2);
+    overflow: hidden;
+    border: 1px solid var(--lc-console-border);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-console-bg);
+    color: var(--lc-console-fg);
+  }
+  .diff-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lc-space-4) var(--lc-space-14);
+    padding: var(--lc-space-4) var(--lc-space-10);
+    border-bottom: 1px solid var(--lc-console-gutter-rule);
+    background: var(--lc-bg-page);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+  }
+  .diff-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-4);
+  }
+  .diff-legend .diff-sign,
+  .diff-stats .exp,
+  .diff-label.exp {
+    color: color-mix(in srgb, var(--diff-exp) 80%, var(--lc-fg));
+  }
+  .diff-legend.act .diff-sign,
+  .diff-stats .act,
+  .diff-label.act {
+    color: color-mix(in srgb, var(--diff-act) 80%, var(--lc-fg));
+  }
+  .diff-sign {
+    font-family: var(--lc-font-mono);
+    font-weight: 600;
+  }
+  .diff-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    font-variant-numeric: tabular-nums;
+  }
+  .diff-tag {
+    padding: 0 5px; /* off-scale: 5px */
+    border-radius: 3px;
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg-secondary);
+    font-family: var(--lc-font-sans);
+    font-size: var(--lc-text-xs);
+    line-height: 16px;
+  }
+  .diff-note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-4);
+    margin-left: auto;
+    color: var(--lc-fg-muted);
+  }
+  .diff-inline {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 3px var(--lc-space-12); /* off-scale: 3px */
+    padding: var(--lc-space-8) var(--lc-space-10);
+    font-size: var(--lc-text-md);
+    line-height: 19px;
+  }
+  .diff-label {
+    font-family: var(--lc-font-sans);
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+  }
+  .diff-value {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .diff-value mark,
+  .diff-text mark {
+    border-radius: var(--lc-radius-xs);
+    color: inherit;
+  }
+  .diff-value.exp mark,
+  .diff-line.exp mark {
+    background: color-mix(in srgb, var(--diff-exp) 32%, transparent);
+  }
+  .diff-value.act mark,
+  .diff-line.act mark {
+    background: color-mix(in srgb, var(--diff-act) 30%, transparent);
+  }
+  .diff-quote,
+  .diff-cut,
+  .diff-empty {
+    color: var(--lc-console-muted);
+  }
+  .diff-lines {
+    max-height: 420px;
+    overflow: auto;
+    padding: var(--lc-space-4) 0;
+    font-size: var(--lc-text-md);
+    line-height: 19px;
+  }
+  .diff-line {
+    display: grid;
+    grid-template-columns: 3.5ch 3.5ch 2.5ch minmax(0, 1fr);
+  }
+  .diff-line.exp {
+    background: color-mix(in srgb, var(--diff-exp) 10%, transparent);
+  }
+  .diff-line.act {
+    background: color-mix(in srgb, var(--diff-act) 10%, transparent);
+  }
+  .diff-ln {
+    padding-right: var(--lc-space-6);
+    color: var(--lc-console-muted);
+    text-align: right;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .diff-line .diff-sign {
+    text-align: center;
+    user-select: none;
+  }
+  .diff-line.exp .diff-sign {
+    color: var(--diff-exp);
+  }
+  .diff-line.act .diff-sign {
+    color: var(--diff-act);
+  }
+  .diff-text {
+    padding-right: var(--lc-space-10);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .diff-fold {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    width: 100%;
+    padding: 1px 0 1px 7ch; /* off-scale: 1px 1px */
+    border: 0;
+    background: var(--lc-bg-page);
+    color: var(--lc-console-muted);
+    font: inherit;
+    font-family: var(--lc-font-sans);
+    font-size: var(--lc-text-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: color var(--lc-motion-fast), background-color var(--lc-motion-fast);
+  }
+  .diff-fold:hover {
+    background: var(--lc-bg-subtle);
+    color: var(--lc-accent);
+  }
+  .raw-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: var(--lc-space-4);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lc-fg-muted);
+    font: inherit;
+    font-size: var(--lc-text-sm);
+    cursor: pointer;
+    transition: color var(--lc-motion-fast);
+  }
+  .raw-toggle:hover {
+    color: var(--lc-accent);
+  }
+  .raw-message {
+    margin: 0;
+    padding: var(--lc-space-6) var(--lc-space-10);
+    border-left: 2px solid var(--lc-stroke);
+  }
+
+  /* diff: the fold button sits in a list item */
+  .diff-fold-item {
+    display: block;
+  }
+}

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Labcoat</title>
+    <!-- cascade layer order, first in the document: a lazily loaded CSS chunk can be linked before the main bundle, and
+         the first appearance of a layer name fixes its position (same list as design-system/src/styles.css) -->
+    <style>
+      @layer lc.reset, lc.tokens, lc.themes, lc.components, lc.motion, app.base, app.shell, app.components, app.utilities;
+    </style>
+    <script>
+      // Apply theme (mode + family) and the motion preference before first paint to avoid a flash.
+      // Effective value = locked ? host default : (this browser's choice ?? host default ?? built-in). The host injects its
+      // defaults as <html data-labcoat-defaults="{…}"> (an attribute, so this script's CSP hash stays the same).
+      (function () {
+        var root = document.documentElement, d = {}, locked = [];
+        try {
+          d = JSON.parse(root.dataset.labcoatDefaults || "{}") || {};
+          locked = d.locked || [];
+        } catch {
+          // malformed defaults: paint with the built-in ones (the app reports the host's defaults later)
+        }
+        // the theme families (THEME_FAMILIES in design-system/src/themes/families.ts); unknown → catppuccin
+        var families = /^(catppuccin|aspire|github|one|dracula|solarized|gruvbox)$/, modes = /^(system|light|dark)$/;
+        function pick(key, local, valid, builtin) {
+          var host = valid.test(d[key]) ? d[key] : null;
+          if (locked.includes(key)) return host || builtin;
+          return (valid.test(local) ? local : null) || host || builtin;
+        }
+        var pref = "system", family = "catppuccin", motion = "system", stored = {};
+        try {
+          stored = JSON.parse(localStorage.getItem("mste.settings") || "{}") || {};
+          // format v1 stored every setting: "system" there was never a choice
+          if (stored.$v !== 2 && stored.motion === "system") delete stored.motion;
+          pref = pick("mode", localStorage.getItem("mste.theme"), modes, "system");
+          family = pick("theme", localStorage.getItem("mste.themeFamily"), families, "catppuccin");
+        } catch {
+          // no (readable) localStorage or a malformed stored value: the host's defaults and built-ins only
+          pref = pick("mode", null, modes, "system");
+          family = pick("theme", null, families, "catppuccin");
+        }
+        var dark = pref === "dark" || (pref === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+        root.dataset.theme = dark ? "dark" : "light";
+        root.dataset.themeFamily = family;
+        // Settings → Motion (reduced / off) before first paint
+        motion = pick("motion", stored.motion, /^(system|reduced|off)$/, "system");
+        if (motion === "reduced" || motion === "off") root.dataset.motion = motion;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,99 @@
+# ----------------------------------------------------------------------------- .NET
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+*.nupkg
+*.snupkg
+*.binlog
+*.user
+*.suo
+*.userprefs
+*.rsuser
+*.DotSettings.user
+launchSettings.local.json
+project.lock.json
+nuget.config.local
+
+# Test results and coverage
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+*.cobertura.xml
+coverage*.json
+coverage*.xml
+coverage*.info
+coverage-report/
+ui/coverage/
+# perf / soak reports (ui/scripts/wc/perf-scale.mjs, soak.mjs, eng/perf-real.mjs)
+ui/perf-results/
+# Vitest bench JSON (ui: npm run bench:ci, compared with scripts/bench-compare.mjs)
+ui/bench-results/
+# style regression baseline (ui: npm run check:styles -- --update; local, for CSS refactors and reviews)
+ui/.styles-baseline/
+# BenchmarkDotNet output (benchmarks/Labcoat.Benchmarks; the default artifacts folder is in the working directory)
+BenchmarkDotNet.Artifacts/
+# SonarScanner for .NET working folder (dotnet dotnet-sonarscanner begin / end; CI job sonar)
+.sonarqube/
+
+# ----------------------------------------------------------------------------- Built UI
+# The web UI is built from ui/ into src/Labcoat/wwwroot (`npm ci && npm run build` in ui/, or
+# `dotnet pack -p:LabcoatBuildUi=true`). It is a build output: CI builds it before testing and packing.
+src/Labcoat/wwwroot/
+
+# ----------------------------------------------------------------------------- Node / Vite / Playwright
+node_modules/
+dist/
+dist-gallery/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# ----------------------------------------------------------------------------- Labcoat local state
+# History, past runs and settings live outside the repository by default (LocalApplicationData/labcoat or
+# $LABCOAT_HISTORY_DIR); ignore a local override that points into the working tree.
+.labcoat/
+
+# ----------------------------------------------------------------------------- IDEs and editors
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+*.sln.iml
+.fleet/
+.history/
+
+# ----------------------------------------------------------------------------- OS
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ----------------------------------------------------------------------------- Secrets / env
+.env
+.env.*
+!.env.example
+*.pfx
+*.snk
+
+# Claude Code local settings and memory: never committed
+.claude/

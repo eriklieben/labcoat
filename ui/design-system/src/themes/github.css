@@ -1,0 +1,408 @@
+/* ==========================================================================================
+   GitHub theme family: Light Default (light) and Dark Default (dark).
+   Palette: Primer Primitives v11.10.0 functional tokens (dist/css/functional/themes/light.css, dark.css),
+   https://github.com/primer/primitives (MIT, © 2018 GitHub Inc.); the same values the official
+   GitHub VS Code theme (https://github.com/primer/github-vscode-theme, MIT) is generated from.
+   Selected with <html data-theme-family="github" data-theme="light|dark">.
+
+   The first block declares the Primer values as --gh-* (named after the Primer token they come from)
+   and maps every semantic --lc-* token onto them; the dark block swaps in the dark values and
+   overrides the few mappings that differ. Like every theme file, this assigns tokens only.
+
+   GitHub conventions kept: green primary button (button-primary), blue accent/focus/links,
+   success/danger/attention for passed/failed/skipped, flash-style message bars (the *-muted
+   backgrounds + borders), "pretty lights" syntax colors (current Primer values, mapped like highlight.js'
+   github.css; see the "syntax" blocks) and the diff line colors for coverage.
+
+   Contrast (WCAG 2.x, checked against the actual backgrounds): Primer is designed for AA. Adjusted:
+   Light's bright ANSI blue/magenta/cyan/white (mixed toward fg); Dark's primary-button hover/pressed
+   (darken instead of lighten) and the error-badge text (dark instead of white). Noted per token.
+   ========================================================================================== */
+
+:root[data-theme-family="github"] {
+  color-scheme: light;
+
+  /* Primer light (functional tokens) */
+  --gh-bg-default: #ffffff;
+  --gh-bg-muted: #f6f8fa;
+  --gh-bg-inset: #f6f8fa;
+  --gh-control-hover: #eff2f5; /* control-bgColor-hover */
+  --gh-control-active: #e6eaef; /* control-bgColor-active */
+  --gh-fg-default: #1f2328;
+  --gh-fg-secondary: #393f46; /* neutral scale 11 (ansi-blackBright) */
+  --gh-fg-muted: #59636e;
+  --gh-border-default: #d1d9e0;
+  --gh-border-muted: #d1d9e0b3;
+  --gh-border-emphasis: #818b98;
+  --gh-accent: #0969da; /* fgColor-accent = bgColor-accent-emphasis = focus-outlineColor */
+  --gh-accent-strong: #0550ae; /* prettylights constant (blue 6) */
+  --gh-accent-muted: #ddf4ff;
+  --gh-btn-primary: #1f883d; /* button-primary-bgColor-rest */
+  --gh-btn-primary-hover: #1c8139;
+  --gh-btn-primary-active: #197935;
+  --gh-on-emphasis: #ffffff;
+  --gh-success: #1a7f37; /* fgColor-success */
+  --gh-success-emphasis: #1f883d;
+  --gh-success-muted: #dafbe1;
+  --gh-success-border: #4ac26b66;
+  --gh-danger: #d1242f; /* fgColor-danger */
+  --gh-danger-emphasis: #cf222e;
+  --gh-danger-muted: #ffebe9;
+  --gh-danger-border: #ff818266;
+  --gh-attention: #9a6700; /* fgColor-attention */
+  --gh-attention-muted: #fff8c5;
+  --gh-attention-border: #d4a72c66;
+  --gh-attention-bright: #d4a72c; /* yellow 3 (attention border base) */
+  --gh-severe: #bc4c00;
+  --gh-done: #8250df;
+  --gh-sponsors: #bf3989;
+  --gh-coral: #fd8c73; /* underlineNav-borderColor-active */
+  /* pretty lights (syntax) */
+  --gh-syn-comment: #59636e;
+  --gh-syn-constant: #0550ae;
+  --gh-syn-entity: #6639ba;
+  --gh-syn-entity-tag: #0550ae;
+  --gh-syn-keyword: #cf222e;
+  --gh-syn-string: #0a3069;
+  --gh-syn-variable: #953800;
+  /* ANSI */
+  --gh-ansi-black: #1f2328;
+  --gh-ansi-black-bright: #393f46;
+  --gh-ansi-white: #59636e;
+  --gh-ansi-white-bright: #818b98;
+  --gh-ansi-red: #cf222e;
+  --gh-ansi-red-bright: #a40e26;
+  --gh-ansi-green: #116329;
+  --gh-ansi-green-bright: #1a7f37;
+  --gh-ansi-yellow: #4d2d00;
+  --gh-ansi-yellow-bright: #633c01;
+  --gh-ansi-blue: #0969da;
+  --gh-ansi-blue-bright: #218bff;
+  --gh-ansi-magenta: #8250df;
+  --gh-ansi-magenta-bright: #a475f9;
+  --gh-ansi-cyan: #1b7c83;
+  --gh-ansi-cyan-bright: #3192aa;
+  /* display (label) colors, for the tag palette */
+  --gh-display-teal: #106e75;
+  --gh-display-yellow: #805900;
+  --gh-display-orange: #a24610;
+  --gh-display-coral: #ba2e12;
+  --gh-display-blue: #005fcc;
+  --gh-display-pink: #b12f79;
+  --gh-display-indigo: #494edf;
+  --gh-display-cyan: #006a80;
+  --gh-display-green: #2b6e3f;
+  --gh-display-plum: #961edc;
+
+  /* surfaces: GitHub pages are white with muted (#f6f8fa) chrome and bordered boxes */
+  --lc-bg-page: var(--gh-bg-default);
+  --lc-bg-shell: var(--gh-bg-muted);
+  --lc-bg-surface: var(--gh-bg-default);
+  --lc-bg-subtle: var(--gh-control-active);
+  --lc-bg-hover: var(--gh-bg-muted);
+  --lc-bg-selected: var(--gh-control-hover);
+  --lc-bg-badge: var(--gh-control-hover);
+  --lc-bg-popup: var(--gh-bg-default); /* overlay-bgColor */
+  --lc-bg-menu-hover: var(--gh-control-hover);
+  --lc-shadow-popup: 0 0 0 1px #d1d9e080, 0 6px 12px -3px #25292e0a, 0 6px 18px 0 #25292e1f; /* shadow-floating-small */
+  --lc-shadow-menu: 0 0 0 1px #d1d9e040, 0 6px 12px -3px #25292e0a, 0 6px 18px 0 #25292e1f;
+
+  /* text */
+  --lc-fg: var(--gh-fg-default);
+  --lc-fg-secondary: var(--gh-fg-secondary);
+  --lc-fg-muted: var(--gh-fg-muted);
+  --lc-fg-subtext: var(--gh-fg-muted);
+
+  /* strokes */
+  --lc-stroke: var(--gh-border-default);
+  --lc-stroke-subtle: var(--gh-border-muted);
+  --lc-stroke-hover: var(--gh-border-emphasis);
+  --lc-stroke-grid: var(--gh-border-muted);
+
+  /* accent = Primer accent blue; primary (accent) button = GitHub's green button-primary */
+  --lc-accent: var(--gh-accent);
+  --lc-accent-hover: var(--gh-accent-strong);
+  --lc-on-accent: var(--gh-on-emphasis);
+  --lc-accent-button-bg: var(--gh-btn-primary);
+  --lc-accent-button-fg: var(--gh-on-emphasis);
+  --lc-accent-button-hover-bg: var(--gh-btn-primary-hover);
+  --lc-accent-button-hover-fg: var(--gh-on-emphasis);
+  --lc-accent-button-pressed-bg: var(--gh-btn-primary-active);
+  --lc-link: var(--gh-accent);
+  --lc-link-hover: var(--gh-accent-strong);
+  --lc-focus-ring: var(--gh-accent);
+
+  /* status: success / danger / attention (GitHub's warning yellow) */
+  --lc-status-passed: var(--gh-success);
+  --lc-status-failed: var(--gh-danger);
+  --lc-status-skipped: var(--gh-attention);
+  --lc-status-running: var(--gh-accent);
+  --lc-status-muted: var(--gh-fg-muted);
+  --lc-status-failed-text: var(--gh-danger);
+  --lc-status-passed-text: var(--lc-status-passed); /* status colors as text (counts, rates): already ≥ 4.5:1 */
+  --lc-status-skipped-text: var(--lc-status-skipped);
+  --lc-on-status: var(--gh-on-emphasis);
+  --lc-host-warm: var(--gh-severe);
+
+  /* message bars = Primer flash: *-muted background, *-muted border */
+  --lc-msg-success-bg: var(--gh-success-muted);
+  --lc-msg-success-border: var(--gh-success-border);
+  --lc-msg-error-bg: var(--gh-danger-muted);
+  --lc-msg-error-border: var(--gh-danger-border);
+  --lc-msg-warning-bg: var(--gh-attention-muted);
+  --lc-msg-warning-border: var(--gh-attention-border);
+  --lc-msg-info-bg: var(--gh-bg-muted);
+  --lc-msg-info-border: var(--gh-border-default);
+  --lc-msg-fg: var(--gh-fg-default);
+  --lc-msg-action-bg: var(--gh-bg-default);
+  --lc-msg-action-hover-bg: var(--gh-control-hover);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--gh-border-emphasis) 55%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--gh-fg-muted) 75%, transparent);
+
+  /* tag palette (Primer display colors) */
+  --lc-tag-teal: var(--gh-display-teal);
+  --lc-tag-marigold: var(--gh-display-yellow);
+  --lc-tag-peach: var(--gh-display-orange);
+  --lc-tag-coral: var(--gh-display-coral);
+  --lc-tag-royal-blue: var(--gh-display-indigo);
+  --lc-tag-orchid: var(--gh-display-pink);
+  --lc-tag-brand-blue: var(--gh-display-blue);
+  --lc-tag-seafoam: var(--gh-display-cyan);
+  --lc-tag-jade: var(--gh-display-green);
+  --lc-tag-berry: var(--gh-display-plum);
+
+  /* console = code view (codeMirror-bgColor) */
+  --lc-console-bg: var(--gh-bg-default);
+  --lc-console-fg: var(--gh-fg-default);
+  --lc-console-muted: var(--gh-fg-muted);
+  --lc-console-border: var(--gh-border-default);
+  --lc-console-hover: var(--gh-bg-muted);
+  --lc-console-gutter-rule: var(--gh-border-muted);
+  --lc-console-error-bg: var(--gh-danger-muted);
+  --lc-console-warn-bg: var(--gh-attention-muted);
+  --lc-console-link: var(--gh-accent);
+  --lc-ansi-black: var(--gh-ansi-black);
+  --lc-ansi-red: var(--gh-ansi-red);
+  --lc-ansi-green: var(--gh-ansi-green);
+  --lc-ansi-yellow: var(--gh-ansi-yellow);
+  --lc-ansi-blue: var(--gh-ansi-blue);
+  --lc-ansi-magenta: var(--gh-ansi-magenta);
+  --lc-ansi-cyan: var(--gh-ansi-cyan);
+  --lc-ansi-white: var(--gh-ansi-white);
+  --lc-ansi-bright-black: var(--gh-ansi-black-bright);
+  --lc-ansi-bright-red: var(--gh-ansi-red-bright);
+  --lc-ansi-bright-green: var(--gh-ansi-green-bright);
+  --lc-ansi-bright-yellow: var(--gh-ansi-yellow-bright);
+  /* Primer light's bright blue/magenta/cyan/white are 3.2–3.6:1 on white: mixed toward fg-default to reach 4.5:1 */
+  --lc-ansi-bright-blue: color-mix(in srgb, var(--gh-ansi-blue-bright) 80%, var(--gh-fg-default));
+  --lc-ansi-bright-magenta: color-mix(in srgb, var(--gh-ansi-magenta-bright) 75%, var(--gh-fg-default));
+  --lc-ansi-bright-cyan: color-mix(in srgb, var(--gh-ansi-cyan-bright) 80%, var(--gh-fg-default));
+  --lc-ansi-bright-white: color-mix(in srgb, var(--gh-ansi-white-bright) 80%, var(--gh-fg-default));
+
+  /* syntax (light), hljs-community source: https://github.com/highlightjs/highlight.js/blob/main/src/styles/github.css (class->token mapping, maintainer @Hirse) + https://github.com/primer/primitives (prettylights values)
+     License: hljs styles BSD-3-Clause (© highlight.js authors); Primer primitives MIT (© GitHub Inc.).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #1f2328;
+  --lc-code-comment: #59636e;
+  --lc-code-doctag: #cf222e;
+  --lc-code-keyword: #cf222e;
+  --lc-code-built-in: #cf222e;
+  --lc-code-type: #cf222e;
+  --lc-code-class: #6639ba;
+  --lc-code-function: #6639ba;
+  --lc-code-title: #6639ba;
+  --lc-code-params: #1f2328; /* as default: not distinguished by the source */
+  --lc-code-string: #0a3069;
+  --lc-code-subst: #1f2328; /* as default: not distinguished by the source */
+  --lc-code-number: #0550ae;
+  --lc-code-literal: #0550ae; /* as number: not distinguished by the source */
+  --lc-code-meta: #6639ba;
+  --lc-code-attr: #0550ae;
+  --lc-code-attribute: #0550ae;
+  --lc-code-variable: #0550ae;
+  --lc-code-symbol: #953800;
+  --lc-code-operator: #0550ae;
+  --lc-code-punctuation: #1f2328; /* as default: not distinguished by the source */
+  --lc-code-tag: #1f2328; /* as default: not distinguished by the source */
+  --lc-code-name: #0550ae;
+  --lc-code-addition: #116329;
+  --lc-code-deletion: #82071e;
+  --lc-code-regexp: #116329;
+
+  /* coverage = diff line colors (diffBlob addition / deletion, attention-muted for partial) */
+  --lc-coverage-covered: var(--gh-success-muted);
+  --lc-coverage-uncovered: var(--gh-danger-muted);
+  --lc-coverage-partial: var(--gh-attention-muted);
+
+  /* syntax colors on tinted source lines move by this OKLCH lightness step (hue and chroma kept) to stay ≥ 4.5:1 */
+  --lc-code-tint-shift: -0.02;
+
+  --lc-confetti-1: var(--gh-accent);
+  --lc-confetti-2: var(--gh-done);
+  --lc-confetti-3: var(--gh-success-emphasis);
+  --lc-confetti-4: var(--gh-ansi-cyan);
+  --lc-confetti-5: var(--gh-attention-bright);
+  --lc-confetti-6: var(--gh-coral);
+  --lc-confetti-7: var(--gh-sponsors);
+}
+
+:root[data-theme-family="github"][data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Primer dark (functional tokens) */
+  --gh-bg-default: #0d1117;
+  --gh-bg-muted: #151b23;
+  --gh-bg-inset: #010409;
+  --gh-control-rest: #212830;
+  --gh-control-hover: #262c36;
+  --gh-control-active: #2a313c;
+  --gh-fg-default: #f0f6fc;
+  --gh-fg-secondary: #d1d7e0;
+  --gh-fg-muted: #9198a1;
+  --gh-border-default: #3d444d;
+  --gh-border-muted: #3d444db3;
+  --gh-border-emphasis: #656c76;
+  --gh-accent: #4493f8; /* fgColor-accent */
+  --gh-accent-emphasis: #1f6feb; /* bgColor-accent-emphasis = focus-outlineColor */
+  --gh-accent-strong: #79c0ff; /* prettylights constant */
+  --gh-btn-primary: #238636;
+  --gh-btn-primary-hover: #29903b;
+  --gh-btn-primary-active: #2e9a40;
+  --gh-on-emphasis: #ffffff;
+  --gh-success: #3fb950;
+  --gh-success-emphasis: #238636;
+  --gh-success-border: #2ea04366;
+  --gh-danger: #f85149;
+  --gh-danger-emphasis: #da3633;
+  --gh-danger-border: #f8514966;
+  --gh-attention: #d29922;
+  --gh-attention-border: #bb800966;
+  --gh-severe: #db6d28;
+  --gh-done: #ab7df8;
+  --gh-sponsors: #db61a2;
+  --gh-coral: #f78166;
+  --gh-syn-comment: #9198a1;
+  --gh-syn-constant: #79c0ff;
+  --gh-syn-entity: #d2a8ff;
+  --gh-syn-entity-tag: #7ee787;
+  --gh-syn-keyword: #ff7b72;
+  --gh-syn-string: #a5d6ff;
+  --gh-syn-variable: #ffa657;
+  --gh-ansi-black: #2f3742;
+  --gh-ansi-black-bright: #656c76;
+  --gh-ansi-white: #f0f6fc;
+  --gh-ansi-white-bright: #ffffff;
+  --gh-ansi-red: #ff7b72;
+  --gh-ansi-red-bright: #ffa198;
+  --gh-ansi-green: #3fb950;
+  --gh-ansi-green-bright: #56d364;
+  --gh-ansi-yellow: #d29922;
+  --gh-ansi-yellow-bright: #e3b341;
+  --gh-ansi-blue: #58a6ff;
+  --gh-ansi-blue-bright: #79c0ff;
+  --gh-ansi-magenta: #be8fff;
+  --gh-ansi-magenta-bright: #d2a8ff;
+  --gh-ansi-cyan: #39c5cf;
+  --gh-ansi-cyan-bright: #56d4dd;
+  --gh-display-teal: #1cb0ab;
+  --gh-display-yellow: #d3910d;
+  --gh-display-orange: #ed8326;
+  --gh-display-coral: #f7794b;
+  --gh-display-blue: #4da0ff;
+  --gh-display-pink: #e57bb2;
+  --gh-display-indigo: #9899ec;
+  --gh-display-cyan: #07ace4;
+  --gh-display-green: #41b445;
+  --gh-display-plum: #d07ef7;
+
+  /* differences from the light mapping above */
+  --lc-bg-shell: var(--gh-bg-inset);
+  --lc-bg-surface: var(--gh-bg-muted);
+  --lc-bg-subtle: var(--gh-control-hover);
+  --lc-bg-hover: var(--gh-bg-muted);
+  --lc-bg-selected: var(--gh-control-rest);
+  --lc-bg-badge: var(--gh-control-rest);
+  --lc-bg-popup: var(--gh-bg-muted);
+  --lc-bg-menu-hover: var(--gh-control-hover);
+  --lc-shadow-popup: 0 0 0 1px #3d444d, 0 6px 12px -3px #01040966, 0 6px 18px 0 #01040966; /* shadow-floating-small */
+  --lc-shadow-menu: 0 0 0 1px #3d444d, 0 6px 12px -3px #01040966, 0 6px 18px 0 #01040966;
+
+  /* accent fill = accent-emphasis (white text 4.6:1); as an indicator it is 4.1:1 on the page, 3.7:1 on surfaces */
+  --lc-accent: var(--gh-accent-emphasis);
+  --lc-accent-hover: var(--gh-accent);
+  --lc-link: var(--gh-accent);
+  --lc-link-hover: var(--gh-accent-strong);
+  --lc-focus-ring: var(--gh-accent-emphasis);
+  --lc-status-running: var(--gh-accent);
+  /* Primer's dark primary button lightens on hover/press (#29903b / #2e9a40: white text 4.1 / 3.6:1);
+     here hover and press darken instead, toward bg-inset, keeping white text ≥ 4.5:1 */
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--gh-btn-primary) 90%, var(--gh-bg-inset));
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--gh-btn-primary) 80%, var(--gh-bg-inset));
+  /* error badge: white on fgColor-danger #f85149 is 3.4:1, so the badge text is bg-inset (dark) instead */
+  --lc-on-status: var(--gh-bg-inset);
+
+  /* message bars: Primer's dark *-muted backgrounds are translucent tints over the surface */
+  --lc-msg-success-bg: color-mix(in srgb, #2ea043 15%, var(--lc-bg-surface));
+  --lc-msg-success-border: var(--gh-success-border);
+  --lc-msg-error-bg: color-mix(in srgb, var(--gh-danger) 10%, var(--lc-bg-surface));
+  --lc-msg-error-border: var(--gh-danger-border);
+  --lc-msg-warning-bg: color-mix(in srgb, #bb8009 15%, var(--lc-bg-surface));
+  --lc-msg-warning-border: var(--gh-attention-border);
+  --lc-msg-info-bg: var(--lc-bg-surface);
+  --lc-msg-action-bg: var(--gh-control-rest);
+  --lc-msg-action-hover-bg: var(--gh-control-hover);
+
+  /* console = inset (recessed) background */
+  --lc-console-bg: var(--gh-bg-inset);
+  --lc-console-hover: var(--gh-bg-default);
+  --lc-console-error-bg: color-mix(in srgb, var(--gh-danger) 10%, var(--gh-bg-inset));
+  --lc-console-warn-bg: color-mix(in srgb, #bb8009 15%, var(--gh-bg-inset));
+  --lc-console-link: var(--gh-accent);
+  --lc-ansi-bright-blue: var(--gh-ansi-blue-bright);
+  --lc-ansi-bright-magenta: var(--gh-ansi-magenta-bright);
+  --lc-ansi-bright-cyan: var(--gh-ansi-cyan-bright);
+  --lc-ansi-bright-white: var(--gh-ansi-white-bright);
+
+  /* coverage: diffBlob addition (#2ea04326) / deletion (#f851491a) / attention-muted (#bb800926) over the console */
+  /* syntax (dark), hljs-community source: https://github.com/highlightjs/highlight.js/blob/main/src/styles/github-dark.css (class->token mapping, maintainer @Hirse) + https://github.com/primer/primitives (prettylights values)
+     License: hljs styles BSD-3-Clause (© highlight.js authors); Primer primitives MIT (© GitHub Inc.).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #f0f6fc;
+  --lc-code-comment: #9198a1;
+  --lc-code-doctag: #ff7b72;
+  --lc-code-keyword: #ff7b72;
+  --lc-code-built-in: #ff7b72;
+  --lc-code-type: #ff7b72;
+  --lc-code-class: #d2a8ff;
+  --lc-code-function: #d2a8ff;
+  --lc-code-title: #d2a8ff;
+  --lc-code-params: #f0f6fc; /* as default: not distinguished by the source */
+  --lc-code-string: #a5d6ff;
+  --lc-code-subst: #f0f6fc; /* as default: not distinguished by the source */
+  --lc-code-number: #79c0ff;
+  --lc-code-literal: #79c0ff; /* as number: not distinguished by the source */
+  --lc-code-meta: #d2a8ff;
+  --lc-code-attr: #79c0ff;
+  --lc-code-attribute: #79c0ff;
+  --lc-code-variable: #79c0ff;
+  --lc-code-symbol: #ffa657;
+  --lc-code-operator: #79c0ff;
+  --lc-code-punctuation: #f0f6fc; /* as default: not distinguished by the source */
+  --lc-code-tag: #f0f6fc; /* as default: not distinguished by the source */
+  --lc-code-name: #7ee787;
+  --lc-code-addition: #aff5b4;
+  --lc-code-deletion: #ffdcd7;
+  --lc-code-regexp: #7ee787;
+  --lc-coverage-covered: color-mix(in srgb, #2ea043 15%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--gh-danger) 13%, var(--lc-console-bg)); /* 10% in Primer; 13% so it reads as clearly as covered */
+  --lc-coverage-partial: color-mix(in srgb, #bb8009 15%, var(--lc-console-bg));
+
+  --lc-confetti-1: var(--gh-accent);
+  --lc-confetti-3: var(--gh-success);
+  --lc-confetti-5: var(--gh-ansi-yellow-bright);
+
+  --lc-code-tint-shift: 0;
+}

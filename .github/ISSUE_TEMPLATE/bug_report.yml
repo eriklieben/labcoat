@@ -1,0 +1,106 @@
+name: Bug report
+description: Something in Labcoat doesn't work as expected.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. For security problems, please use
+        [private vulnerability reporting](https://github.com/eriklieben/labcoat/security/advisories/new) instead.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you report
+      options:
+        - label: I searched the [existing issues](https://github.com/eriklieben/labcoat/issues?q=is%3Aissue) and this isn't reported yet.
+          required: true
+        - label: It still happens with the latest Labcoat version (see [nuget.org](https://www.nuget.org/packages/Labcoat)).
+          required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Ideally a small test project (or one of the samples) and the exact command.
+      placeholder: |
+        1. labcoat samples/SampleTests --watch
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: How is Labcoat started?
+      options:
+        - dotnet tool (global / local)
+        - dnx Labcoat
+        - Aspire (Labcoat.Aspire.Hosting)
+        - dotnet run -- --labcoat (Labcoat.TestingPlatform)
+        - From source (dotnet run --project src/Labcoat)
+    validations:
+      required: true
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Test framework
+      multiple: true
+      options:
+        - MSTest
+        - NUnit
+        - xUnit v3
+        - TUnit
+        - Other / not relevant
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Web UI (test tree, details, themes)
+        - Running tests / builds / watch mode
+        - Coverage
+        - Aspire integration
+        - Per-test traces (Labcoat.Testing packages)
+        - Command line / tool
+        - Documentation
+        - Other / not sure
+  - type: textarea
+    id: packages
+    attributes:
+      label: Test framework packages
+      description: The versions from the test project, e.g. `dotnet list package` in its folder.
+      placeholder: |
+        MSTest 4.0.2 (MSTest.TestFramework, Microsoft.Testing.Platform 2.0.2)
+        Microsoft.Testing.Extensions.CodeCoverage 18.12.0
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Labcoat version
+      description: Output of `labcoat --version` (or the package version).
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, `dotnet --version`, browser.
+      placeholder: Windows 11, .NET SDK 10.0.401, Edge 141
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics and logs
+      description: >-
+        Paste the diagnostics report: **Copy diagnostics** in the command palette (Ctrl+K) or under Settings → About,
+        or the output of `labcoat --diagnostics` in your workspace. It has the versions, test packages, settings and the
+        last log lines (secrets are left out); start Labcoat with `--verbose --log-file auto` to log more. Add any other
+        console output or the Output panel's (Ctrl+` ) lines that matter. Remove anything private.

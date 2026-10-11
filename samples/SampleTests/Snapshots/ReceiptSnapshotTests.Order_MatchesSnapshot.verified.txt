@@ -1,0 +1,15 @@
+﻿{
+  Id: 42,
+  Status: sent,
+  Items: [
+    {
+      Item: Coffee,
+      Qty: 2
+    },
+    {
+      Item: Croissant,
+      Qty: 1
+    }
+  ],
+  Total: 9.45
+}

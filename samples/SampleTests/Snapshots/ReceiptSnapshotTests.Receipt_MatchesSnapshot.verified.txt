@@ -1,0 +1,6 @@
+﻿Order #42
+---------
+2 x Coffee        7.00
+1 x Croissant     3.50
+Discount         -1.05
+Total             9.45

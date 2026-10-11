@@ -1,0 +1,36 @@
+/* App-wide helpers that are not tied to one component (path rendering, trace links). Loaded right after the design system. */
+
+@layer app.base {
+  .trace-link {
+    color: var(--lc-link);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  /* polish 1/2: a path is dir/ (dimmed, cut from the LEFT) + file + :line, no gaps between the pieces */
+  .path {
+    display: inline-flex;
+    align-items: baseline;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .path-dir {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--lc-fg-muted);
+    direction: rtl;
+    text-align: left;
+    text-overflow: ellipsis;
+  }
+  .path-file,
+  .path-line {
+    flex: none;
+  }
+  .path-line {
+    color: var(--lc-fg-muted);
+  }
+}

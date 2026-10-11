@@ -1,0 +1,113 @@
+/* Meter (.meter[.meter-sm].tone-* > .meter-fill, .meter-wrap + .meter-value) and progress (.lc-progress > .lc-progress-fill). */
+
+.meter {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--lc-bg-meter-track);
+}
+.meter-sm {
+  width: 64px;
+  height: 4px;
+  border-radius: var(--lc-radius-xs);
+}
+/* the fill is full width and scaled (transform: scaleX(v), set inline): no layout on value changes (P10).
+   `.meter > .meter-fill` outranks older app copies of .meter-fill that still transition width. */
+.meter > .meter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone, var(--lc-accent));
+  transform-origin: left center;
+  transition: transform var(--lc-motion-base) var(--lc-ease-emphasized);
+}
+.meter-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-8);
+  width: 100%;
+}
+.meter-wrap-sm {
+  width: auto;
+}
+.meter-wrap .meter-md {
+  flex: 1 1 auto;
+}
+.meter-value {
+  min-width: 44px;
+  color: color-mix(in srgb, var(--tone, var(--lc-fg)) 55%, var(--lc-fg));
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lc-progress {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-bg-meter-track);
+}
+.lc-progress-sm {
+  height: 2px;
+}
+.lc-progress > .lc-progress-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lc-progress-color, var(--lc-accent));
+  transform-origin: left center;
+  transition: transform var(--lc-motion-base) var(--lc-ease-emphasized);
+}
+.lc-progress-passed {
+  --lc-progress-color: var(--lc-status-passed);
+}
+.lc-progress-failed {
+  --lc-progress-color: var(--lc-status-failed);
+}
+.lc-progress-running {
+  --lc-progress-color: var(--lc-status-running);
+}
+.lc-progress.indeterminate > .lc-progress-fill {
+  position: absolute;
+  width: 40%;
+  transform: translateX(-100%);
+  transition: none;
+  animation: lc-indeterminate var(--lc-motion-shimmer) var(--lc-ease-standard) infinite;
+}
+@keyframes lc-indeterminate {
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* reduced motion: no sweep; a static, softly striped full bar signals "working" */
+:root[data-motion="reduced"] .lc-progress.indeterminate > .lc-progress-fill,
+:root[data-motion="off"] .lc-progress.indeterminate > .lc-progress-fill {
+  width: 100%;
+  transform: none;
+  animation: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--lc-progress-color, var(--lc-accent)) 0 6px,
+    color-mix(in srgb, var(--lc-progress-color, var(--lc-accent)) 45%, transparent) 6px 12px
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .lc-progress.indeterminate > .lc-progress-fill {
+    width: 100%;
+    transform: none;
+    animation: none;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--lc-progress-color, var(--lc-accent)) 0 6px,
+      color-mix(in srgb, var(--lc-progress-color, var(--lc-accent)) 45%, transparent) 6px 12px
+    );
+  }
+}

@@ -1,0 +1,38 @@
+/* Copy button confirm morph (.lc-copy[.done] > .lc-copy-icon + .lc-copy-check), P8. */
+.lc-copy {
+  position: relative;
+}
+.lc-copy > .icon {
+  transition:
+    opacity var(--lc-motion-fast) var(--lc-ease-standard),
+    transform var(--lc-motion-fast) var(--lc-ease-standard);
+}
+.lc-copy > .lc-copy-check {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  color: var(--lc-status-passed);
+  opacity: 0;
+  transform: scale(0.6);
+}
+.lc-copy.done > .lc-copy-icon {
+  opacity: 0;
+  transform: scale(0.6);
+  transition-duration: var(--lc-motion-instant);
+  transition-timing-function: var(--lc-ease-accelerate);
+}
+.lc-copy.done > .lc-copy-check {
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--lc-motion-enter);
+  transition-timing-function: var(--lc-ease-decelerate);
+}
+/* reduced motion: crossfade only */
+:root[data-motion="reduced"] .lc-copy > .icon {
+  transform: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .lc-copy > .icon {
+    transform: none !important;
+  }
+}

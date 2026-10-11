@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The xUnit v3 flavour of the API integration tests, on Microsoft.Testing.Platform v2 (the xunit.v3.mtp-v2 package).
+    Per-test traces come from Labcoat.Testing.XUnit, which registers itself: no hooks to write.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+    <!-- `dotnet run` / the test executable use the Microsoft.Testing.Platform command line instead of xUnit's own. -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.6.1" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.1" />
+    <!-- Code coverage in Labcoat (MSTest and TUnit include it already). -->
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AspireSample.AppHost\AspireSample.AppHost.csproj" />
+    <ProjectReference Include="..\AspireSample.Api\AspireSample.Api.csproj" />
+    <!-- Per-test traces in the Aspire dashboard when run from Labcoat. In your own tests:
+         <PackageReference Include="Labcoat.Testing.XUnit" ... /> and nothing else. -->
+    <ProjectReference Include="..\..\..\src\Labcoat.Testing.XUnit\Labcoat.Testing.XUnit.csproj" />
+  </ItemGroup>
+
+  <!-- What the package does by itself (a ProjectReference doesn't import a package's build files): adds
+       [assembly: LabcoatTracing] to this test assembly. -->
+  <Import Project="..\..\..\src\Labcoat.Testing.XUnit\build\Labcoat.Testing.XUnit.targets" />
+
+  <ItemGroup>
+    <Using Include="System.Net" />
+    <Using Include="System.Net.Http.Json" />
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Code coverage settings for the test projects (Microsoft.Testing.Extensions.CodeCoverage, part of the MSTest
+  metapackage), passed to every test project by eng/coverage.mjs (the coverage-settings option of the test app).
+
+  What counts: the shipped assemblies only (Labcoat, Labcoat.Aspire.Hosting, Labcoat.Testing, Labcoat.Testing.MSTest,
+  Labcoat.Testing.TUnit, Labcoat.Testing.NUnit, Labcoat.Testing.XUnit, Labcoat.TestingPlatform). Left out: the test assemblies, generated sources (*.g.cs: the [GeneratedRegex] source
+  generator output, global usings, assembly info) and code marked [GeneratedCode] / [ExcludeFromCodeCoverage].
+  [CompilerGenerated] is deliberately NOT excluded: it also marks async state machines, lambdas / closures and the
+  top-level-statements Program class, i.e. real code.
+-->
+<Configuration>
+  <CodeCoverage>
+    <ModulePaths>
+      <Include>
+        <ModulePath>.*[\\/]Labcoat\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.Aspire\.Hosting\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.Testing\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.Testing\.MSTest\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.Testing\.TUnit\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.Testing\.NUnit\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.Testing\.XUnit\.dll$</ModulePath>
+        <ModulePath>.*[\\/]Labcoat\.TestingPlatform\.dll$</ModulePath>
+      </Include>
+      <Exclude>
+        <ModulePath>.*Tests\.dll$</ModulePath>
+      </Exclude>
+    </ModulePaths>
+    <Sources>
+      <Exclude>
+        <Source>.*\.g\.cs$</Source>
+        <Source>.*[\\/]obj[\\/].*</Source>
+      </Exclude>
+    </Sources>
+    <Attributes>
+      <Exclude>
+        <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+        <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+      </Exclude>
+    </Attributes>
+    <IncludeTestAssembly>false</IncludeTestAssembly>
+  </CodeCoverage>
+</Configuration>

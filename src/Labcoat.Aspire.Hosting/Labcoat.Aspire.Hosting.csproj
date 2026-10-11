@@ -1,0 +1,112 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Aspire.Hosting</RootNamespace>
+    <AssemblyName>Labcoat.Aspire.Hosting</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.Aspire.Hosting</PackageId>
+    <Description>Aspire hosting integration for Labcoat, a web UI for Microsoft.Testing.Platform tests: adds it to the Aspire dashboard with commands to run tests and optional per-test links to traces and logs.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>aspire;integration;hosting;testing;test-runner;test-explorer;mstest;microsoft-testing-platform;code-coverage;labcoat</PackageTags>
+
+    <!-- The explorer app (src/Labcoat) is published into this folder and shipped inside the package
+         under tools/explorer/. Consumers get it copied to $(OutDir)labcoat/. -->
+    <LabcoatProject>$(MSBuildThisFileDirectory)..\Labcoat\Labcoat.csproj</LabcoatProject>
+    <LabcoatBundleDir>$([MSBuild]::NormalizeDirectory($(MSBuildThisFileDirectory), $(BaseIntermediateOutputPath), explorer-bundle, $(Configuration)))</LabcoatBundleDir>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_LabcoatPackBundle</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.Aspire.Hosting.Tests" />
+  </ItemGroup>
+
+  <!--
+    Build order only: the explorer must be built (by the same project instance the solution and the other references
+    use) before it is published into the bundle below, which then reuses that build (NoBuild=true). Publishing with a
+    build of its own would compile Labcoat.csproj a second time with different global properties, into the same obj/
+    and bin/, in parallel with the solution's build of it (MSB3026 "file in use" races). The reference also puts the
+    explorer in the restore graph. Nothing flows to this assembly, its output or its package:
+    ReferenceOutputAssembly=false (no compile reference), Private=false (no copy-to-output items), PrivateAssets=all
+    (not a package dependency, not a transitive reference of the AppHost).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="$(LabcoatProject)" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="buildTransitive\Labcoat.Aspire.Hosting.targets" Pack="true" PackagePath="buildTransitive\" />
+    <None Include="build\Labcoat.Aspire.Hosting.targets" Pack="true" PackagePath="build\" />
+  </ItemGroup>
+
+  <!--
+    Publish the explorer (framework-dependent, no native apphost; launched as `dotnet Labcoat.dll`).
+    ResolveProjectReferences builds it first (see the ProjectReference above); the publish itself doesn't build
+    (NoBuild=true), it copies that build's output. Incremental: the publish only copies what changed.
+  -->
+  <PropertyGroup>
+    <!-- With NoBuild=true (CI packs without building) the explorer is already built, and asking for its Build target
+         would fail (NETSDK1085). -->
+    <_LabcoatPublishBundleDependsOn Condition="'$(NoBuild)' != 'true'">ResolveProjectReferences</_LabcoatPublishBundleDependsOn>
+  </PropertyGroup>
+  <Target Name="_LabcoatPublishBundle" DependsOnTargets="$(_LabcoatPublishBundleDependsOn)">
+    <MSBuild Projects="$(LabcoatProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);NoBuild=true;PublishDir=$(LabcoatBundleDir);PublishDepsFilePath=$(LabcoatBundleDir)Labcoat.deps.json;UseAppHost=false" />
+  </Target>
+
+  <!--
+    In-repo / ProjectReference case: expose the bundle as copy-to-output items under labcoat/.
+    Runs before AssignTargetPaths, which is part of both this project's Build and the
+    GetCopyToOutputDirectoryItems target that referencing projects (the AppHost) call, so the
+    folder also lands in the AppHost's output directory.
+    LabcoatSkipBundle=true skips only the (re)publish: the running explorer sets it (as an environment
+    variable, which MSBuild reads as a property) for the builds it starts, so building a test project that references
+    the AppHost doesn't republish the explorer that is currently running. The items are still declared so the copy
+    stays a no-op and IncrementalClean doesn't delete the AppHost's labcoat/ folder.
+  -->
+  <Target Name="_LabcoatAddBundleItems"
+          BeforeTargets="AssignTargetPaths"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <CallTarget Targets="_LabcoatPublishBundle"
+                Condition="'$(LabcoatSkipBundle)' != 'true' or !Exists('$(LabcoatBundleDir)Labcoat.dll')" />
+    <ItemGroup>
+      <_LabcoatBundleFile Include="$(LabcoatBundleDir)**\*" />
+      <None Include="@(_LabcoatBundleFile)"
+            Link="labcoat\%(RecursiveDir)%(Filename)%(Extension)"
+            CopyToOutputDirectory="PreserveNewest"
+            Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <!-- NuGet package: ship a clean publish of the explorer (no stale UI assets) under tools/explorer/. -->
+  <Target Name="_LabcoatPackBundle">
+    <PropertyGroup>
+      <_LabcoatPackDir>$([MSBuild]::NormalizeDirectory($(MSBuildThisFileDirectory), $(BaseIntermediateOutputPath), explorer-pack, $(Configuration)))</_LabcoatPackDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_LabcoatPackDir)" />
+    <!-- Reuses the build like _LabcoatPublishBundle (pack builds this project, and with it the reference, first). -->
+    <MSBuild Projects="$(LabcoatProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);NoBuild=true;PublishDir=$(_LabcoatPackDir);PublishDepsFilePath=$(_LabcoatPackDir)Labcoat.deps.json;UseAppHost=false" />
+    <!-- Same guard as the Labcoat tool package: never ship a runner without its UI. -->
+    <Error Condition="!Exists('$(_LabcoatPackDir)wwwroot/index.html')"
+           Text="The UI isn't built (src/Labcoat/wwwroot/index.html is missing): run 'npm ci &amp;&amp; npm run build' in ui/ (or pack with -p:LabcoatBuildUi=true)." />
+    <ItemGroup>
+      <_LabcoatPackFile Include="$(_LabcoatPackDir)**\*" />
+      <TfmSpecificPackageFile Include="@(_LabcoatPackFile)"
+                              PackagePath="tools\explorer\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,274 @@
+/* <lc-run-diff>: "Compare runs" sheet, docked on the right under the header. */
+
+@layer app.components {
+  .run-diff {
+    position: fixed;
+    z-index: var(--lc-z-sheet);
+    top: 50px;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(640px, 100vw);
+    border-left: 1px solid var(--lc-stroke);
+    background: var(--lc-bg-surface);
+    box-shadow: var(--lc-shadow-popup);
+    color: var(--lc-fg);
+    animation: run-diff-in var(--lc-motion-pop) var(--lc-ease-decelerate);
+  }
+  .run-diff:focus {
+    outline: none;
+  }
+  @keyframes run-diff-in {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+  }
+  .run-diff-head {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--lc-space-12);
+    padding: var(--lc-space-16) var(--lc-space-16) var(--lc-space-12) var(--lc-space-20);
+    border-bottom: 1px solid var(--lc-stroke-subtle);
+  }
+  .run-diff-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--lc-space-8);
+  }
+  .run-diff-titles {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--lc-space-4);
+    min-width: 0;
+  }
+  .run-diff-title {
+    margin: 0;
+    overflow: hidden;
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-2xl);
+    font-weight: 500;
+    line-height: 28px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .run-diff-pickers {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--lc-space-8);
+  }
+  .run-diff-pick {
+    display: flex;
+    flex: 1 1 200px;
+    flex-direction: column;
+    gap: var(--lc-space-4);
+    min-width: 0;
+  }
+  .run-diff-pick-label {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .run-diff-select {
+    width: 100%;
+    height: var(--lc-control-height);
+    padding: 0 var(--lc-space-8);
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-bg-page);
+    color: var(--lc-fg);
+    font: inherit;
+    font-size: var(--lc-text-md);
+  }
+  .run-diff-select:hover {
+    border-color: var(--lc-stroke-hover);
+  }
+  .run-diff-swap {
+    flex: none;
+    margin-bottom: var(--lc-space-2);
+  }
+  .run-diff-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lc-space-6);
+  }
+  .run-diff-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-4);
+    height: 26px;
+    padding: 0 var(--lc-space-10);
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-radius-pill);
+    background: transparent;
+    color: var(--lc-fg-secondary);
+    font: inherit;
+    font-size: var(--lc-text-sm);
+    cursor: pointer;
+  }
+  .run-diff-chip:hover:not(:disabled) {
+    background: var(--lc-bg-hover);
+  }
+  .run-diff-chip:disabled {
+    opacity: var(--lc-disabled-opacity);
+    cursor: default;
+  }
+  .run-diff-chip-count {
+    font-family: var(--lc-font-mono);
+    font-weight: 600;
+  }
+  .run-diff-chip.nonzero.tone-bad {
+    border-color: var(--lc-msg-error-border);
+    background: var(--lc-msg-error-bg);
+    color: var(--lc-status-failed-text);
+  }
+  .run-diff-chip.nonzero.tone-good {
+    border-color: var(--lc-msg-success-border);
+    background: var(--lc-msg-success-bg);
+    color: var(--lc-fg);
+  }
+  .run-diff-chip.nonzero.tone-warn {
+    border-color: var(--lc-msg-warning-border);
+    background: var(--lc-msg-warning-bg);
+    color: var(--lc-fg);
+  }
+  .run-diff-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--lc-space-8) var(--lc-space-12) var(--lc-space-24);
+    overflow: auto;
+  }
+  .run-diff-status {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-8);
+    padding: var(--lc-space-16) var(--lc-space-8);
+    color: var(--lc-fg-muted);
+  }
+  .run-diff-status.warn .icon {
+    color: var(--lc-status-skipped);
+  }
+  .run-diff-section {
+    margin-top: var(--lc-space-4);
+  }
+  .run-diff-section-head {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    height: 32px;
+    padding: 0 var(--lc-space-8);
+    border-radius: var(--lc-radius-sm);
+    list-style: none;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .run-diff-section-head::-webkit-details-marker {
+    display: none;
+  }
+  .run-diff-section-head:hover {
+    background: var(--lc-bg-hover);
+  }
+  .run-diff-caret {
+    color: var(--lc-fg-muted);
+    transition: transform var(--lc-motion-fast);
+  }
+  .run-diff-section[open] > summary .run-diff-caret {
+    transform: rotate(90deg);
+  }
+  .run-diff-count {
+    min-width: 20px;
+    padding: 0 var(--lc-space-6);
+    border-radius: var(--lc-radius-pill);
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg-secondary);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+    font-weight: 500;
+    text-align: center;
+  }
+  .run-diff-section.tone-bad .run-diff-count.nonzero {
+    background: var(--lc-status-failed);
+    color: var(--lc-on-status);
+  }
+  .run-diff-section.tone-good .run-diff-count.nonzero {
+    background: var(--lc-status-passed);
+    color: var(--lc-on-status);
+  }
+  .run-diff-section.tone-warn .run-diff-count.nonzero {
+    background: var(--lc-status-skipped);
+    color: var(--lc-on-status);
+  }
+  .run-diff-empty {
+    padding: var(--lc-space-2) var(--lc-space-8) var(--lc-space-8) 30px; /* off-scale: 30px */
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .run-diff-rows {
+    display: flex;
+    flex-direction: column;
+  }
+  .run-diff-row {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-10);
+    width: 100%;
+    min-height: 32px;
+    padding: var(--lc-space-4) var(--lc-space-8) var(--lc-space-4) var(--lc-space-28);
+    border: 0;
+    border-radius: var(--lc-radius-sm);
+    background: transparent;
+    color: var(--lc-fg);
+    font: inherit;
+    font-size: var(--lc-text-md);
+    text-align: left;
+    cursor: pointer;
+  }
+  .run-diff-row:hover,
+  .run-diff-row:focus-visible {
+    background: var(--lc-bg-hover);
+  }
+  .run-diff-states {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-2);
+  }
+  .run-diff-arrow {
+    color: var(--lc-fg-muted);
+  }
+  .run-diff-name {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .run-diff-test,
+  .run-diff-ctx {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .run-diff-ctx {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+  }
+  .run-diff-detail {
+    flex: 0 1 auto;
+    max-width: 45%;
+    overflow: hidden;
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .run-diff-error {
+    color: var(--lc-status-failed-text);
+  }
+  .run-diff-factor {
+    color: var(--lc-fg);
+    font-weight: 600;
+  }
+}

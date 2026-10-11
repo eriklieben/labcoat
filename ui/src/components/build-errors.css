@@ -1,0 +1,101 @@
+/* <lc-build-errors> and the build errors dialog (build-errors.ts). */
+
+@layer app.components {
+  .build-error-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .build-error {
+    display: flex;
+    gap: var(--lc-space-10);
+    padding: var(--lc-space-10) 0;
+    border-bottom: 1px solid var(--lc-stroke-subtle);
+  }
+  .build-error:last-child {
+    border-bottom: 0;
+  }
+  .build-error .be-icon {
+    flex: none;
+    margin-top: var(--lc-space-2);
+  }
+  .build-error.sev-error .be-icon {
+    color: var(--lc-status-failed);
+  }
+  .build-error.sev-warning .be-icon {
+    color: var(--lc-status-skipped);
+  }
+  .be-body {
+    min-width: 0;
+  }
+  .be-message {
+    color: var(--lc-fg);
+    overflow-wrap: anywhere;
+  }
+  .be-code {
+    margin-right: var(--lc-space-8);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .be-loc {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    margin-top: var(--lc-space-4);
+    font-size: var(--lc-text-sm);
+  }
+  .be-file {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lc-link);
+    font-size: var(--lc-text-sm);
+    cursor: pointer;
+  }
+  .be-file:hover {
+    color: var(--lc-link-hover);
+    text-decoration: underline;
+  }
+  .be-project {
+    color: var(--lc-fg-muted);
+  }
+  .build-output {
+    margin: 0;
+    padding: var(--lc-space-10);
+    overflow: auto;
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-console-bg);
+    color: var(--lc-console-fg);
+    font-size: var(--lc-text-sm);
+    white-space: pre-wrap;
+  }
+  .build-errors-heading {
+    margin: var(--lc-space-12) 0 0;
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-md);
+    font-weight: 600;
+  }
+  .build-errors-project:first-child .build-errors-heading {
+    margin-top: 0;
+  }
+  .be-source {
+    margin-top: var(--lc-space-8);
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .be-source > lc-code-view {
+    min-height: 0;
+    max-height: 280px;
+  }
+
+  /* build errors dialog footer */
+  .build-errors-footer {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lc-space-12);
+  }
+}

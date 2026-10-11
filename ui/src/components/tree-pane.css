@@ -1,0 +1,506 @@
+/* <lc-tree-pane>: filters, search, the virtualized test tree, row states and actions. */
+
+@layer app.components {
+  /* tree status chips: one row (no reflow when "Not run" / "New" appear mid-run); overflow scrolls sideways */
+  .tree-filters .chips {
+    flex-wrap: nowrap;
+    min-height: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tree-filters .chips::-webkit-scrollbar {
+    display: none;
+  }
+  .tree-filters .chips > .chip {
+    flex: none;
+  }
+  .tree-pane,
+  .detail-pane,
+  .log-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--lc-stroke-pane);
+    border-radius: var(--lc-popup-radius);
+    background: var(--lc-bg-surface);
+  }
+
+  .tree-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-8);
+    padding: var(--lc-space-10) var(--lc-space-10) var(--lc-space-8);
+    border-bottom: 1px solid var(--lc-stroke-pane);
+  }
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-2);
+  }
+  .search-box {
+    position: relative; /* anchors .search-hint */
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0; /* shrink before the tree tools (sort, expand / collapse all) get clipped */
+    align-items: center;
+    gap: var(--lc-space-6);
+    height: var(--lc-control-height);
+    margin-right: var(--lc-space-4);
+    padding: 0 var(--lc-space-6) 0 var(--lc-space-8);
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-bg-field);
+    color: var(--lc-fg-muted);
+  }
+  .search-box:hover {
+    border-color: var(--lc-stroke-hover);
+  }
+  .search-box:focus-within {
+    border-color: var(--lc-stroke);
+    box-shadow: inset 0 -2px 0 var(--lc-focus-ring);
+  }
+  .search-box input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--lc-fg);
+    font-size: var(--lc-text-md);
+  }
+  .search-box input::placeholder {
+    color: var(--lc-fg-muted);
+  }
+  .search-box input::-webkit-search-cancel-button {
+    display: none;
+  }
+  .search-clear {
+    display: inline-flex;
+    padding: var(--lc-space-2);
+    border: 0;
+    border-radius: var(--lc-radius-sm);
+    background: transparent;
+    color: var(--lc-fg-muted);
+    cursor: pointer;
+  }
+  .search-clear:hover {
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg);
+  }
+
+  .tree-scroller {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--lc-space-4) 0;
+    overflow: auto;
+    outline: none;
+    /* opaque (the pane's own background): Chrome then scrolls it on the compositor (its own layer, LCD text kept);
+       a transparent scroller is repainted with the whole page on every scroll frame */
+    background: var(--lc-bg-surface);
+  }
+  .tree-scroller:focus-visible {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--lc-focus-ring) 50%, transparent);
+    border-radius: 0;
+  }
+  .tree-row {
+    position: absolute;
+    top: 0; /* placed with the individual `translate` property (index × row height): transitionable, composes with transform */
+    right: 4px;
+    left: 4px;
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-6);
+    height: var(--lc-row-h);
+    padding-right: var(--lc-space-8);
+    border-radius: var(--lc-control-radius);
+    font-size: var(--lc-text-md);
+    white-space: nowrap;
+    cursor: default;
+    user-select: none;
+    /* no `contain`: measured at 20k tests, contain: strict / content on the rows raised style recalc per scroll frame
+       35-75 % with no paint or layout gain (rows are absolutely positioned with a fixed height already) */
+  }
+  /* a recycled row element (tree-pane.ts renderRows) shows another node: no transitions from the old node's state */
+  .tree-row[data-recycled],
+  .tree-row[data-recycled] * {
+    transition: none;
+  }
+  .tree-row:hover {
+    background: var(--lc-bg-row-hover);
+  }
+  .tree-row.selected {
+    --row-bg: color-mix(in srgb, var(--lc-accent) 14%, var(--lc-bg-surface)); /* the hover actions' fade (.row-actions) */
+    background: color-mix(in srgb, var(--lc-accent) 14%, var(--lc-bg-surface));
+    box-shadow: inset 2px 0 0 var(--lc-accent);
+  }
+  .tree-scroller:focus .tree-row.selected {
+    background: color-mix(in srgb, var(--lc-accent) 20%, var(--lc-bg-surface));
+  }
+  .twisty {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 20px;
+    margin-right: -2px; /* off-scale: -2px */
+    border-radius: var(--lc-radius-sm);
+    color: var(--lc-fg-muted);
+  }
+  .twisty.has {
+    cursor: pointer;
+  }
+  .twisty.has:hover {
+    color: var(--lc-fg);
+  }
+  .twisty .icon {
+    transition: transform var(--lc-motion-enter) var(--lc-ease-emphasized); /* P2: 160 ms emphasized (was 100 ms linear) */
+  }
+  .twisty.open .icon {
+    transform: rotate(90deg);
+  }
+  .row-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kind-project .row-label {
+    font-weight: 600;
+  }
+  .kind-namespace .row-label {
+    color: var(--lc-fg-secondary);
+  }
+  .kind-test .row-label {
+    font-family: var(--lc-font-sans);
+  }
+  .kind-test[aria-level="5"] .row-label,
+  .kind-test[aria-level="6"] .row-label {
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+  }
+  .row-sublabel {
+    display: none;
+  }
+  .row-meta {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-8);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    font-variant-numeric: tabular-nums;
+    transition: opacity var(--lc-motion-instant) var(--lc-ease-standard);
+  }
+  .row-counts {
+    display: inline-flex;
+    gap: var(--lc-space-4);
+  }
+  .cnt-failed {
+    min-width: 18px;
+    padding: 0 5px; /* off-scale: 5px */
+    border-radius: var(--lc-radius-lg);
+    background: color-mix(in srgb, var(--lc-status-failed) 20%, transparent);
+    color: var(--lc-status-failed-count);
+    font-size: var(--lc-text-xs);
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+  }
+  .cnt-total {
+    min-width: 18px;
+    padding: 0 5px; /* off-scale: 5px */
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-xs);
+    line-height: 16px;
+    text-align: center;
+  }
+  .row-duration {
+    min-width: 40px;
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+    text-align: right;
+  }
+  .row-pill {
+    padding: 0 var(--lc-space-6);
+    border-radius: var(--lc-radius-sm);
+    font-size: var(--lc-text-xs);
+    line-height: 16px;
+  }
+  .row-pill.busy {
+    background: color-mix(in srgb, var(--lc-accent) 16%, transparent);
+    color: var(--lc-accent);
+  }
+  .row-pill.err {
+    background: var(--lc-msg-error-bg);
+    color: color-mix(in srgb, var(--lc-status-failed-text) 75%, var(--lc-fg)); /* both modes (contrast on the error tint) */
+  }
+  .row-actions {
+    position: absolute;
+    top: 0;
+    right: 4px;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-2);
+    padding-left: var(--lc-space-16);
+    /* P18: fade in on hover / selection (80 ms); hidden ones stay out of the a11y tree (visibility after the fade) */
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity var(--lc-motion-instant) var(--lc-ease-standard),
+      visibility 0s linear var(--lc-motion-instant);
+    background: linear-gradient(90deg, transparent, var(--row-bg, var(--lc-bg-row-hover)) 14px);
+  }
+  .tree-row:hover .row-actions,
+  .tree-row.selected .row-actions {
+    visibility: visible;
+    opacity: 1;
+    transition:
+      opacity var(--lc-motion-instant) var(--lc-ease-standard),
+      visibility 0s;
+  }
+  .tree-row:hover .row-meta,
+  .tree-row.selected .row-meta {
+    opacity: 0;
+  }
+  /* nothing to run (a project without tests, a VSTest project): `hidden` wins over the display below */
+  .row-action[hidden] {
+    display: none;
+  }
+  .row-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lc-radius-sm);
+    background: transparent;
+    color: var(--lc-fg-secondary);
+    cursor: pointer;
+  }
+  .row-action:hover:not(:disabled) {
+    background: var(--lc-bg-control-hover);
+    color: var(--lc-accent);
+    text-decoration: none;
+  }
+  .row-action.run {
+    color: var(--lc-status-passed);
+  }
+  .row-action:disabled {
+    opacity: var(--lc-disabled-opacity);
+    cursor: not-allowed;
+  }
+  .row-action.cov {
+    color: var(--lc-accent);
+  }
+  /* a project Labcoat doesn't run (VSTest): the pill's tooltip has the switch */
+  .row-pill.warn,
+  .row-pill.flaky {
+    border-color: var(--lc-msg-warning-border);
+    background: var(--lc-msg-warning-bg);
+    color: color-mix(in srgb, var(--lc-status-skipped) 55%, var(--lc-fg));
+  }
+
+  .host-state {
+    display: inline-flex;
+    align-items: center;
+    color: var(--lc-host-warm);
+  }
+  .host-state.starting {
+    opacity: var(--lc-dimmed-opacity);
+    animation: pulse var(--lc-motion-pulse) var(--lc-ease-loop) infinite;
+  }
+  /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */
+  :root[data-motion="reduced"] .host-state.starting {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion]) .host-state.starting {
+      animation: none;
+    }
+  }
+  .tree-row.not-in-run .row-label,
+  .tree-row.not-in-run .st {
+    opacity: var(--lc-dimmed-opacity);
+  }
+  .tree-row.not-in-run .row-label {
+    font-style: italic;
+  }
+  .tree-row.is-outdated .row-label,
+  .tree-row.is-outdated .row-duration,
+  .tree-row.is-stale .row-duration {
+    color: var(--lc-fg-muted);
+    opacity: 1;
+  }
+  button.row-pill {
+    font: inherit;
+    font-size: var(--lc-text-xs);
+    cursor: pointer;
+  }
+  button.row-pill.err:hover {
+    filter: brightness(1.08);
+    text-decoration: underline;
+  }
+  .tree-row.is-flat .row-sublabel {
+    display: inline;
+    margin-left: var(--lc-space-8);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    font-weight: 400;
+  }
+  .tree-row.is-flat .row-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tree-row.selected.is-outdated .row-label {
+    color: var(--lc-fg);
+  }
+  .tree-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-12);
+    padding: var(--lc-space-8);
+  }
+
+  /* tree sort control: accent + dot when not the default order */
+  .tree-sort {
+    position: relative;
+    display: inline-flex;
+  }
+  .tree-sort.active .icon-btn {
+    color: var(--lc-accent);
+  }
+  .tree-sort.active::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lc-accent);
+    pointer-events: none;
+  }
+
+  /* <lc-tree-pane> additions (review 2): context menu anchor, selection bar, multi-selected rows, search syntax hint */
+
+  .tree-menu-anchor {
+    position: fixed;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .tree-row.multi:not(.selected) {
+    background: color-mix(in srgb, var(--lc-accent) 7%, var(--lc-bg-page));
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--lc-accent) 55%, transparent);
+  }
+
+  .tree-selbar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-6);
+    padding: var(--lc-space-4) var(--lc-space-10);
+    border-bottom: 1px solid var(--lc-stroke-subtle);
+    background: var(--lc-bg-surface);
+    box-shadow: inset 3px 0 0 var(--lc-accent);
+    font-size: var(--lc-text-sm);
+  }
+  .tree-selbar .selbar-count {
+    margin-right: auto;
+    color: var(--lc-fg);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .search-hint {
+    position: absolute;
+    z-index: var(--lc-z-dropdown);
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    padding: var(--lc-space-4);
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-popup-radius);
+    background: var(--lc-bg-popup);
+    box-shadow: var(--lc-shadow-popup);
+  }
+  .search-hint-item {
+    display: flex;
+    align-items: baseline;
+    gap: var(--lc-space-10);
+    min-width: 0;
+    padding: var(--lc-space-4) var(--lc-space-8);
+    border: 0;
+    border-radius: var(--lc-radius-sm);
+    background: transparent;
+    color: var(--lc-fg);
+    font: inherit;
+    font-size: var(--lc-text-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+  .search-hint-item:hover {
+    background: var(--lc-bg-menu-hover);
+  }
+  .search-hint-item code {
+    flex: none;
+    font-family: var(--lc-font-mono);
+  }
+  .search-hint-what {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--lc-fg-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tree-row > .row-status {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+  }
+  /* text on the selection tint keeps ≥ 4.5:1 in every family (muted / stale text would drop below) */
+  .tree-row.multi .row-label {
+    color: var(--lc-fg);
+  }
+  .tree-row.multi .row-duration {
+    color: var(--lc-fg-secondary);
+  }
+
+  /* empty state: every project is one Labcoat doesn't run (VSTest) */
+  .not-mtp-list {
+    margin: var(--lc-space-8) 0;
+    padding: 0;
+    list-style: none;
+    max-width: 52ch;
+    text-align: left;
+  }
+  .not-mtp-item + .not-mtp-item {
+    margin-top: var(--lc-space-8);
+  }
+  .not-mtp-message {
+    color: var(--lc-fg);
+  }
+  .not-mtp-hint {
+    margin-top: var(--lc-space-2);
+    color: var(--lc-fg-secondary);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+    overflow-wrap: anywhere;
+  }
+}

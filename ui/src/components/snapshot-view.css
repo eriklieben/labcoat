@@ -1,0 +1,269 @@
+/* Verify snapshot section of the failure detail (snapshot-view.ts). --lc-* tokens only. */
+
+@layer app.components {
+  .snapshot-panel .snapshot-header {
+    align-items: center;
+  }
+  .snapshot-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: var(--lc-text-md);
+    font-weight: 600;
+  }
+  .snapshot-panel .section-extra {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .snapshot-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .snapshot-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--lc-stroke-subtle);
+    border-radius: var(--lc-radius-md);
+    background: var(--lc-bg-card);
+  }
+  .snapshot-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+  .snap-icon {
+    margin-top: 2px;
+    color: var(--lc-fg-secondary);
+  }
+  .snapshot-names {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 0;
+  }
+  .snap-name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .snap-name code {
+    overflow: hidden;
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .snap-label {
+    flex: none;
+    width: 64px;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .snap-badge-new {
+    background: var(--lc-msg-info-bg);
+    color: var(--lc-fg);
+  }
+  .snap-new {
+    margin: 0;
+  }
+  .snap-error {
+    color: var(--lc-status-failed-text);
+  }
+  .snapshot-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* text diff: the diff-view block with a view switch in its head */
+  .snap-diff .diff-head .snap-mode {
+    margin-left: auto;
+  }
+  .snap-diff .diff-lines:focus-visible,
+  .snap-split-scroll:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: -2px;
+  }
+  .snap-identical {
+    padding: 8px 10px;
+  }
+  .snap-split-scroll {
+    max-height: 420px;
+    overflow: auto;
+  }
+  .snap-split {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: var(--lc-text-md);
+    line-height: 19px;
+  }
+  .snap-split td {
+    padding: 0;
+    vertical-align: top;
+  }
+  .snap-split .snap-ln {
+    width: 4ch;
+    padding-right: 6px;
+    color: var(--lc-console-muted);
+    text-align: right;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .snap-split .snap-code {
+    padding: 0 10px 0 4px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .snap-split .snap-code + .snap-ln {
+    border-left: 1px solid var(--lc-console-gutter-rule);
+  }
+  .snap-split .exp {
+    background: color-mix(in srgb, var(--lc-status-passed) 10%, transparent);
+  }
+  .snap-split .act {
+    background: color-mix(in srgb, var(--lc-status-failed) 10%, transparent);
+  }
+  .snap-split .snap-code mark {
+    /* the changed part: a light tint + an underline in the side's color, text in the strongest foreground (contrast) */
+    border-radius: var(--lc-radius-xs);
+    color: var(--lc-fg);
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+  .snap-split .snap-code.exp mark {
+    background: color-mix(in srgb, var(--lc-status-passed) 14%, transparent);
+    text-decoration-color: var(--lc-status-passed);
+  }
+  .snap-split .snap-code.act mark {
+    background: color-mix(in srgb, var(--lc-status-failed) 14%, transparent);
+    text-decoration-color: var(--lc-status-failed);
+  }
+  /* legend / counts in the diff head: the status text tokens (meet contrast on the page background) */
+  .snap-diff .diff-stats .exp,
+  .snap-diff .diff-legend.exp .diff-sign {
+    color: var(--lc-status-passed-text);
+  }
+  .snap-diff .diff-stats .act,
+  .snap-diff .diff-legend.act .diff-sign {
+    color: var(--lc-status-failed-text);
+  }
+  .snap-fold-row td {
+    padding: 0;
+  }
+
+  /* images */
+  .snap-image-diff {
+    overflow: hidden;
+    border: 1px solid var(--lc-console-border);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-bg-page);
+  }
+  .snap-image-diff .diff-head .snap-mode {
+    margin-left: auto;
+  }
+  .snap-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 10px;
+  }
+  .snap-figure {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    margin: 0;
+  }
+  .snap-figure figcaption,
+  .snap-range {
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+  }
+  .snap-img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--lc-stroke-subtle);
+    /* checkerboard so transparent pixels show */
+    background: repeating-conic-gradient(var(--lc-bg-subtle) 0 25%, var(--lc-bg-card) 0 50%) 0 0 / 16px 16px;
+  }
+  .snap-img-missing {
+    padding: 24px;
+    color: var(--lc-fg-muted);
+  }
+  .snap-overlay-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+  }
+  .snap-overlay {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+  }
+  .snap-overlay .top {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .snap-overlay.onion .top {
+    opacity: var(--opacity);
+  }
+  .snap-overlay.slider .top {
+    clip-path: inset(0 0 0 var(--amount));
+  }
+  .snap-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--amount);
+    width: 2px;
+    margin-left: -1px;
+    background: var(--lc-accent);
+    pointer-events: none;
+  }
+  .snap-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: min(100%, 360px);
+  }
+  .snap-range input {
+    flex: 1;
+    accent-color: var(--lc-accent);
+  }
+
+  /* toolbar button (app.ts) */
+  .snap-toolbar-btn .btn-count {
+    margin-left: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .snap-overlay .top {
+      transition: none;
+    }
+  }
+
+  /* tree row pill (tree-pane.ts renderMeta) */
+  .row-pill.snapshot {
+    border-color: var(--lc-msg-info-border);
+    background: var(--lc-msg-info-bg);
+    color: var(--lc-fg);
+  }
+}

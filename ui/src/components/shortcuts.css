@@ -1,0 +1,37 @@
+/* Keyboard shortcut overlay (shortcutsDialog() in shortcuts.ts). */
+
+@layer app.components {
+  .shortcut-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--lc-space-8) var(--lc-space-32);
+  }
+  .shortcut-group-title {
+    margin: var(--lc-space-4) 0 var(--lc-space-8);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .shortcut-list {
+    margin: 0;
+  }
+  .shortcut-item {
+    display: grid;
+    grid-template-columns: 9.5em minmax(0, 1fr);
+    gap: var(--lc-space-12);
+    align-items: baseline;
+    padding: 5px 0; /* off-scale: 5px */
+    border-bottom: 1px solid var(--lc-stroke-subtle);
+  }
+  .shortcut-item dt {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lc-space-4);
+  }
+  .shortcut-item dd {
+    margin: 0;
+    color: var(--lc-fg);
+  }
+}

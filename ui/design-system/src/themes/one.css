@@ -1,0 +1,349 @@
+/* ==========================================================================================
+   One theme family (Atom): One Light (light) and One Dark (dark).
+   Palette: Atom's one-light-syntax / one-dark-syntax styles/colors.less (HSL, converted to hex),
+   https://github.com/atom/one-dark-syntax, https://github.com/atom/one-light-syntax (MIT, © 2016 GitHub Inc.).
+   UI tones (sidebar, borders, inputs, list hover/selection, buttons) from the MIT-licensed VS Code ports
+   of the Atom UI themes, https://github.com/akamud/vscode-theme-onedark and -onelight (MIT).
+   Selected with <html data-theme-family="one" data-theme="light|dark">.
+
+   mono-1..3 are the text tiers, hue-1..6 the accents (cyan, blue, purple, green, red, orange). The light
+   block maps every --lc-* token; the dark block swaps the palette and overrides a few mappings.
+
+   Contrast (WCAG 2.x, checked against the actual backgrounds): One's comment tone (mono-3) is famously
+   faint (2.5:1 on both editors) and several One Light hues are below 4.5:1 on #fafafa, so those tokens
+   are mixed toward mono-1 (the text color) just enough to pass; each one is noted.
+   ========================================================================================== */
+
+:root[data-theme-family="one"] {
+  color-scheme: light;
+
+  /* One Light syntax palette */
+  --one-bg: #fafafa; /* syntax-bg hsl(230, 1%, 98%) */
+  --one-mono-1: #383a42;
+  --one-mono-2: #696c77;
+  --one-mono-3: #a0a1a7;
+  --one-hue-1: #0184bc; /* cyan */
+  --one-hue-2: #4078f2; /* blue */
+  --one-hue-3: #a626a4; /* purple */
+  --one-hue-4: #50a14f; /* green */
+  --one-hue-5: #e45649; /* red 1 */
+  --one-hue-5-2: #ca1243; /* red 2 */
+  --one-hue-6: #986801; /* orange 1 */
+  --one-hue-6-2: #c18401; /* orange 2 */
+  --one-accent: #526fff; /* syntax-accent hsl(230, 100%, 66%) */
+  /* One Light UI */
+  --one-ui-bg: #eaeaeb; /* side bar, title bar, widgets */
+  --one-ui-border: #dbdbdc; /* borders, list selection */
+  --one-input: #ffffff;
+  --one-selection: #e5e5e6;
+  --one-button: #5871ef;
+  --one-line-number: #9d9d9f;
+
+  /* surfaces: page = editor, shell = side/title bar, surface = inputs */
+  --lc-bg-page: var(--one-bg);
+  --lc-bg-shell: var(--one-ui-bg);
+  --lc-bg-surface: var(--one-input);
+  --lc-bg-subtle: var(--one-selection);
+  --lc-bg-hover: color-mix(in srgb, var(--one-ui-border) 40%, var(--one-bg)); /* list hover #dbdbdc66 */
+  --lc-bg-selected: var(--one-ui-border); /* list active selection */
+  --lc-bg-badge: var(--one-ui-bg);
+  --lc-bg-popup: var(--one-input);
+  --lc-bg-menu-hover: color-mix(in srgb, var(--one-ui-border) 55%, var(--one-input));
+  --lc-shadow-popup: rgb(56 58 66 / 0.18) 0 0 2px 0, rgb(56 58 66 / 0.2) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(56 58 66 / 0.16), 0 2px 6px rgb(56 58 66 / 0.1);
+
+  /* text: mono-2 is 5.0:1 on the editor but 3.8:1 on the selected row → muted mixes 25% mono-1 in */
+  --lc-fg: var(--one-mono-1);
+  --lc-fg-secondary: color-mix(in srgb, var(--one-mono-1) 60%, var(--one-mono-2));
+  --lc-fg-muted: color-mix(in srgb, var(--one-mono-2) 75%, var(--one-mono-1));
+  --lc-fg-subtext: var(--lc-fg-muted);
+
+  /* strokes */
+  --lc-stroke: var(--one-ui-border);
+  --lc-stroke-subtle: color-mix(in srgb, var(--one-ui-border) 60%, var(--one-bg));
+  --lc-stroke-hover: var(--one-mono-3);
+  --lc-stroke-grid: var(--one-ui-border);
+
+  /* accent = syntax-accent (cursor, focus, badges); links = blue (hue-2) */
+  --lc-accent: color-mix(in srgb, var(--one-accent) 90%, var(--one-mono-1)); /* #526fff: white text 4.1:1 */
+  --lc-accent-hover: var(--one-hue-2);
+  --lc-on-accent: var(--one-input);
+  --lc-accent-button-bg: color-mix(in srgb, var(--one-button) 90%, var(--one-mono-1)); /* button #5871ef: white 4.2:1 */
+  --lc-accent-button-fg: var(--one-input);
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--one-button) 80%, var(--one-mono-1));
+  --lc-accent-button-hover-fg: var(--one-input);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--one-button) 72%, var(--one-mono-1));
+  --lc-link: color-mix(in srgb, var(--one-hue-2) 80%, var(--one-mono-1)); /* hue-2 is 3.9:1 on the editor */
+  --lc-link-hover: var(--one-hue-3);
+  --lc-focus-ring: var(--one-accent);
+
+  /* status colors from green, red 2 (crimson, since red 1 is 3.5:1 and fails under white badge text) and orange 1 */
+  --lc-status-passed: color-mix(in srgb, var(--one-hue-4) 70%, var(--one-mono-1)); /* hue-4 is 2.3:1 on the selected row */
+  --lc-status-failed: var(--one-hue-5-2);
+  --lc-status-skipped: var(--one-hue-6);
+  --lc-status-running: var(--lc-link); /* hue-2 is 2.9:1 on the selected row */
+  --lc-status-muted: color-mix(in srgb, var(--one-mono-3) 60%, var(--one-mono-1)); /* mono-3 is 2.5:1 */
+  --lc-status-failed-text: var(--one-hue-5-2);
+  --lc-status-passed-text: color-mix(in srgb, var(--lc-status-passed) 88%, #000000); /* status colors as text (counts, rates): the same hue mixed toward black just enough for 4.5:1 */
+  --lc-status-skipped-text: color-mix(in srgb, var(--lc-status-skipped) 90%, #000000);
+  --lc-on-status: var(--one-input);
+  --lc-host-warm: var(--one-hue-6-2);
+
+  /* message bars */
+  --lc-msg-success-bg: color-mix(in srgb, var(--one-hue-4) 9%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--one-hue-4) 42%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--one-hue-5) 8%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--one-hue-5) 40%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--one-hue-6-2) 10%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--one-hue-6-2) 42%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--one-ui-bg);
+  --lc-msg-info-border: var(--one-ui-border);
+  --lc-msg-fg: var(--one-mono-1);
+  --lc-msg-action-bg: var(--one-input);
+  --lc-msg-action-hover-bg: var(--lc-bg-menu-hover);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, #4e5666 35%, transparent); /* scrollbarSlider #4e566680 */
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, #4e5666 55%, transparent);
+
+  /* tag palette */
+  --lc-tag-teal: var(--one-hue-1);
+  --lc-tag-marigold: var(--one-hue-6-2);
+  --lc-tag-peach: var(--one-hue-6);
+  --lc-tag-coral: var(--one-hue-5);
+  --lc-tag-royal-blue: var(--one-hue-2);
+  --lc-tag-orchid: var(--one-hue-3);
+  --lc-tag-brand-blue: var(--one-accent);
+  --lc-tag-seafoam: var(--one-hue-1);
+  --lc-tag-jade: var(--one-hue-4);
+  --lc-tag-berry: var(--one-hue-5-2);
+
+  /* console = the editor */
+  --lc-console-bg: var(--one-bg);
+  --lc-console-fg: var(--one-mono-1);
+  --lc-console-muted: var(--lc-fg-muted); /* line numbers are text: the line-number gray is 2.6:1 / 3.0:1, status-muted 4.2:1 / 3.6:1 */
+  --lc-console-border: var(--one-ui-border);
+  --lc-console-hover: color-mix(in srgb, var(--one-mono-1) 5%, var(--one-bg)); /* line highlight #383a420c */
+  --lc-console-gutter-rule: color-mix(in srgb, var(--one-mono-1) 20%, var(--one-bg)); /* syntax-guide */
+  --lc-console-error-bg: color-mix(in srgb, var(--one-hue-5) 9%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--one-hue-6-2) 12%, var(--lc-console-bg));
+  --lc-console-link: var(--lc-link);
+  /* ANSI (from the hues; light hues mixed toward mono-1 like the syntax colors) */
+  --lc-ansi-black: var(--one-mono-1);
+  --lc-ansi-red: var(--one-hue-5-2);
+  --lc-ansi-green: var(--lc-code-string);
+  --lc-ansi-yellow: var(--one-hue-6);
+  --lc-ansi-blue: var(--lc-link);
+  --lc-ansi-magenta: var(--one-hue-3);
+  --lc-ansi-cyan: color-mix(in srgb, var(--one-hue-1) 85%, var(--one-mono-1)); /* hue-1 is 4.0:1 */
+  --lc-ansi-white: var(--one-mono-1);
+  --lc-ansi-bright-black: var(--lc-fg-muted);
+  --lc-ansi-bright-red: var(--one-hue-5-2);
+  --lc-ansi-bright-green: var(--lc-ansi-green);
+  --lc-ansi-bright-yellow: var(--one-hue-6);
+  --lc-ansi-bright-blue: var(--lc-ansi-blue);
+  --lc-ansi-bright-magenta: var(--one-hue-3);
+  --lc-ansi-bright-cyan: var(--lc-ansi-cyan);
+  --lc-ansi-bright-white: var(--one-mono-1);
+
+  /* syntax (light), vscode source: https://github.com/atom/one-light-syntax (styles/colors.less, styles/syntax/_base.less, styles/syntax/cs.less)
+     License: MIT (© 2016 GitHub Inc.).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #383a42;
+  --lc-code-comment: #727379; /* source #a0a1a7 is 2.47:1 */
+  --lc-code-doctag: #ce4136; /* source #e45649 is 3.51:1 */
+  --lc-code-keyword: #a626a4;
+  --lc-code-built-in: #a626a4;
+  --lc-code-type: #9b6a06; /* source #c18401 is 3.06:1 */
+  --lc-code-class: #9b6a06; /* source #c18401 is 3.06:1 */
+  --lc-code-function: #356ce5; /* source #4078f2 is 3.88:1 */
+  --lc-code-title: #356ce5; /* source #4078f2 is 3.88:1 */
+  --lc-code-params: #383a42; /* as default: not distinguished by the source */
+  --lc-code-string: #318331; /* source #50a14f is 3.07:1 */
+  --lc-code-subst: #383a42; /* as default: not distinguished by the source */
+  --lc-code-number: #986801;
+  --lc-code-literal: #986801; /* as number: not distinguished by the source */
+  --lc-code-meta: #9b6a06; /* source #c18401 is 3.06:1 */
+  --lc-code-attr: #986801;
+  --lc-code-attribute: #383a42;
+  --lc-code-variable: #ce4136; /* source #e45649 is 3.51:1 */
+  --lc-code-symbol: #017bb0; /* source #0184bc is 4.0:1 */
+  --lc-code-operator: #383a42; /* as default: not distinguished by the source */
+  --lc-code-punctuation: #383a42; /* as default: not distinguished by the source */
+  --lc-code-tag: #383a42;
+  --lc-code-name: #ce4136; /* source #e45649 is 3.51:1 */
+  --lc-code-addition: #318331; /* source #50a14f is 3.07:1 */
+  --lc-code-deletion: #ce4136; /* source #e45649 is 3.51:1 */
+  --lc-code-regexp: #017bb0; /* source #0184bc is 4.0:1 */
+  --lc-code-comment-style: italic;
+  --lc-code-doctag-style: italic;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--one-hue-4) 13%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--one-hue-5) 11%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--one-hue-6-2) 15%, var(--lc-console-bg));
+
+  /* syntax colors on tinted source lines move by this OKLCH lightness step (hue and chroma kept) to stay ≥ 4.5:1 */
+  --lc-code-tint-shift: -0.07;
+
+  --lc-confetti-1: var(--one-accent);
+  --lc-confetti-2: var(--one-hue-3);
+  --lc-confetti-3: var(--one-hue-4);
+  --lc-confetti-4: var(--one-hue-1);
+  --lc-confetti-5: var(--one-hue-6-2);
+  --lc-confetti-6: var(--one-hue-5);
+  --lc-confetti-7: var(--one-hue-2);
+}
+
+:root[data-theme-family="one"][data-theme="dark"] {
+  color-scheme: dark;
+
+  /* One Dark syntax palette */
+  --one-bg: #282c34; /* syntax-bg hsl(220, 13%, 18%) */
+  --one-mono-1: #abb2bf;
+  --one-mono-2: #828997;
+  --one-mono-3: #5c6370;
+  --one-hue-1: #56b6c2;
+  --one-hue-2: #61afef;
+  --one-hue-3: #c678dd;
+  --one-hue-4: #98c379;
+  --one-hue-5: #e06c75;
+  --one-hue-5-2: #be5046;
+  --one-hue-6: #d19a66;
+  --one-hue-6-2: #e5c07b;
+  --one-accent: #528bff; /* syntax-accent hsl(220, 100%, 66%) */
+  /* One Dark UI */
+  --one-ui-bg: #21252b;
+  --one-ui-border: #181a1f;
+  --one-input: #1b1d23;
+  --one-list: #2c313a; /* list hover/selection */
+  --one-raised: #333842; /* activity bar */
+  --one-dropdown: #353b45;
+  --one-selection: #3e4451;
+  --one-button: #4d78cc;
+  --one-line-number: #636d83;
+  --one-ui-fg: #d7dae0; /* badge / bright UI text */
+
+  /* differences from the light mapping above. Atom's UI is recessed (inputs, panels and widgets are darker
+     than the editor), so surfaces are ui-bg and the shell is the input tone */
+  --lc-bg-shell: var(--one-input);
+  --lc-bg-surface: var(--one-ui-bg);
+  --lc-bg-subtle: var(--one-list);
+  --lc-bg-hover: color-mix(in srgb, var(--one-list) 40%, var(--one-bg)); /* list hover #2c313a66 */
+  --lc-bg-selected: var(--one-list);
+  --lc-bg-badge: var(--one-list);
+  --lc-bg-popup: var(--one-ui-bg);
+  --lc-bg-menu-hover: var(--one-list);
+  --lc-shadow-popup: rgb(0 0 0 / 0.35) 0 0 2px 0, rgb(0 0 0 / 0.45) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4), 0 2px 6px rgb(0 0 0 / 0.25);
+
+  --lc-fg-secondary: var(--one-mono-1);
+  --lc-fg-muted: color-mix(in srgb, var(--one-mono-2) 60%, var(--one-mono-1)); /* mono-2 is 4.0:1 on the editor, 3.7:1 on selected */
+  --lc-fg-subtext: var(--lc-fg-muted);
+  --lc-fg: color-mix(in srgb, var(--one-mono-1) 50%, var(--one-ui-fg)); /* a step above mono-1 (One has three mono tiers) */
+
+  --lc-stroke: var(--one-selection);
+  --lc-stroke-subtle: var(--one-ui-border);
+  --lc-stroke-hover: var(--one-line-number);
+  --lc-stroke-grid: var(--one-ui-border);
+
+  --lc-accent: var(--one-accent);
+  --lc-accent-hover: var(--one-hue-2);
+  --lc-on-accent: var(--one-input);
+  --lc-accent-button-bg: color-mix(in srgb, var(--one-button) 85%, var(--one-input)); /* button #4d78cc: white 4.3:1 */
+  --lc-accent-button-fg: #ffffff;
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--one-button) 78%, var(--one-input));
+  --lc-accent-button-hover-fg: #ffffff;
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--one-button) 70%, var(--one-input));
+  --lc-link: var(--one-hue-2);
+  --lc-link-hover: var(--one-hue-1);
+
+  --lc-status-passed: var(--one-hue-4);
+  --lc-status-failed: var(--one-hue-5);
+  --lc-status-skipped: var(--one-hue-6);
+  --lc-status-muted: color-mix(in srgb, var(--one-line-number) 80%, var(--one-mono-1)); /* line-number gray is 2.7:1 */
+  --lc-status-failed-text: color-mix(in srgb, var(--one-hue-5) 90%, var(--one-ui-fg)); /* hue-5 is 4.2:1 on the error tints */
+  --lc-on-status: var(--one-input);
+  --lc-status-passed-text: var(--lc-status-passed);
+  --lc-status-skipped-text: var(--lc-status-skipped);
+  --lc-host-warm: var(--one-hue-6);
+
+  --lc-msg-success-bg: color-mix(in srgb, var(--one-hue-4) 14%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--one-hue-4) 60%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--one-hue-5) 10%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--one-hue-5) 60%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--one-hue-6) 14%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--one-hue-6) 60%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--lc-bg-surface);
+  --lc-msg-info-border: var(--one-selection);
+  --lc-msg-fg: var(--lc-fg);
+  --lc-msg-action-bg: var(--one-list);
+  --lc-msg-action-hover-bg: var(--one-raised);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, #4e5666 70%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, #4e5666 100%, transparent);
+
+  /* console = the Atom panels (darker than the editor) */
+  --lc-console-bg: var(--one-ui-bg);
+  --lc-console-fg: var(--one-mono-1);
+  --lc-console-border: var(--one-ui-border);
+  --lc-console-hover: var(--one-bg);
+  --lc-console-gutter-rule: color-mix(in srgb, var(--one-mono-1) 15%, var(--one-ui-bg)); /* syntax-guide */
+  --lc-console-error-bg: color-mix(in srgb, var(--one-hue-5) 10%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--one-hue-6-2) 12%, var(--lc-console-bg));
+  --lc-console-link: var(--one-hue-2);
+  --lc-ansi-black: var(--one-input);
+  --lc-ansi-red: var(--one-hue-5);
+  --lc-ansi-green: var(--one-hue-4);
+  --lc-ansi-yellow: var(--one-hue-6-2);
+  --lc-ansi-blue: var(--one-hue-2);
+  --lc-ansi-magenta: var(--one-hue-3);
+  --lc-ansi-cyan: var(--one-hue-1);
+  --lc-ansi-white: var(--one-mono-1);
+  --lc-ansi-bright-black: var(--one-mono-3);
+  --lc-ansi-bright-red: var(--one-hue-5);
+  --lc-ansi-bright-green: var(--one-hue-4);
+  --lc-ansi-bright-yellow: var(--one-hue-6-2);
+  --lc-ansi-bright-blue: var(--one-hue-2);
+  --lc-ansi-bright-magenta: var(--one-hue-3);
+  --lc-ansi-bright-cyan: var(--one-hue-1);
+  --lc-ansi-bright-white: var(--one-ui-fg);
+
+  /* syntax (dark), vscode source: https://github.com/atom/one-dark-syntax (styles/colors.less, styles/syntax/_base.less, styles/syntax/cs.less)
+     License: MIT (© 2016 GitHub Inc.).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #abb2bf;
+  --lc-code-comment: #848c9a; /* source #5c6370 is 2.55:1 */
+  --lc-code-doctag: #e06c75;
+  --lc-code-keyword: #c678dd;
+  --lc-code-built-in: #c678dd;
+  --lc-code-type: #e5c07b;
+  --lc-code-class: #e5c07b;
+  --lc-code-function: #61afef;
+  --lc-code-title: #61afef;
+  --lc-code-params: #abb2bf; /* as default: not distinguished by the source */
+  --lc-code-string: #98c379;
+  --lc-code-subst: #abb2bf; /* as default: not distinguished by the source */
+  --lc-code-number: #d19a66;
+  --lc-code-literal: #d19a66; /* as number: not distinguished by the source */
+  --lc-code-meta: #e5c07b;
+  --lc-code-attr: #d19a66;
+  --lc-code-attribute: #abb2bf;
+  --lc-code-variable: #e06c75;
+  --lc-code-symbol: #56b6c2;
+  --lc-code-operator: #abb2bf; /* as default: not distinguished by the source */
+  --lc-code-punctuation: #abb2bf; /* as default: not distinguished by the source */
+  --lc-code-tag: #abb2bf;
+  --lc-code-name: #e06c75;
+  --lc-code-addition: #98c379;
+  --lc-code-deletion: #e06c75;
+  --lc-code-regexp: #56b6c2;
+  --lc-code-comment-style: italic;
+  --lc-code-doctag-style: italic;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--one-hue-4) 11%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--one-hue-5) 14%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--one-hue-6-2) 10%, var(--lc-console-bg));
+
+  --lc-code-tint-shift: 0.055;
+}

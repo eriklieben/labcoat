@@ -1,0 +1,196 @@
+/* Code block (.lc-code[.numbered][.wrap] > pre.lc-code-pre > code.hljs > .lc-code-line[data-n][.marked]) + token colors. */
+
+.lc-code {
+  --lc-code-pad: 12px;
+  position: relative;
+  overflow: auto;
+  border: 1px solid var(--lc-console-border);
+  border-radius: var(--lc-radius-lg);
+  background: var(--lc-console-bg); /* code colors are contrast-checked against the console background */
+  color: var(--lc-code-default);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-text-md);
+  line-height: 20px;
+}
+.lc-code:focus-visible {
+  outline-offset: -2px;
+}
+.lc-code-pre {
+  min-width: max-content;
+  margin: 0;
+  padding: var(--lc-space-8) 0;
+  font: inherit;
+}
+.lc-code.wrap .lc-code-pre {
+  min-width: 0;
+}
+.lc-code-line {
+  display: block;
+  padding: 0 var(--lc-code-pad);
+  white-space: pre;
+}
+.lc-code.wrap .lc-code-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lc-code.numbered .lc-code-line {
+  position: relative;
+  padding-left: calc(var(--lc-code-digits, 3) * 1ch + 2 * var(--lc-code-pad) + 1px);
+}
+.lc-code.numbered .lc-code-line::before {
+  content: attr(data-n);
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: content-box;
+  width: calc(var(--lc-code-digits, 3) * 1ch);
+  padding: 0 var(--lc-code-pad);
+  border-right: 1px solid var(--lc-console-gutter-rule);
+  color: var(--lc-fg-muted);
+  text-align: right;
+  user-select: none;
+}
+/* marked line: accent bar + tinted gutter; the code itself stays on the console background so every syntax color
+   keeps its contrast (a full-line tint pushed some Latte colors below 4.5:1) */
+.lc-code-line.marked {
+  box-shadow: inset 3px 0 0 var(--lc-accent), inset 0 1px 0 var(--lc-console-gutter-rule), inset 0 -1px 0 var(--lc-console-gutter-rule);
+}
+.lc-code.numbered .lc-code-line.marked::before {
+  background: color-mix(in srgb, var(--lc-accent) 16%, var(--lc-console-bg));
+  color: var(--lc-fg);
+  font-weight: 600;
+}
+
+/* syntax colors: one --lc-code-* token per highlight.js class, with the theme's italic / bold; scoped so app styles may differ */
+.lc-code .hljs-comment,
+.lc-code .hljs-quote {
+  color: var(--lc-code-comment);
+  font-style: var(--lc-code-comment-style, normal);
+  font-weight: var(--lc-code-comment-weight, normal);
+}
+.lc-code .hljs-doctag {
+  color: var(--lc-code-doctag);
+  font-style: var(--lc-code-doctag-style, normal);
+  font-weight: var(--lc-code-doctag-weight, normal);
+}
+.lc-code .hljs-keyword,
+.lc-code .hljs-selector-tag {
+  color: var(--lc-code-keyword);
+  font-style: var(--lc-code-keyword-style, normal);
+  font-weight: var(--lc-code-keyword-weight, normal);
+}
+.lc-code .hljs-built_in {
+  color: var(--lc-code-built-in);
+  font-style: var(--lc-code-built-in-style, normal);
+  font-weight: var(--lc-code-built-in-weight, normal);
+}
+.lc-code .hljs-type {
+  color: var(--lc-code-type);
+  font-style: var(--lc-code-type-style, normal);
+  font-weight: var(--lc-code-type-weight, normal);
+}
+.lc-code .hljs-title,
+.lc-code .hljs-section {
+  color: var(--lc-code-title);
+  font-style: var(--lc-code-title-style, normal);
+  font-weight: var(--lc-code-title-weight, normal);
+}
+.lc-code .hljs-title.class_,
+.lc-code .hljs-title.class_.inherited__ {
+  color: var(--lc-code-class);
+  font-style: var(--lc-code-class-style, normal);
+  font-weight: var(--lc-code-class-weight, normal);
+}
+.lc-code .hljs-title.function_ {
+  color: var(--lc-code-function);
+  font-style: var(--lc-code-function-style, normal);
+  font-weight: var(--lc-code-function-weight, normal);
+}
+.lc-code .hljs-params {
+  color: var(--lc-code-params);
+  font-style: var(--lc-code-params-style, normal);
+  font-weight: var(--lc-code-params-weight, normal);
+}
+.lc-code .hljs-string {
+  color: var(--lc-code-string);
+  font-style: var(--lc-code-string-style, normal);
+  font-weight: var(--lc-code-string-weight, normal);
+}
+.lc-code .hljs-subst {
+  color: var(--lc-code-subst);
+  font-style: var(--lc-code-subst-style, normal);
+  font-weight: var(--lc-code-subst-weight, normal);
+}
+.lc-code .hljs-number {
+  color: var(--lc-code-number);
+  font-style: var(--lc-code-number-style, normal);
+  font-weight: var(--lc-code-number-weight, normal);
+}
+.lc-code .hljs-literal {
+  color: var(--lc-code-literal);
+  font-style: var(--lc-code-literal-style, normal);
+  font-weight: var(--lc-code-literal-weight, normal);
+}
+.lc-code .hljs-meta {
+  color: var(--lc-code-meta);
+  font-style: var(--lc-code-meta-style, normal);
+  font-weight: var(--lc-code-meta-weight, normal);
+}
+.lc-code .hljs-attr {
+  color: var(--lc-code-attr);
+  font-style: var(--lc-code-attr-style, normal);
+  font-weight: var(--lc-code-attr-weight, normal);
+}
+.lc-code .hljs-attribute {
+  color: var(--lc-code-attribute);
+  font-style: var(--lc-code-attribute-style, normal);
+  font-weight: var(--lc-code-attribute-weight, normal);
+}
+.lc-code .hljs-variable,
+.lc-code .hljs-template-variable {
+  color: var(--lc-code-variable);
+  font-style: var(--lc-code-variable-style, normal);
+  font-weight: var(--lc-code-variable-weight, normal);
+}
+.lc-code .hljs-symbol,
+.lc-code .hljs-bullet {
+  color: var(--lc-code-symbol);
+  font-style: var(--lc-code-symbol-style, normal);
+  font-weight: var(--lc-code-symbol-weight, normal);
+}
+.lc-code .hljs-operator {
+  color: var(--lc-code-operator);
+  font-style: var(--lc-code-operator-style, normal);
+  font-weight: var(--lc-code-operator-weight, normal);
+}
+.lc-code .hljs-punctuation {
+  color: var(--lc-code-punctuation);
+  font-style: var(--lc-code-punctuation-style, normal);
+  font-weight: var(--lc-code-punctuation-weight, normal);
+}
+.lc-code .hljs-tag {
+  color: var(--lc-code-tag);
+  font-style: var(--lc-code-tag-style, normal);
+  font-weight: var(--lc-code-tag-weight, normal);
+}
+.lc-code .hljs-name {
+  color: var(--lc-code-name);
+  font-style: var(--lc-code-name-style, normal);
+  font-weight: var(--lc-code-name-weight, normal);
+}
+.lc-code .hljs-addition {
+  color: var(--lc-code-addition);
+  font-style: var(--lc-code-addition-style, normal);
+  font-weight: var(--lc-code-addition-weight, normal);
+}
+.lc-code .hljs-deletion {
+  color: var(--lc-code-deletion);
+  font-style: var(--lc-code-deletion-style, normal);
+  font-weight: var(--lc-code-deletion-weight, normal);
+}
+.lc-code .hljs-regexp,
+.lc-code .hljs-link {
+  color: var(--lc-code-regexp);
+  font-style: var(--lc-code-regexp-style, normal);
+  font-weight: var(--lc-code-regexp-weight, normal);
+}

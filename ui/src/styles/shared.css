@@ -1,0 +1,258 @@
+/* Cross-component patterns and app-specific overrides of design-system primitives (tabs, switch, segmented,
+   property grid, chips, buttons) + the shared micro-interaction / reduced-motion rules. */
+
+@layer app.components {
+  .prop-grid {
+    margin-bottom: var(--lc-space-16);
+  }
+
+  /* console (Aspire console-logs look) */
+  .console {
+    padding: var(--lc-space-8) 0;
+    overflow: auto;
+    border-radius: var(--lc-radius-lg);
+    background: var(--lc-console-bg);
+    color: var(--lc-console-fg);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-md);
+    line-height: var(--lc-line-height);
+    border: 1px solid var(--lc-console-border);
+  }
+  .console-line {
+    display: flex;
+    padding-right: var(--lc-space-12);
+  }
+  .console-line:hover {
+    background: var(--lc-console-hover);
+  }
+  .console-line.stderr {
+    background: var(--lc-console-error-bg);
+  }
+  .console-line.warn {
+    background: var(--lc-console-warn-bg);
+  }
+  .console-ln {
+    flex: none;
+    min-width: 44px;
+    margin-right: var(--lc-space-16);
+    color: var(--lc-console-muted);
+    text-align: right;
+    user-select: none;
+  }
+  .console-ts {
+    flex: none;
+    margin-right: var(--lc-space-12);
+    color: var(--lc-console-muted);
+    user-select: none;
+  }
+  .console-src {
+    flex: none;
+    margin-right: var(--lc-space-12);
+    opacity: 1;
+  }
+  .console-stream {
+    flex: none;
+    margin-right: var(--lc-space-8);
+    color: var(--lc-ansi-bright-red);
+    font-size: var(--lc-text-xs);
+    opacity: 0.8;
+  }
+  .console-text {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .console .trace-link {
+    color: var(--lc-console-link);
+  }
+  .console .trace-line {
+    display: inline;
+  }
+  .console-empty {
+    padding: var(--lc-space-8) var(--lc-space-16);
+    color: var(--lc-console-muted);
+  }
+  .console.nowrap .console-text {
+    white-space: pre;
+    overflow-wrap: normal;
+  }
+  .failure-list {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--lc-stroke-pane);
+    border-radius: var(--lc-radius-lg);
+    list-style: none;
+  }
+  .failure-list li + li {
+    border-top: 1px solid var(--lc-stroke-pane);
+  }
+  .failure-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--lc-space-10);
+    width: 100%;
+    padding: var(--lc-space-8) var(--lc-space-12);
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  .failure-item:hover {
+    background: var(--lc-bg-row-hover);
+  }
+  .failure-item .st {
+    margin-top: var(--lc-space-2);
+  }
+  .failure-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .failure-name {
+    overflow: hidden;
+    font-size: var(--lc-text-md);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .failure-msg {
+    overflow: hidden;
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pane-tab:hover {
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg);
+  }
+  .chip-flaky .chip-dot {
+    background: var(--lc-status-skipped);
+    border-radius: var(--lc-radius-xs);
+  }
+  /* The watch indicator sits in the corner instead of growing the button. */
+  .btn-toggle {
+    position: relative;
+  }
+
+  /* Aspire-like press + hover timing (~120ms). */
+  .btn {
+    transition:
+      background-color var(--lc-motion-fast),
+      border-color var(--lc-motion-fast),
+      color var(--lc-motion-fast),
+      transform var(--lc-motion-instant) var(--lc-ease-standard),
+      opacity var(--lc-motion-fast);
+  }
+  /* Run all / Stop (.run-slot in the toolbar; shell.css): their crossfade replaces the generic .btn timing above. */
+  /* P18: sequential, never overlapping: the leaving label fades out in 80 ms (accelerate), then the new one fades in
+     (120 ms, decelerate, starting when the old one is gone). */
+  .run-slot > .btn {
+    grid-area: 1 / 1;
+    transition:
+      opacity var(--lc-motion-fast) var(--lc-ease-decelerate) var(--lc-motion-instant),
+      transform var(--lc-motion-fast) var(--lc-ease-decelerate) var(--lc-motion-instant),
+      visibility 0s,
+      background-color var(--lc-motion-fast),
+      border-color var(--lc-motion-fast),
+      color var(--lc-motion-fast);
+  }
+  .run-slot > .btn.slot-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: scale(0.96);
+    transition:
+      opacity var(--lc-motion-instant) var(--lc-ease-accelerate),
+      transform var(--lc-motion-instant) var(--lc-ease-accelerate),
+      visibility 0s linear var(--lc-motion-instant);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .icon-btn,
+  .row-action,
+  .chip,
+  .pane-tab,
+  .rail-item {
+    transition:
+      background-color var(--lc-motion-fast),
+      color var(--lc-motion-fast),
+      border-color var(--lc-motion-fast),
+      transform var(--lc-motion-instant) var(--lc-ease-standard);
+  }
+  .icon-btn:active,
+  .row-action:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+  .chip:active {
+    transform: scale(0.97);
+  }
+
+  /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */
+  :root[data-motion="reduced"] .run-slot > .btn,
+  :root[data-motion="reduced"] .run-slot > .btn.slot-hidden,
+  :root[data-motion="reduced"] .btn,
+  :root[data-motion="reduced"] .icon-btn,
+  :root[data-motion="reduced"] .row-action,
+  :root[data-motion="reduced"] .chip,
+  :root[data-motion="reduced"] .hsq {
+    transition: none;
+  }
+  :root[data-motion="reduced"] .btn:active:not(:disabled),
+  :root[data-motion="reduced"] .icon-btn:active,
+  :root[data-motion="reduced"] .row-action:active:not(:disabled),
+  :root[data-motion="reduced"] .chip:active,
+  :root[data-motion="reduced"] .run-slot > .btn.slot-hidden {
+    transform: none;
+  }
+  :root[data-motion="reduced"] .st-anim {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion]) .run-slot > .btn,
+    :root:not([data-motion]) .run-slot > .btn.slot-hidden,
+    :root:not([data-motion]) .btn,
+    :root:not([data-motion]) .icon-btn,
+    :root:not([data-motion]) .row-action,
+    :root:not([data-motion]) .chip,
+    :root:not([data-motion]) .hsq {
+      transition: none;
+    }
+    :root:not([data-motion]) .btn:active:not(:disabled),
+    :root:not([data-motion]) .icon-btn:active,
+    :root:not([data-motion]) .row-action:active:not(:disabled),
+    :root:not([data-motion]) .chip:active,
+    :root:not([data-motion]) .run-slot > .btn.slot-hidden {
+      transform: none;
+    }
+    :root:not([data-motion]) .st-anim {
+      animation: none;
+    }
+  }
+
+  /* Fluent switch */
+  .switch-track {
+    box-sizing: border-box;
+  }
+  .switch input:focus-visible + .switch-track {
+    outline: 2px solid var(--lc-accent);
+  }
+
+  /* segmented control (theme); an "on" segment keeps the design system's hover tint */
+  .segment:hover:is(:not(.on), :disabled) {
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg);
+  }
+  .chip-new .chip-dot {
+    background: var(--lc-status-failed);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--lc-status-failed) 30%, transparent);
+  }
+  .detail-title:focus-visible {
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--lc-radius-sm);
+  }
+}

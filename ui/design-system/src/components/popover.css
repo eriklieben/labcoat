@@ -1,0 +1,141 @@
+/* Popovers and menus (.lc-popover, .lc-menu > .lc-menu-list > .lc-menu-item, .lc-menu-sep, .lc-menu-heading). */
+
+.lc-popover {
+  z-index: var(--lc-z-popover);
+  min-width: 160px;
+  max-width: calc(100vw - 16px);
+  padding: var(--lc-space-4);
+  overflow: auto;
+  border: 1px solid var(--lc-stroke);
+  border-radius: var(--lc-popup-radius);
+  background: var(--lc-bg-popup);
+  box-shadow: var(--lc-shadow-menu);
+  color: var(--lc-fg);
+  font-size: var(--lc-text-md);
+}
+.lc-popover:focus {
+  outline: none;
+}
+/* P4: scale from the anchor (transform-origin set by placePopup from data-side/align), 140 ms decelerate; the exit is
+   an 80 ms fade (popExit). [data-side] raises specificity so app classes on the popup (.run-menu) don't override it. */
+.lc-popover[data-side] {
+  animation: lc-pop-in var(--lc-motion-pop) var(--lc-ease-decelerate) both;
+}
+.lc-popover[data-side="top"] {
+  animation-name: lc-pop-in-up;
+}
+.lc-popover[data-side="left"],
+.lc-popover[data-side="right"] {
+  animation-name: lc-pop-in-side;
+}
+@keyframes lc-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--lc-motion-rise) * -1)) scale(var(--lc-motion-scale-in));
+  }
+}
+@keyframes lc-pop-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--lc-motion-rise)) scale(var(--lc-motion-scale-in));
+  }
+}
+@keyframes lc-pop-in-side {
+  from {
+    opacity: 0;
+    transform: scale(var(--lc-motion-scale-in));
+  }
+}
+
+.lc-menu {
+  min-width: 200px;
+}
+.lc-menu-list {
+  display: flex;
+  flex-direction: column;
+}
+.lc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-8);
+  width: 100%;
+  min-height: 32px;
+  padding: var(--lc-space-4) var(--lc-space-8);
+  border: 0;
+  border-radius: var(--lc-radius-sm);
+  background: transparent;
+  color: var(--lc-fg);
+  font-size: var(--lc-text-md);
+  text-align: left;
+  cursor: pointer;
+}
+.lc-menu-item:hover:not(:disabled),
+.lc-menu-item:focus-visible,
+.lc-menu-item:focus {
+  outline: none;
+  background: var(--lc-bg-menu-hover);
+}
+.lc-menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--lc-focus-ring);
+}
+.lc-menu-item[aria-checked="true"] {
+  background: color-mix(in srgb, var(--lc-accent) 12%, transparent);
+}
+.lc-menu-item[aria-checked="true"]:hover,
+.lc-menu-item[aria-checked="true"]:focus {
+  background: color-mix(in srgb, var(--lc-accent) 18%, transparent);
+}
+.lc-menu-item:disabled {
+  opacity: var(--lc-disabled-opacity);
+  cursor: not-allowed;
+}
+.lc-menu-item.danger,
+.lc-menu-item.danger .lc-menu-icon {
+  color: var(--lc-status-failed-text);
+}
+.lc-menu-check {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+  color: var(--lc-accent);
+}
+.lc-menu-icon {
+  color: var(--lc-fg-secondary);
+}
+.lc-menu-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.lc-menu-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-menu-desc {
+  color: var(--lc-fg-muted);
+  font-size: var(--lc-text-sm);
+  line-height: 16px;
+}
+.lc-menu-kbd {
+  margin-left: var(--lc-space-16);
+}
+.lc-menu-sep {
+  flex: none;
+  height: 1px;
+  margin: var(--lc-space-4) 0;
+  background: var(--lc-stroke-subtle);
+}
+.lc-menu-heading {
+  padding: var(--lc-space-6) var(--lc-space-8) var(--lc-space-2);
+  color: var(--lc-fg-muted);
+  font-size: var(--lc-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.lc-menu-chevron {
+  margin-right: -4px; /* off-scale: -4px */
+  color: var(--lc-fg-muted);
+}

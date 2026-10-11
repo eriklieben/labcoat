@@ -1,0 +1,321 @@
+/* ==========================================================================================
+   Catppuccin theme family: Latte (light) and Macchiato (dark).
+   Palette: Catppuccin v1.8.0, https://github.com/catppuccin/palette (MIT, © Catppuccin).
+   Selected with <html data-theme-family="catppuccin" data-theme="light|dark">.
+
+   The first block declares the Latte palette as --ctp-* and maps every semantic --lc-* token onto it;
+   the dark block only swaps in the Macchiato palette and overrides the few mappings that differ, so
+   the two flavors cannot drift apart. Like every theme file, this assigns tokens only.
+
+   Contrast (WCAG 2.x, checked against the actual backgrounds): Latte's subtext0, blue, lavender, green,
+   peach and several syntax colors fall below 4.5:1 (text) / 3:1 (UI) on its light surfaces, so on
+   Latte those tokens are darkened by mixing toward `text` just enough to pass (noted per token).
+   Macchiato only mixes a little text into the failure red (4.37:1 on the error message bar).
+   Status colors used as text (--lc-status-*-text) and syntax colors on tinted source lines
+   (--lc-code-tint-shift) are darker variants of the same hues on Latte.
+   ========================================================================================== */
+
+:root[data-theme-family="catppuccin"] {
+  color-scheme: light;
+
+  /* Latte palette */
+  --ctp-rosewater: #dc8a78;
+  --ctp-flamingo: #dd7878;
+  --ctp-pink: #ea76cb;
+  --ctp-mauve: #8839ef;
+  --ctp-red: #d20f39;
+  --ctp-maroon: #e64553;
+  --ctp-peach: #fe640b;
+  --ctp-yellow: #df8e1d;
+  --ctp-green: #40a02b;
+  --ctp-teal: #179299;
+  --ctp-sky: #04a5e5;
+  --ctp-sapphire: #209fb5;
+  --ctp-blue: #1e66f5;
+  --ctp-lavender: #7287fd;
+  --ctp-text: #4c4f69;
+  --ctp-subtext1: #5c5f77;
+  --ctp-subtext0: #6c6f85;
+  --ctp-overlay2: #7c7f93;
+  --ctp-overlay1: #8c8fa1;
+  --ctp-overlay0: #9ca0b0;
+  --ctp-surface2: #acb0be;
+  --ctp-surface1: #bcc0cc;
+  --ctp-surface0: #ccd0da;
+  --ctp-base: #eff1f5;
+  --ctp-mantle: #e6e9ef;
+  --ctp-crust: #dce0e8;
+
+  /* surfaces: page = base, shell (header/rail) = mantle, cards lift slightly above base */
+  --lc-bg-page: var(--ctp-base);
+  --lc-bg-shell: var(--ctp-mantle);
+  --lc-bg-surface: color-mix(in srgb, var(--ctp-base) 40%, #ffffff);
+  --lc-bg-subtle: color-mix(in srgb, var(--ctp-surface0) 50%, var(--ctp-base));
+  --lc-bg-hover: color-mix(in srgb, var(--ctp-surface0) 30%, var(--ctp-base));
+  --lc-bg-selected: var(--lc-bg-subtle);
+  --lc-bg-badge: var(--lc-bg-subtle);
+  --lc-bg-popup: var(--lc-bg-surface);
+  --lc-bg-menu-hover: color-mix(in srgb, var(--ctp-surface0) 45%, var(--ctp-base));
+  --lc-shadow-popup: rgb(76 79 105 / 0.18) 0 0 2px 0, rgb(76 79 105 / 0.22) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(76 79 105 / 0.16), 0 2px 6px rgb(76 79 105 / 0.1);
+
+  /* text: subtext0 is 4.37:1 on base → muted mixes 40% text in (4.56:1 on the subtle chip background) */
+  --lc-fg: var(--ctp-text);
+  --lc-fg-secondary: var(--ctp-subtext1);
+  --lc-fg-muted: color-mix(in srgb, var(--ctp-subtext0) 60%, var(--ctp-text));
+  --lc-fg-subtext: var(--ctp-subtext1);
+
+  /* strokes */
+  --lc-stroke: var(--ctp-surface1);
+  --lc-stroke-subtle: var(--ctp-surface0);
+  --lc-stroke-hover: var(--ctp-surface2);
+  --lc-stroke-grid: var(--ctp-surface0);
+
+  /* accent = mauve; links = blue (Catppuccin convention); focus = lavender */
+  --lc-accent: var(--ctp-mauve);
+  --lc-accent-hover: color-mix(in srgb, var(--ctp-mauve) 82%, var(--ctp-base));
+  --lc-on-accent: var(--ctp-base);
+  --lc-accent-button-bg: var(--lc-accent);
+  --lc-accent-button-fg: var(--lc-on-accent);
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--ctp-mauve) 85%, var(--ctp-text)); /* toward text: keeps on-accent ≥ 4.5:1 (Latte hover was 3.6:1) */
+  --lc-accent-button-hover-fg: var(--lc-on-accent);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--ctp-mauve) 88%, var(--ctp-text));
+  --lc-link: color-mix(in srgb, var(--ctp-blue) 90%, var(--ctp-text)); /* blue is 4.34:1 on base */
+  --lc-link-hover: var(--ctp-mauve);
+  --lc-focus-ring: color-mix(in srgb, var(--ctp-lavender) 80%, var(--ctp-text)); /* lavender is 2.81:1 */
+
+  /* status: green and peach darkened to reach 3:1 on base/surfaces */
+  --lc-status-passed: color-mix(in srgb, var(--ctp-green) 80%, var(--ctp-text));
+  --lc-status-failed: var(--ctp-red);
+  --lc-status-skipped: color-mix(in srgb, var(--ctp-peach) 70%, var(--ctp-text));
+  --lc-status-running: var(--ctp-blue);
+  --lc-status-muted: color-mix(in srgb, var(--ctp-overlay1) 90%, var(--ctp-text));
+  --lc-status-failed-text: color-mix(in srgb, var(--ctp-red) 95%, var(--ctp-text)); /* red is 4.45:1 on the console error tint */
+  --lc-status-passed-text: color-mix(in srgb, var(--lc-status-passed) 78%, #000000); /* status colors as text (counts, rates): the same hue mixed toward black just enough for 4.5:1 */
+  --lc-status-skipped-text: color-mix(in srgb, var(--lc-status-skipped) 80%, #000000);
+  --lc-on-status: var(--ctp-base);
+  --lc-host-warm: var(--ctp-peach);
+
+  /* message bars */
+  --lc-msg-success-bg: color-mix(in srgb, var(--ctp-green) 9%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--ctp-green) 42%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--ctp-red) 8%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--ctp-red) 40%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--ctp-peach) 9%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--ctp-peach) 42%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--ctp-mantle);
+  --lc-msg-info-border: var(--ctp-surface1);
+  --lc-msg-fg: var(--ctp-text);
+  --lc-msg-action-bg: var(--lc-bg-surface);
+  --lc-msg-action-hover-bg: var(--lc-bg-menu-hover);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--ctp-overlay0) 55%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--ctp-overlay1) 80%, transparent);
+
+  /* tag palette */
+  --lc-tag-teal: var(--ctp-teal);
+  --lc-tag-marigold: var(--ctp-yellow);
+  --lc-tag-peach: var(--ctp-peach);
+  --lc-tag-coral: var(--ctp-maroon);
+  --lc-tag-royal-blue: var(--ctp-blue);
+  --lc-tag-orchid: var(--ctp-pink);
+  --lc-tag-brand-blue: var(--ctp-sapphire);
+  --lc-tag-seafoam: var(--ctp-sky);
+  --lc-tag-jade: var(--ctp-green);
+  --lc-tag-berry: var(--ctp-flamingo);
+
+  /* console: Latte keeps it on the light card color (mantle would push syntax colors below 4.5:1) */
+  --lc-console-bg: var(--lc-bg-surface);
+  --lc-console-fg: var(--ctp-text);
+  --lc-console-muted: color-mix(in srgb, var(--ctp-overlay1) 40%, var(--ctp-text)); /* Latte overlay1 is 3.0:1: mixed toward text → 5.1:1 (line numbers; 4.6:1 on a hovered line) */
+  --lc-console-border: var(--lc-stroke);
+  --lc-console-hover: color-mix(in srgb, var(--ctp-surface0) 30%, var(--lc-console-bg));
+  --lc-console-gutter-rule: var(--ctp-surface0);
+  --lc-console-error-bg: color-mix(in srgb, var(--ctp-red) 9%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--ctp-yellow) 12%, var(--lc-console-bg));
+  --lc-console-link: var(--ctp-blue);
+  /* ANSI (Catppuccin terminal conventions; Latte's light tones darkened toward text to stay readable) */
+  --lc-ansi-black: var(--ctp-subtext1);
+  --lc-ansi-red: var(--ctp-red);
+  --lc-ansi-green: color-mix(in srgb, var(--ctp-green) 60%, var(--ctp-text));
+  --lc-ansi-yellow: color-mix(in srgb, var(--ctp-yellow) 45%, var(--ctp-text));
+  --lc-ansi-blue: var(--ctp-blue);
+  --lc-ansi-magenta: color-mix(in srgb, var(--ctp-pink) 45%, var(--ctp-text));
+  --lc-ansi-cyan: color-mix(in srgb, var(--ctp-teal) 65%, var(--ctp-text));
+  --lc-ansi-white: var(--ctp-text);
+  --lc-ansi-bright-black: var(--ctp-subtext0);
+  --lc-ansi-bright-red: var(--ctp-red);
+  --lc-ansi-bright-green: var(--lc-ansi-green);
+  --lc-ansi-bright-yellow: var(--lc-ansi-yellow);
+  --lc-ansi-bright-blue: var(--ctp-blue);
+  --lc-ansi-bright-magenta: var(--lc-ansi-magenta);
+  --lc-ansi-bright-cyan: var(--lc-ansi-cyan);
+  --lc-ansi-bright-white: var(--ctp-text);
+
+  /* syntax (light), hljs-official source: https://github.com/catppuccin/highlightjs (css/catppuccin-latte.css)
+     License: MIT (© 2021 Catppuccin).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #4c4f69;
+  --lc-code-comment: #6f7285; /* source #7c7f93 is 3.76:1 */
+  --lc-code-doctag: #d20f39;
+  --lc-code-keyword: #8839ef;
+  --lc-code-built-in: #d20f39;
+  --lc-code-type: #a46400; /* source #df8e1d is 2.49:1 */
+  --lc-code-class: #a46400; /* source #df8e1d is 2.49:1 */
+  --lc-code-function: #1e66f5;
+  --lc-code-title: #1e66f5;
+  --lc-code-params: #4c4f69; /* as default: not distinguished by the source */
+  --lc-code-string: #238501; /* source #40a02b is 3.18:1 */
+  --lc-code-subst: #6c6f85;
+  --lc-code-number: #c74b00; /* source #fe640b is 2.84:1 */
+  --lc-code-literal: #c74b00; /* as number: not distinguished by the source; source #fe640b is 2.84:1 */
+  --lc-code-meta: #c74b00; /* source #fe640b is 2.84:1 */
+  --lc-code-attr: #1e66f5;
+  --lc-code-attribute: #238501; /* source #40a02b is 3.18:1 */
+  --lc-code-variable: #8839ef;
+  --lc-code-symbol: #b65557; /* source #dd7878 is 2.84:1 */
+  --lc-code-operator: #047bac; /* source #04a5e5 is 2.66:1 */
+  --lc-code-punctuation: #5c5f77;
+  --lc-code-tag: #038086; /* source #179299 is 3.56:1 */
+  --lc-code-name: #8839ef;
+  --lc-code-addition: #238501; /* source #40a02b is 3.18:1 */
+  --lc-code-deletion: #d20f39;
+  --lc-code-regexp: #b7479b; /* source #ea76cb is 2.51:1 */
+
+  --lc-coverage-covered: color-mix(in srgb, var(--ctp-green) 14%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--ctp-red) 12%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--ctp-yellow) 18%, var(--lc-console-bg));
+
+  /* syntax colors on tinted source lines move by this OKLCH lightness step (hue and chroma kept) to stay ≥ 4.5:1 */
+  --lc-code-tint-shift: -0.07;
+
+  --lc-confetti-1: var(--ctp-mauve);
+  --lc-confetti-2: var(--ctp-lavender);
+  --lc-confetti-3: var(--ctp-green);
+  --lc-confetti-4: var(--ctp-teal);
+  --lc-confetti-5: var(--ctp-yellow);
+  --lc-confetti-6: var(--ctp-peach);
+  --lc-confetti-7: var(--ctp-pink);
+}
+
+:root[data-theme-family="catppuccin"][data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Macchiato palette */
+  --ctp-rosewater: #f4dbd6;
+  --ctp-flamingo: #f0c6c6;
+  --ctp-pink: #f5bde6;
+  --ctp-mauve: #c6a0f6;
+  --ctp-red: #ed8796;
+  --ctp-maroon: #ee99a0;
+  --ctp-peach: #f5a97f;
+  --ctp-yellow: #eed49f;
+  --ctp-green: #a6da95;
+  --ctp-teal: #8bd5ca;
+  --ctp-sky: #91d7e3;
+  --ctp-sapphire: #7dc4e4;
+  --ctp-blue: #8aadf4;
+  --ctp-lavender: #b7bdf8;
+  --ctp-text: #cad3f5;
+  --ctp-subtext1: #b8c0e0;
+  --ctp-subtext0: #a5adcb;
+  --ctp-overlay2: #939ab7;
+  --ctp-overlay1: #8087a2;
+  --ctp-overlay0: #6e738d;
+  --ctp-surface2: #5b6078;
+  --ctp-surface1: #494d64;
+  --ctp-surface0: #363a4f;
+  --ctp-base: #24273a;
+  --ctp-mantle: #1e2030;
+  --ctp-crust: #181926;
+
+  /* differences from the Latte mapping above (everything else follows the palette swap) */
+  --lc-bg-shell: var(--ctp-crust);
+  --lc-bg-surface: color-mix(in srgb, var(--ctp-surface0) 30%, var(--ctp-base));
+  --lc-bg-subtle: var(--ctp-surface0);
+  --lc-bg-hover: color-mix(in srgb, var(--ctp-surface0) 60%, var(--ctp-base));
+  --lc-bg-badge: color-mix(in srgb, var(--ctp-surface0) 60%, var(--ctp-base));
+  --lc-bg-popup: var(--ctp-surface0);
+  --lc-bg-menu-hover: var(--ctp-surface1);
+  --lc-shadow-popup: rgb(0 0 0 / 0.35) 0 0 2px 0, rgb(0 0 0 / 0.45) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4), 0 2px 6px rgb(0 0 0 / 0.25);
+
+  --lc-fg-muted: var(--ctp-subtext0);
+
+  --lc-accent-hover: color-mix(in srgb, var(--ctp-mauve) 75%, var(--ctp-text));
+  --lc-on-accent: var(--ctp-crust);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--ctp-mauve) 85%, var(--ctp-crust));
+  --lc-link: var(--ctp-blue);
+  --lc-link-hover: var(--ctp-lavender);
+  --lc-focus-ring: var(--ctp-lavender);
+
+  --lc-status-passed: var(--ctp-green);
+  --lc-status-skipped: var(--ctp-peach);
+  --lc-status-muted: var(--ctp-overlay1);
+  --lc-status-failed-text: color-mix(in srgb, var(--ctp-red) 90%, var(--ctp-text)); /* red is 4.37:1 on the error message bar */
+  --lc-on-status: var(--ctp-crust);
+  --lc-status-passed-text: var(--lc-status-passed);
+  --lc-status-skipped-text: var(--lc-status-skipped);
+
+  --lc-msg-success-bg: color-mix(in srgb, var(--ctp-green) 14%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--ctp-green) 70%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--ctp-red) 14%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--ctp-red) 70%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--ctp-peach) 14%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--ctp-peach) 70%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--lc-bg-surface);
+  --lc-msg-info-border: var(--ctp-surface2);
+
+  --lc-console-bg: var(--ctp-crust);
+  --lc-console-hover: var(--ctp-mantle);
+  --lc-console-gutter-rule: var(--ctp-surface0);
+  --lc-console-error-bg: color-mix(in srgb, var(--ctp-red) 14%, var(--ctp-crust));
+  --lc-console-warn-bg: color-mix(in srgb, var(--ctp-yellow) 12%, var(--ctp-crust));
+  --lc-console-link: var(--ctp-sky);
+  --lc-ansi-black: var(--ctp-surface1);
+  --lc-ansi-green: var(--ctp-green);
+  --lc-ansi-yellow: var(--ctp-yellow);
+  --lc-ansi-magenta: var(--ctp-pink);
+  --lc-ansi-cyan: var(--ctp-teal);
+  --lc-ansi-white: var(--ctp-subtext1);
+  --lc-ansi-bright-black: var(--ctp-surface2);
+  --lc-ansi-bright-white: var(--ctp-subtext0);
+
+  /* syntax (dark), hljs-official source: https://github.com/catppuccin/highlightjs (css/catppuccin-macchiato.css)
+     License: MIT (© 2021 Catppuccin).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #cad3f5;
+  --lc-code-comment: #939ab7;
+  --lc-code-doctag: #ed8796;
+  --lc-code-keyword: #c6a0f6;
+  --lc-code-built-in: #ed8796;
+  --lc-code-type: #eed49f;
+  --lc-code-class: #eed49f;
+  --lc-code-function: #8aadf4;
+  --lc-code-title: #8aadf4;
+  --lc-code-params: #cad3f5; /* as default: not distinguished by the source */
+  --lc-code-string: #a6da95;
+  --lc-code-subst: #a5adcb;
+  --lc-code-number: #f5a97f;
+  --lc-code-literal: #f5a97f; /* as number: not distinguished by the source */
+  --lc-code-meta: #f5a97f;
+  --lc-code-attr: #8aadf4;
+  --lc-code-attribute: #a6da95;
+  --lc-code-variable: #c6a0f6;
+  --lc-code-symbol: #f0c6c6;
+  --lc-code-operator: #91d7e3;
+  --lc-code-punctuation: #b8c0e0;
+  --lc-code-tag: #8bd5ca;
+  --lc-code-name: #c6a0f6;
+  --lc-code-addition: #a6da95;
+  --lc-code-deletion: #ed8796;
+  --lc-code-regexp: #f5bde6;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--ctp-green) 16%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--ctp-red) 20%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--ctp-yellow) 18%, var(--lc-console-bg));
+
+  --lc-code-tint-shift: 0.035;
+}

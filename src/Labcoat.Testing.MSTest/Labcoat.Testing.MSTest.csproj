@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Loaded into the test application: net8.0 like Labcoat.Testing (MSTest 4 supports net8.0 too). -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Same namespace as Labcoat.Testing: `using Labcoat.Testing;` covers the core and the adapter. -->
+    <RootNamespace>Labcoat.Testing</RootNamespace>
+    <AssemblyName>Labcoat.Testing.MSTest</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Shipped code, not tests: the SonarQube scanner classifies a project that references a test framework as a test
+         project (no main-code rules, coverage or lines of code) unless told otherwise. -->
+    <SonarQubeTestProject>false</SonarQubeTestProject>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.Testing.MSTest</PackageId>
+    <Description>MSTest adapter for Labcoat.Testing: per-test OpenTelemetry traces for MSTest + Aspire.Hosting.Testing integration tests (Labcoat links each test to its trace and logs in the Aspire dashboard), and live console output in Labcoat while a test runs.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>aspire;testing;mstest;opentelemetry;tracing;integration-testing;microsoft-testing-platform;labcoat</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Labcoat.Testing\Labcoat.Testing.csproj" />
+    <PackageReference Include="MSTest.TestFramework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.Testing.MSTest.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

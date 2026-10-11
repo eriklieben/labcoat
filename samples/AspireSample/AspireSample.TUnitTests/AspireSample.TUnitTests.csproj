@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The TUnit flavour of the API integration tests (TUnit runs on Microsoft.Testing.Platform as is: an executable,
+    no extra switch). Per-test traces come from Labcoat.Testing.TUnit, which registers itself: no hooks to write.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.6.1" />
+    <PackageReference Include="TUnit" Version="1.73.19" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AspireSample.AppHost\AspireSample.AppHost.csproj" />
+    <ProjectReference Include="..\AspireSample.Api\AspireSample.Api.csproj" />
+    <!-- Per-test traces in the Aspire dashboard when run from Labcoat. In your own tests:
+         <PackageReference Include="Labcoat.Testing.TUnit" ... /> and nothing else. -->
+    <ProjectReference Include="..\..\..\src\Labcoat.Testing.TUnit\Labcoat.Testing.TUnit.csproj" />
+  </ItemGroup>
+
+  <!-- What the package does by itself (a ProjectReference doesn't import a package's build files): adds
+       [assembly: LabcoatTracing] to this test assembly. -->
+  <Import Project="..\..\..\src\Labcoat.Testing.TUnit\build\Labcoat.Testing.TUnit.targets" />
+
+  <ItemGroup>
+    <Using Include="System.Net" />
+    <Using Include="System.Net.Http.Json" />
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+  </ItemGroup>
+
+</Project>

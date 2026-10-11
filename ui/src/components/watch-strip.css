@@ -1,0 +1,64 @@
+/* <lc-watch-strip>: the watch-mode cycle strip. */
+
+@layer app.components {
+  .watch-strip {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--lc-space-6);
+    min-height: 28px;
+    margin: -4px var(--lc-space-12) var(--lc-space-8); /* off-scale: -4px */
+    padding: 3px var(--lc-space-10); /* off-scale: 3px */
+    overflow: hidden;
+    border: 1px solid var(--lc-stroke-subtle);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-bg-surface);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+    white-space: nowrap;
+  }
+  .watch-strip .ws-icon {
+    color: var(--lc-accent);
+  }
+  .ws-step {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lc-space-4);
+  }
+  .ws-step.ws-result {
+    display: inline;
+  }
+  .ws-file {
+    color: var(--lc-fg);
+    font-weight: 500;
+  }
+  .ws-arrow,
+  .ws-dim {
+    color: var(--lc-fg-muted);
+  }
+  .ws-bad {
+    color: var(--lc-status-failed-text);
+  }
+  .ws-time {
+    margin-left: auto;
+  }
+  .ws-count {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .ws-count:hover {
+    text-decoration: underline;
+  }
+  .ws-count.good {
+    color: var(--lc-status-passed-text);
+    font-weight: 600;
+  }
+  .ws-count.bad {
+    color: var(--lc-status-failed-text);
+    font-weight: 600;
+  }
+}

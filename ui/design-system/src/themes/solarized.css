@@ -1,0 +1,332 @@
+/* ==========================================================================================
+   Solarized theme family: Solarized Light (light) and Solarized Dark (dark).
+   Palette: Ethan Schoonover's 16 colors, https://github.com/altercation/solarized (README "SOLARIZED HEX"
+   table; MIT, © 2011 Ethan Schoonover). Both modes use the same 16 colors; only the roles of the
+   monotones swap (light: bg base3, highlights base2, body base00, emphasis base01, secondary base1;
+   dark: bg base03, highlights base02, body base0, emphasis base1, secondary base01).
+   Selected with <html data-theme-family="solarized" data-theme="light|dark">.
+
+   Syntax highlighting: the "syntax (light)" / "syntax (dark)" blocks below map every highlight.js class to
+   the family's solarized.vim colors (C# via vim's cs.vim links); source, license and every contrast adjustment are noted there.
+   ANSI follows the README's 16-color terminal mapping.
+
+   Contrast (WCAG 2.x, checked against the actual backgrounds): Solarized is deliberately low-contrast
+   (body text base00 is 4.1:1 on base3, base0 is 4.1:1 on base02) and its accents are mid-tones, so more
+   tokens are adjusted here than in any other family. Every adjustment mixes the palette color toward the
+   most contrasting monotone (light: base02, dark: base2), just enough to pass, and is noted per token.
+   Backgrounds are never changed.
+   ========================================================================================== */
+
+:root[data-theme-family="solarized"] {
+  color-scheme: light;
+
+  /* Solarized (identical in both modes) */
+  --sol-base03: #002b36;
+  --sol-base02: #073642;
+  --sol-base01: #586e75;
+  --sol-base00: #657b83;
+  --sol-base0: #839496;
+  --sol-base1: #93a1a1;
+  --sol-base2: #eee8d5;
+  --sol-base3: #fdf6e3;
+  --sol-yellow: #b58900;
+  --sol-orange: #cb4b16;
+  --sol-red: #dc322f;
+  --sol-magenta: #d33682;
+  --sol-violet: #6c71c4;
+  --sol-blue: #268bd2;
+  --sol-cyan: #2aa198;
+  --sol-green: #859900;
+
+  /* surfaces: page base3, shell/highlights base2 */
+  --lc-bg-page: var(--sol-base3);
+  --lc-bg-shell: var(--sol-base2);
+  --lc-bg-surface: color-mix(in srgb, var(--sol-base3) 50%, #ffffff);
+  --lc-bg-subtle: var(--sol-base2);
+  --lc-bg-hover: color-mix(in srgb, var(--sol-base2) 50%, var(--sol-base3));
+  --lc-bg-selected: var(--sol-base2);
+  --lc-bg-badge: var(--sol-base2);
+  --lc-bg-popup: var(--lc-bg-surface);
+  --lc-bg-menu-hover: color-mix(in srgb, var(--sol-base2) 60%, var(--lc-bg-surface));
+  --lc-shadow-popup: rgb(7 54 66 / 0.16) 0 0 2px 0, rgb(7 54 66 / 0.2) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(7 54 66 / 0.15), 0 2px 6px rgb(7 54 66 / 0.1);
+
+  /* text: body base00 is 4.1:1 on base3 (3.6:1 on base2) and emphasis base01 4.4:1 on base2, so the
+     tiers move one step darker: fg = base02, secondary/muted = base01 mixed 15% / 10% toward base02 */
+  --lc-fg: var(--sol-base02);
+  --lc-fg-secondary: color-mix(in srgb, var(--sol-base01) 85%, var(--sol-base02));
+  --lc-fg-muted: color-mix(in srgb, var(--sol-base01) 90%, var(--sol-base02));
+  --lc-fg-subtext: var(--lc-fg-muted);
+
+  /* strokes (base2 alone is 1.1:1 on base3, too faint for a control border) */
+  --lc-stroke: color-mix(in srgb, var(--sol-base1) 45%, var(--sol-base2));
+  --lc-stroke-subtle: var(--sol-base2);
+  --lc-stroke-hover: var(--sol-base1);
+  --lc-stroke-grid: var(--sol-base2);
+
+  /* accent = blue: base3 text on #268bd2 is 3.4:1 → the fill and links mix 25% base02 in */
+  --lc-accent: color-mix(in srgb, var(--sol-blue) 75%, var(--sol-base02));
+  --lc-accent-hover: var(--sol-blue);
+  --lc-on-accent: var(--sol-base3);
+  --lc-accent-button-bg: var(--lc-accent);
+  --lc-accent-button-fg: var(--sol-base3);
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--sol-blue) 65%, var(--sol-base02));
+  --lc-accent-button-hover-fg: var(--sol-base3);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--sol-blue) 58%, var(--sol-base02));
+  --lc-link: var(--lc-accent);
+  --lc-link-hover: var(--sol-violet);
+  --lc-focus-ring: var(--sol-blue); /* 3.4:1 on base3, 3.0:1 on base2 */
+
+  /* status: green and yellow are 2.6:1 on base2 → mixed 15% base02 in; red 5% for white badge text */
+  --lc-status-passed: color-mix(in srgb, var(--sol-green) 85%, var(--sol-base02));
+  --lc-status-failed: color-mix(in srgb, var(--sol-red) 95%, var(--sol-base02));
+  --lc-status-skipped: color-mix(in srgb, var(--sol-yellow) 85%, var(--sol-base02));
+  --lc-status-running: var(--lc-accent);
+  --lc-status-muted: color-mix(in srgb, var(--sol-base1) 85%, var(--sol-base02)); /* base1 is 2.5:1 */
+  --lc-status-failed-text: color-mix(in srgb, var(--sol-red) 85%, var(--sol-base02)); /* red is 4.3:1 on base3 */
+  --lc-status-passed-text: color-mix(in srgb, var(--lc-status-passed) 78%, #000000); /* status colors as text (counts, rates): the same hue mixed toward black just enough for 4.5:1 */
+  --lc-status-skipped-text: color-mix(in srgb, var(--lc-status-skipped) 78%, #000000);
+  --lc-on-status: var(--sol-base3);
+  --lc-host-warm: var(--sol-orange);
+
+  /* message bars */
+  --lc-msg-success-bg: color-mix(in srgb, var(--sol-green) 9%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--sol-green) 45%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--sol-red) 8%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--sol-red) 40%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--sol-yellow) 10%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--sol-yellow) 45%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--sol-base2);
+  --lc-msg-info-border: var(--lc-stroke);
+  --lc-msg-fg: var(--sol-base02);
+  --lc-msg-action-bg: var(--lc-bg-surface);
+  --lc-msg-action-hover-bg: var(--lc-bg-menu-hover);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--sol-base1) 55%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--sol-base00) 70%, transparent);
+
+  /* tag palette */
+  --lc-tag-teal: var(--sol-cyan);
+  --lc-tag-marigold: var(--sol-yellow);
+  --lc-tag-peach: var(--sol-orange);
+  --lc-tag-coral: var(--sol-red);
+  --lc-tag-royal-blue: var(--sol-violet);
+  --lc-tag-orchid: var(--sol-magenta);
+  --lc-tag-brand-blue: var(--sol-blue);
+  --lc-tag-seafoam: color-mix(in srgb, var(--sol-cyan) 70%, var(--sol-green));
+  --lc-tag-jade: var(--sol-green);
+  --lc-tag-berry: color-mix(in srgb, var(--sol-magenta) 70%, var(--sol-violet));
+
+  /* console = base3 (the Solarized editor background) */
+  --lc-console-bg: var(--sol-base3);
+  --lc-console-fg: var(--sol-base02);
+  --lc-console-muted: var(--lc-fg-muted); /* line numbers are text (≥ 4.5:1); the status-muted gray is a 3:1 icon color */
+  --lc-console-border: var(--lc-stroke);
+  --lc-console-hover: color-mix(in srgb, var(--sol-base2) 50%, var(--sol-base3));
+  --lc-console-gutter-rule: var(--sol-base2);
+  --lc-console-error-bg: color-mix(in srgb, var(--sol-red) 9%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--sol-yellow) 12%, var(--lc-console-bg));
+  --lc-console-link: var(--lc-link);
+  /* ANSI = the README mapping (black base02, white base2, bright black base03, bright red orange,
+     bright green base01, bright yellow base00, bright blue base0, bright magenta violet, bright cyan base1,
+     bright white base3). On the light output white/bright white would be invisible, so like Catppuccin
+     Latte they map to the text tones; the mid-tones are mixed toward base02 like the syntax colors. */
+  --lc-ansi-black: var(--sol-base02);
+  --lc-ansi-red: var(--lc-status-failed-text);
+  --lc-ansi-green: var(--lc-code-keyword);
+  --lc-ansi-yellow: var(--lc-code-type);
+  --lc-ansi-blue: var(--lc-code-title);
+  --lc-ansi-magenta: color-mix(in srgb, var(--sol-magenta) 90%, var(--sol-base02)); /* 4.2:1 */
+  --lc-ansi-cyan: var(--lc-code-string);
+  --lc-ansi-white: var(--sol-base01);
+  --lc-ansi-bright-black: var(--sol-base03);
+  --lc-ansi-bright-red: color-mix(in srgb, var(--sol-orange) 95%, var(--sol-base02)); /* 4.3:1 */
+  --lc-ansi-bright-green: var(--sol-base01);
+  --lc-ansi-bright-yellow: color-mix(in srgb, var(--sol-base00) 90%, var(--sol-base02)); /* 4.1:1 */
+  --lc-ansi-bright-blue: color-mix(in srgb, var(--sol-base0) 55%, var(--sol-base02)); /* 2.9:1 */
+  --lc-ansi-bright-magenta: color-mix(in srgb, var(--sol-violet) 85%, var(--sol-base02)); /* 4.1:1 */
+  --lc-ansi-bright-cyan: color-mix(in srgb, var(--sol-base1) 55%, var(--sol-base02)); /* 2.5:1 */
+  --lc-ansi-bright-white: var(--sol-base02);
+
+  /* syntax (light), vim source: https://github.com/altercation/vim-colors-solarized (colors/solarized.vim); palette https://github.com/altercation/solarized (README)
+     License: MIT (© 2011 Ethan Schoonover).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #5f747c; /* source #657b83 is 4.13:1 */
+  --lc-code-comment: #667373; /* source #93a1a1 is 2.48:1 */
+  --lc-code-doctag: #687800; /* source #859900 is 2.97:1 */
+  --lc-code-keyword: #687800; /* source #859900 is 2.97:1 */
+  --lc-code-built-in: #8f6c04; /* source #b58900 is 2.98:1 */
+  --lc-code-type: #8f6c04; /* source #b58900 is 2.98:1 */
+  --lc-code-class: #8f6c04; /* source #b58900 is 2.98:1 */
+  --lc-code-function: #0176bb; /* source #268bd2 is 3.41:1 */
+  --lc-code-title: #0176bb; /* source #268bd2 is 3.41:1 */
+  --lc-code-params: #5f747c; /* as default: not distinguished by the source; source #657b83 is 4.13:1 */
+  --lc-code-string: #007f78; /* source #2aa198 is 2.93:1 */
+  --lc-code-subst: #5f747c; /* as default: not distinguished by the source; source #657b83 is 4.13:1 */
+  --lc-code-number: #007f78; /* source #2aa198 is 2.93:1 */
+  --lc-code-literal: #007f78; /* as number: not distinguished by the source; source #2aa198 is 2.93:1 */
+  --lc-code-meta: #c6460e; /* source #cb4b16 is 4.27:1 */
+  --lc-code-attr: #647476; /* source #839496 is 2.93:1 */
+  --lc-code-attribute: #8f6c04; /* source #b58900 is 2.98:1 */
+  --lc-code-variable: #0176bb; /* source #268bd2 is 3.41:1 */
+  --lc-code-symbol: #007f78; /* source #2aa198 is 2.93:1 */
+  --lc-code-operator: #687800; /* source #859900 is 2.97:1 */
+  --lc-code-punctuation: #5f747c; /* as default: not distinguished by the source; source #657b83 is 4.13:1 */
+  --lc-code-tag: #667373; /* source #93a1a1 is 2.48:1 */
+  --lc-code-name: #0176bb; /* source #268bd2 is 3.41:1 */
+  --lc-code-addition: #687800; /* source #859900 is 2.97:1 */
+  --lc-code-deletion: #d72d2b; /* source #dc322f is 4.29:1 */
+  --lc-code-regexp: #007f78; /* source #2aa198 is 2.93:1 */
+  --lc-code-comment-style: italic;
+  --lc-code-name-weight: bold;
+  --lc-code-addition-weight: bold;
+  --lc-code-deletion-weight: bold;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--sol-green) 14%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--sol-red) 11%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--sol-yellow) 15%, var(--lc-console-bg));
+
+  /* syntax colors on tinted source lines move by this OKLCH lightness step (hue and chroma kept) to stay ≥ 4.5:1 */
+  --lc-code-tint-shift: -0.06;
+
+  --lc-confetti-1: var(--sol-blue);
+  --lc-confetti-2: var(--sol-violet);
+  --lc-confetti-3: var(--sol-green);
+  --lc-confetti-4: var(--sol-cyan);
+  --lc-confetti-5: var(--sol-yellow);
+  --lc-confetti-6: var(--sol-orange);
+  --lc-confetti-7: var(--sol-magenta);
+}
+
+:root[data-theme-family="solarized"][data-theme="dark"] {
+  color-scheme: dark;
+
+  /* surfaces: page base03, shell/highlights base02 (base03 is the darkest tone in the palette) */
+  --lc-bg-page: var(--sol-base03);
+  --lc-bg-shell: var(--sol-base02);
+  --lc-bg-surface: color-mix(in srgb, var(--sol-base02) 50%, var(--sol-base03));
+  --lc-bg-subtle: var(--sol-base02);
+  --lc-bg-hover: color-mix(in srgb, var(--sol-base02) 60%, var(--sol-base03));
+  --lc-bg-selected: var(--sol-base02);
+  --lc-bg-badge: var(--sol-base02);
+  --lc-bg-popup: var(--sol-base02);
+  --lc-bg-menu-hover: color-mix(in srgb, var(--sol-base01) 8%, var(--sol-base02));
+  --lc-shadow-popup: rgb(0 0 0 / 0.35) 0 0 2px 0, rgb(0 0 0 / 0.45) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4), 0 2px 6px rgb(0 0 0 / 0.25);
+
+  /* text: emphasis base1 for fg; body base0 is 4.1:1 on base02 → muted mixes 60% base1 in.
+     fg mixes 30% base2 into base1: base1 is 3.6–4.1:1 on the accent-tinted selected segment / nav item */
+  --lc-fg: color-mix(in srgb, var(--sol-base1) 70%, var(--sol-base2));
+  --lc-fg-secondary: color-mix(in srgb, var(--sol-base1) 70%, var(--sol-base0));
+  --lc-fg-muted: color-mix(in srgb, var(--sol-base0) 25%, var(--sol-base1)); /* 40% was 4.48:1 on the accent-washed "next" row */
+  --lc-fg-subtext: var(--lc-fg-muted);
+
+  --lc-stroke: color-mix(in srgb, var(--sol-base01) 50%, var(--sol-base02));
+  --lc-stroke-subtle: var(--sol-base02);
+  --lc-stroke-hover: var(--sol-base01);
+  --lc-stroke-grid: var(--sol-base02);
+
+  /* accent = blue lightened 10% toward base2 (base03 text on #268bd2 is 4.1:1); links 25% */
+  --lc-accent: color-mix(in srgb, var(--sol-blue) 90%, var(--sol-base2));
+  --lc-accent-hover: color-mix(in srgb, var(--sol-blue) 75%, var(--sol-base2));
+  --lc-on-accent: var(--sol-base03);
+  --lc-accent-button-fg: var(--sol-base03);
+  --lc-accent-button-hover-bg: var(--lc-accent-hover);
+  --lc-accent-button-hover-fg: var(--sol-base03);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--sol-blue) 82%, var(--sol-base2));
+  --lc-link: color-mix(in srgb, var(--sol-blue) 75%, var(--sol-base2)); /* blue is 3.5:1 on base02 */
+  --lc-link-hover: color-mix(in srgb, var(--sol-cyan) 85%, var(--sol-base2));
+  --lc-focus-ring: var(--sol-blue); /* 4.1:1 on base03, 3.5:1 on base02 */
+
+  /* status: green/yellow pass as is; red is 2.8:1 on base02 and under base03 badge text → 30% base2 */
+  --lc-status-passed: var(--sol-green);
+  --lc-status-failed: color-mix(in srgb, var(--sol-red) 70%, var(--sol-base2));
+  --lc-status-skipped: var(--sol-yellow);
+  --lc-status-muted: color-mix(in srgb, var(--sol-base01) 80%, var(--sol-base1)); /* base01 is 2.8:1 */
+  --lc-status-failed-text: color-mix(in srgb, var(--sol-red) 60%, var(--sol-base2));
+  --lc-on-status: var(--sol-base03);
+  --lc-status-passed-text: color-mix(in srgb, var(--lc-status-passed) 90%, #ffffff); /* status colors as text: the same hue mixed toward white just enough for 4.5:1 */
+  --lc-status-skipped-text: color-mix(in srgb, var(--lc-status-skipped) 88%, #ffffff);
+
+  --lc-msg-success-bg: color-mix(in srgb, var(--sol-green) 10%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--sol-green) 60%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--sol-red) 12%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--sol-red) 60%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--sol-yellow) 12%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--sol-yellow) 60%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--lc-bg-surface);
+  --lc-msg-info-border: var(--lc-stroke);
+  --lc-msg-fg: var(--sol-base1);
+  --lc-msg-action-bg: var(--sol-base02);
+  --lc-msg-action-hover-bg: var(--lc-bg-menu-hover);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--sol-base01) 70%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--sol-base00) 85%, transparent);
+
+  --lc-console-bg: var(--sol-base03);
+  --lc-console-fg: color-mix(in srgb, var(--sol-base0) 50%, var(--sol-base1)); /* body base0 is 4.1:1 on the base02 hover */
+  --lc-console-border: var(--sol-base02);
+  --lc-console-hover: color-mix(in srgb, var(--sol-base02) 70%, var(--sol-base03));
+  --lc-console-gutter-rule: var(--sol-base02);
+  --lc-console-error-bg: color-mix(in srgb, var(--sol-red) 12%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--sol-yellow) 10%, var(--lc-console-bg));
+  /* ANSI = the README mapping; mid-tones lightened toward base2 like the syntax colors */
+  --lc-ansi-black: var(--sol-base02);
+  --lc-ansi-red: var(--lc-status-failed);
+  --lc-ansi-green: var(--sol-green);
+  --lc-ansi-yellow: var(--sol-yellow);
+  --lc-ansi-blue: var(--lc-code-title);
+  --lc-ansi-magenta: color-mix(in srgb, var(--sol-magenta) 70%, var(--sol-base2)); /* 3.3:1 */
+  --lc-ansi-cyan: var(--sol-cyan);
+  --lc-ansi-white: var(--sol-base2);
+  --lc-ansi-bright-black: var(--sol-base03);
+  --lc-ansi-bright-red: color-mix(in srgb, var(--sol-orange) 70%, var(--sol-base2)); /* 3.3:1 */
+  --lc-ansi-bright-green: color-mix(in srgb, var(--sol-base01) 70%, var(--sol-base2)); /* 2.8:1 */
+  --lc-ansi-bright-yellow: color-mix(in srgb, var(--sol-base00) 80%, var(--sol-base2)); /* 3.4:1 */
+  --lc-ansi-bright-blue: var(--sol-base0);
+  --lc-ansi-bright-magenta: color-mix(in srgb, var(--sol-violet) 80%, var(--sol-base2)); /* 3.4:1 */
+  --lc-ansi-bright-cyan: var(--sol-base1);
+  --lc-ansi-bright-white: var(--sol-base3);
+
+  /* syntax (dark), vim source: https://github.com/altercation/vim-colors-solarized (colors/solarized.vim); palette https://github.com/altercation/solarized (README)
+     License: MIT (© 2011 Ethan Schoonover).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #839496;
+  --lc-code-comment: #7a9198; /* source #586e75 is 2.79:1 */
+  --lc-code-doctag: #859900;
+  --lc-code-keyword: #859900;
+  --lc-code-built-in: #b58900;
+  --lc-code-type: #b58900;
+  --lc-code-class: #b58900;
+  --lc-code-function: #3093da; /* source #268bd2 is 4.08:1 */
+  --lc-code-title: #3093da; /* source #268bd2 is 4.08:1 */
+  --lc-code-params: #839496; /* as default: not distinguished by the source */
+  --lc-code-string: #2aa198;
+  --lc-code-subst: #839496; /* as default: not distinguished by the source */
+  --lc-code-number: #2aa198;
+  --lc-code-literal: #2aa198; /* as number: not distinguished by the source */
+  --lc-code-meta: #e76535; /* source #cb4b16 is 3.26:1 */
+  --lc-code-attr: #7a9199; /* source #657b83 is 3.37:1 */
+  --lc-code-attribute: #b58900;
+  --lc-code-variable: #3093da; /* source #268bd2 is 4.08:1 */
+  --lc-code-symbol: #2aa198;
+  --lc-code-operator: #859900;
+  --lc-code-punctuation: #839496; /* as default: not distinguished by the source */
+  --lc-code-tag: #7a9198; /* source #586e75 is 2.79:1 */
+  --lc-code-name: #3093da; /* source #268bd2 is 4.08:1 */
+  --lc-code-addition: #859900;
+  --lc-code-deletion: #fa5149; /* source #dc322f is 3.25:1 */
+  --lc-code-regexp: #2aa198;
+  --lc-code-comment-style: italic;
+  --lc-code-name-weight: bold;
+  --lc-code-addition-weight: bold;
+  --lc-code-deletion-weight: bold;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--sol-green) 14%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--sol-red) 18%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--sol-yellow) 15%, var(--lc-console-bg));
+
+  --lc-code-tint-shift: 0.075;
+}

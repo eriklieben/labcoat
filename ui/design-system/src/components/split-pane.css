@@ -1,0 +1,66 @@
+/* Splitters (.splitter-v / .splitter-h[role=separator][.dragging]) and the split layout (.lc-split > .lc-split-pane). */
+
+.splitter-v,
+.splitter-h {
+  position: relative;
+  touch-action: none;
+}
+.splitter-v {
+  cursor: col-resize;
+}
+.splitter-h {
+  flex: none;
+  height: 8px;
+  cursor: row-resize;
+}
+.splitter-v::after,
+.splitter-h::after {
+  content: "";
+  position: absolute;
+  border-radius: var(--lc-radius-xs);
+  background: transparent;
+  transition: background-color var(--lc-motion-instant) var(--lc-ease-standard);
+}
+.splitter-v::after {
+  inset: 30% 3px;
+}
+.splitter-h::after {
+  inset: 3px 40%;
+}
+.splitter-v:hover::after,
+.splitter-h:hover::after,
+.splitter-v.dragging::after,
+.splitter-h.dragging::after,
+.splitter-v:focus-visible::after,
+.splitter-h:focus-visible::after {
+  background: var(--lc-accent);
+}
+.splitter-v:focus-visible,
+.splitter-h:focus-visible {
+  outline-offset: -1px;
+}
+body.is-dragging-row {
+  cursor: row-resize;
+  user-select: none;
+}
+
+.lc-split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.lc-split-row {
+  flex-direction: row;
+}
+.lc-split-column {
+  flex-direction: column;
+}
+.lc-split-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.lc-split-row > .splitter-v {
+  flex: none;
+  width: 8px;
+}

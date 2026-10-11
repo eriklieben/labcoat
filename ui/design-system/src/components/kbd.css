@@ -1,0 +1,18 @@
+/* Shortcut labels (.kbd-combo > kbd…, .kbd-then). The <kbd> look itself is in tokens/base.css. */
+
+.kbd-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px; /* off-scale: 3px */
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.kbd-combo kbd {
+  color: var(--lc-fg-secondary);
+  font-family: var(--lc-font-sans);
+}
+.kbd-then {
+  margin: 0 var(--lc-space-2);
+  color: var(--lc-fg-muted);
+  font-size: var(--lc-text-xs);
+}

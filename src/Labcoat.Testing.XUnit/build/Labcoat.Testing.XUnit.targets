@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    Labcoat.Testing.XUnit: registers the per-test tracing for the whole test assembly by adding
+    [assembly: Labcoat.Testing.LabcoatTracing] (an xUnit v3 BeforeAfterTestAttribute) to the generated assembly info.
+    A no-op unless the tests run under Labcoat with test tracing on.
+
+    Opt out with <LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>, e.g. to put [LabcoatTracing] on some
+    classes only, or when GenerateAssemblyInfo is false (then write [assembly: LabcoatTracing] yourself).
+  -->
+  <ItemGroup Condition="'$(LabcoatTracingAutoRegister)' != 'false'">
+    <AssemblyAttribute Include="Labcoat.Testing.LabcoatTracingAttribute" />
+  </ItemGroup>
+</Project>

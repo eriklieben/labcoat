@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Labcoat/Labcoat.csproj" />
+    <Project Path="src/Labcoat.Aspire.Hosting/Labcoat.Aspire.Hosting.csproj" />
+    <Project Path="src/Labcoat.Testing/Labcoat.Testing.csproj" />
+    <Project Path="src/Labcoat.Testing.MSTest/Labcoat.Testing.MSTest.csproj" />
+    <Project Path="src/Labcoat.Testing.TUnit/Labcoat.Testing.TUnit.csproj" />
+    <Project Path="src/Labcoat.Testing.NUnit/Labcoat.Testing.NUnit.csproj" />
+    <Project Path="src/Labcoat.Testing.XUnit/Labcoat.Testing.XUnit.csproj" />
+    <Project Path="src/Labcoat.TestingPlatform/Labcoat.TestingPlatform.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Labcoat.Aspire.Hosting.Tests/Labcoat.Aspire.Hosting.Tests.csproj" />
+    <Project Path="tests/Labcoat.Testing.Tests/Labcoat.Testing.Tests.csproj" />
+    <Project Path="tests/Labcoat.Testing.MSTest.Tests/Labcoat.Testing.MSTest.Tests.csproj" />
+    <Project Path="tests/Labcoat.Testing.TUnit.Tests/Labcoat.Testing.TUnit.Tests.csproj" />
+    <Project Path="tests/Labcoat.Testing.NUnit.Tests/Labcoat.Testing.NUnit.Tests.csproj" />
+    <Project Path="tests/Labcoat.Testing.XUnit.Tests/Labcoat.Testing.XUnit.Tests.csproj" />
+    <Project Path="tests/Labcoat.TestingPlatform.Tests/Labcoat.TestingPlatform.Tests.csproj" />
+    <Project Path="tests/Labcoat.Tests/Labcoat.Tests.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Labcoat.Benchmarks/Labcoat.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="tests/CodeCoverage.xml" />
+    <File Path="src/Directory.Build.props" />
+  </Folder>
+</Solution>

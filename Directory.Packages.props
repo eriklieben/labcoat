@@ -1,0 +1,56 @@
+<Project>
+  <!--
+    Central package management for src/ and tests/ (versions live here, project files use <PackageReference Include="X" />).
+    samples/ opts out (samples/Directory.Packages.props): the samples show what a user's own project file looks like.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Runtime dependencies (packages)">
+    <!-- The lower bound for consumers of Labcoat.Aspire.Hosting and Labcoat.Testing: the oldest Aspire.Hosting they build
+         and run on, not the newest. 13.4.0 is the first with CommandResults.Success(message) (the dashboard commands'
+         result text); 13.4.0 - 13.4.4 depend on MessagePack 2.5.192, which has known vulnerabilities (NU1902/NU1903),
+         13.4.5 on the fixed 2.5.302. The samples' AppHost SDK pins its own (newer) version. -->
+    <PackageVersion Include="Aspire.Hosting" Version="13.4.5" />
+    <!-- Lower bounds for consumers of Labcoat.Testing.* / Labcoat.TestingPlatform: keep them at the oldest supported
+         version, not the newest (MTP 2.0 = MSTest 4, xUnit v3 3.2+, NUnit 4.4+, TUnit). -->
+    <PackageVersion Include="MSTest.TestFramework" Version="4.0.2" />
+    <!-- Labcoat.Testing.TUnit: the oldest TUnit 1.x it is built and checked against (TestContext.Activity, the
+         Metadata / Execution / Output / StateBag context API). -->
+    <PackageVersion Include="TUnit.Core" Version="1.68.17" />
+    <!-- Labcoat.Testing.NUnit: the oldest NUnit it is built against (NUnit3TestAdapter 6 / MTP 2 needs NUnit 4.4+); it is
+         tested on NUnit 5 (tests/Labcoat.Testing.NUnit.Tests uses a VersionOverride). -->
+    <PackageVersion Include="NUnit" Version="4.4.0" />
+    <!-- Labcoat.Testing.XUnit: the extensibility API of the first xUnit v3 with an MTP v2 runner (xunit.v3.mtp-v2 3.2). -->
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.0" />
+    <PackageVersion Include="Microsoft.Testing.Platform" Version="2.0.2" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Build">
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+    <!-- SBOM (SPDX 2.2) inside every package of src/ (src/Directory.Build.props): sbom-tool's MSBuild integration. A
+         development dependency, not a dependency of the packages. -->
+    <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.13" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="MSTest" Version="4.0.2" />
+    <!-- tests/Labcoat.Testing.TUnit.Tests runs on TUnit itself. -->
+    <PackageVersion Include="TUnit" Version="1.73.19" />
+    <!-- tests/Labcoat.Testing.NUnit.Tests (NUnit on MTP) and tests/Labcoat.Testing.XUnit.Tests (xUnit v3 on MTP v2). -->
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.3.0" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
+    <!-- Code coverage for the NUnit and xUnit test apps (MSTest and TUnit include it). -->
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
+    <!-- In-process hosting of the Labcoat web app (HTTP + WebSocket) in tests/Labcoat.Tests. -->
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Benchmarks">
+    <!-- benchmarks/Labcoat.Benchmarks (micro-benchmarks of the host, not shipped). -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+</Project>

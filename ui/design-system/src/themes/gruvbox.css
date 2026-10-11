@@ -1,0 +1,346 @@
+/* ==========================================================================================
+   Gruvbox theme family: Gruvbox Light and Gruvbox Dark (medium contrast).
+   Palette: morhetz/gruvbox colors/gruvbox.vim (https://github.com/morhetz/gruvbox, "MIT/X11" per its
+   README; the community fork https://github.com/gruvbox-community/gruvbox carries the MIT LICENSE file,
+   © 2018 Pavel Pertsev). Terminal colors: gruvbox-contrib xresources (gruvbox-light/-dark).
+   Selected with <html data-theme-family="gruvbox" data-theme="light|dark">.
+
+   Like gruvbox.vim, the raw palette is declared once and the roles swap per mode: light uses the light0…
+   backgrounds, dark0… text and the "faded" accents; dark uses dark0… backgrounds, light0… text and the
+   "bright" accents. The semantic mapping is written once against the roles (--gb-bg0, --gb-fg1, --gb-red…).
+
+   Syntax highlighting: the "syntax (light)" / "syntax (dark)" blocks below map every highlight.js class to
+   the family's gruvbox.vim colors (C# via vim's cs.vim links); source, license and every contrast adjustment are noted there.
+
+   Contrast (WCAG 2.x, checked against the actual backgrounds): the faded (light) and bright (dark) accents
+   mostly pass. Adjusted by mixing toward fg1: Light's gray as comment text, faded yellow and green
+   as code/ANSI text, yellow on the selected row and fg4 as muted text; Dark's fg4 as muted text on bg1 and
+   the bright red as failure text. Noted per token.
+   ========================================================================================== */
+
+:root[data-theme-family="gruvbox"] {
+  color-scheme: light;
+
+  /* raw palette (identical in both modes) */
+  --gb-dark0-hard: #1d2021;
+  --gb-dark0: #282828;
+  --gb-dark0-soft: #32302f;
+  --gb-dark1: #3c3836;
+  --gb-dark2: #504945;
+  --gb-dark3: #665c54;
+  --gb-dark4: #7c6f64;
+  --gb-gray: #928374;
+  --gb-light0-hard: #f9f5d7;
+  --gb-light0: #fbf1c7;
+  --gb-light0-soft: #f2e5bc;
+  --gb-light1: #ebdbb2;
+  --gb-light2: #d5c4a1;
+  --gb-light3: #bdae93;
+  --gb-light4: #a89984;
+  --gb-bright-red: #fb4934;
+  --gb-bright-green: #b8bb26;
+  --gb-bright-yellow: #fabd2f;
+  --gb-bright-blue: #83a598;
+  --gb-bright-purple: #d3869b;
+  --gb-bright-aqua: #8ec07c;
+  --gb-bright-orange: #fe8019;
+  --gb-neutral-red: #cc241d;
+  --gb-neutral-green: #98971a;
+  --gb-neutral-yellow: #d79921;
+  --gb-neutral-blue: #458588;
+  --gb-neutral-purple: #b16286;
+  --gb-neutral-aqua: #689d6a;
+  --gb-neutral-orange: #d65d0e;
+  --gb-faded-red: #9d0006;
+  --gb-faded-green: #79740e;
+  --gb-faded-yellow: #b57614;
+  --gb-faded-blue: #076678;
+  --gb-faded-purple: #8f3f71;
+  --gb-faded-aqua: #427b58;
+  --gb-faded-orange: #af3a03;
+
+  /* roles: light (as gruvbox.vim with background=light) */
+  --gb-bg0-hard: var(--gb-light0-hard);
+  --gb-bg0: var(--gb-light0);
+  --gb-bg0-soft: var(--gb-light0-soft);
+  --gb-bg1: var(--gb-light1);
+  --gb-bg2: var(--gb-light2);
+  --gb-bg3: var(--gb-light3);
+  --gb-fg0: var(--gb-dark0);
+  --gb-fg1: var(--gb-dark1);
+  --gb-fg2: var(--gb-dark2);
+  --gb-fg3: var(--gb-dark3);
+  --gb-fg4: var(--gb-dark4);
+  --gb-red: var(--gb-faded-red);
+  --gb-green: var(--gb-faded-green);
+  --gb-yellow: var(--gb-faded-yellow);
+  --gb-blue: var(--gb-faded-blue);
+  --gb-purple: var(--gb-faded-purple);
+  --gb-aqua: var(--gb-faded-aqua);
+  --gb-orange: var(--gb-faded-orange);
+  --gb-raised: var(--gb-light0-hard); /* cards and popups: one step away from the text */
+
+  /* surfaces: page bg0, shell bg0 soft, cards/console bg0 hard (gruvbox's "hard contrast" background) */
+  --lc-bg-page: var(--gb-bg0);
+  --lc-bg-shell: var(--gb-bg0-soft);
+  --lc-bg-surface: var(--gb-raised);
+  --lc-bg-subtle: var(--gb-bg1);
+  --lc-bg-hover: color-mix(in srgb, var(--gb-bg1) 50%, var(--gb-bg0));
+  --lc-bg-selected: var(--gb-bg1);
+  --lc-bg-badge: var(--gb-bg1);
+  --lc-bg-popup: var(--gb-raised);
+  --lc-bg-menu-hover: var(--gb-bg1);
+  --lc-shadow-popup: rgb(60 56 54 / 0.18) 0 0 2px 0, rgb(60 56 54 / 0.22) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(60 56 54 / 0.16), 0 2px 6px rgb(60 56 54 / 0.1);
+
+  /* text: fg1 normal text; fg4 is 3.6:1 on bg1 → muted mixes 30% fg1 in */
+  --lc-fg: var(--gb-fg1);
+  --lc-fg-secondary: var(--gb-fg2);
+  --lc-fg-muted: color-mix(in srgb, var(--gb-fg4) 70%, var(--gb-fg1));
+  --lc-fg-subtext: var(--gb-fg3);
+
+  /* strokes */
+  --lc-stroke: var(--gb-bg2);
+  --lc-stroke-subtle: var(--gb-bg1);
+  --lc-stroke-hover: var(--gb-bg3);
+  --lc-stroke-grid: var(--gb-bg1);
+
+  /* accent = blue (gruvbox's selection color: PmenuSel, Visual); links blue, hover aqua */
+  --lc-accent: var(--gb-blue);
+  --lc-accent-hover: color-mix(in srgb, var(--gb-blue) 80%, var(--gb-fg0));
+  --lc-on-accent: var(--gb-bg0-hard);
+  --lc-accent-button-bg: var(--gb-blue);
+  --lc-accent-button-fg: var(--gb-bg0-hard);
+  --lc-accent-button-hover-bg: color-mix(in srgb, var(--gb-blue) 85%, var(--gb-fg0));
+  --lc-accent-button-hover-fg: var(--gb-bg0-hard);
+  --lc-accent-button-pressed-bg: color-mix(in srgb, var(--gb-blue) 75%, var(--gb-fg0));
+  --lc-link: var(--gb-blue);
+  --lc-link-hover: var(--gb-aqua);
+  --lc-focus-ring: var(--gb-blue);
+
+  /* status */
+  --lc-status-passed: var(--gb-green);
+  --lc-status-failed: var(--gb-red);
+  --lc-status-skipped: color-mix(in srgb, var(--gb-yellow) 90%, var(--gb-fg1)); /* faded yellow is 2.8:1 on bg1 */
+  --lc-status-running: var(--gb-blue);
+  --lc-status-muted: var(--gb-gray); /* 3.2:1 on bg0 (UI ≥ 3:1) */
+  --lc-status-failed-text: var(--gb-red);
+  --lc-status-passed-text: color-mix(in srgb, var(--lc-status-passed) 88%, #000000); /* status colors as text (counts, rates): the same hue mixed toward black just enough for 4.5:1 */
+  --lc-status-skipped-text: color-mix(in srgb, var(--lc-status-skipped) 80%, #000000);
+  --lc-on-status: var(--gb-bg0-hard);
+  --lc-host-warm: var(--gb-orange);
+
+  /* message bars */
+  --lc-msg-success-bg: color-mix(in srgb, var(--gb-neutral-green) 12%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--gb-neutral-green) 50%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--gb-neutral-red) 9%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--gb-neutral-red) 45%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--gb-neutral-yellow) 14%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--gb-neutral-yellow) 55%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--gb-bg0-soft);
+  --lc-msg-info-border: var(--gb-bg2);
+  --lc-msg-fg: var(--gb-fg1);
+  --lc-msg-action-bg: var(--gb-raised);
+  --lc-msg-action-hover-bg: var(--gb-bg1);
+
+  --lc-scrollbar-thumb: color-mix(in srgb, var(--gb-bg3) 75%, transparent);
+  --lc-scrollbar-thumb-hover: color-mix(in srgb, var(--gb-fg4) 70%, transparent);
+
+  /* tag palette */
+  --lc-tag-teal: var(--gb-aqua);
+  --lc-tag-marigold: var(--gb-yellow);
+  --lc-tag-peach: var(--gb-orange);
+  --lc-tag-coral: var(--gb-red);
+  --lc-tag-royal-blue: var(--gb-blue);
+  --lc-tag-orchid: var(--gb-purple);
+  --lc-tag-brand-blue: var(--gb-neutral-blue);
+  --lc-tag-seafoam: var(--gb-neutral-aqua);
+  --lc-tag-jade: var(--gb-green);
+  --lc-tag-berry: var(--gb-neutral-purple);
+
+  /* console = bg0 hard */
+  --lc-console-bg: var(--gb-bg0-hard);
+  --lc-console-fg: var(--gb-fg1);
+  --lc-console-muted: var(--lc-fg-muted); /* line numbers are text (≥ 4.5:1); the status-muted gray is a 3:1 icon color */
+  --lc-console-border: var(--gb-bg2);
+  --lc-console-hover: var(--gb-bg0-soft);
+  --lc-console-gutter-rule: var(--gb-bg1);
+  --lc-console-error-bg: color-mix(in srgb, var(--gb-neutral-red) 9%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--gb-neutral-yellow) 13%, var(--lc-console-bg));
+  --lc-console-link: var(--gb-blue);
+  /* ANSI (gruvbox-contrib xresources: 1–6 neutral, 9–14 faded/bright, 7 fg4, 8 gray, 15 fg1). color0 is the
+     background (#fdf4c1) in the light terminal; Labcoat maps black to fg0 so it stays readable. The light
+     neutral colors are 2.6–3.9:1 on bg0 hard, so normal colors use the faded set (= color9–14) as well. */
+  --lc-ansi-black: var(--gb-fg0);
+  --lc-ansi-red: var(--gb-red);
+  --lc-ansi-green: var(--lc-code-string);
+  --lc-ansi-yellow: var(--lc-code-type);
+  --lc-ansi-blue: var(--gb-blue);
+  --lc-ansi-magenta: var(--gb-purple);
+  --lc-ansi-cyan: var(--gb-aqua);
+  --lc-ansi-white: color-mix(in srgb, var(--gb-fg4) 95%, var(--gb-fg1)); /* fg4 is 4.4:1 on bg0 hard */
+  --lc-ansi-bright-black: var(--lc-code-comment);
+  --lc-ansi-bright-red: var(--gb-red);
+  --lc-ansi-bright-green: var(--lc-code-string);
+  --lc-ansi-bright-yellow: var(--lc-code-type);
+  --lc-ansi-bright-blue: var(--gb-blue);
+  --lc-ansi-bright-magenta: var(--gb-purple);
+  --lc-ansi-bright-cyan: var(--gb-aqua);
+  --lc-ansi-bright-white: var(--gb-fg1);
+
+  /* syntax (light), vim source: https://github.com/morhetz/gruvbox (colors/gruvbox.vim)
+     License: MIT/X11 (© morhetz, Pavel Pertsev).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #3c3836;
+  --lc-code-comment: #7c6d5e; /* source #928374 is 3.33:1 */
+  --lc-code-doctag: #9d0006;
+  --lc-code-keyword: #9d0006;
+  --lc-code-built-in: #9c6403; /* source #b57614 is 3.43:1 */
+  --lc-code-type: #9c6403; /* source #b57614 is 3.43:1 */
+  --lc-code-class: #9c6403; /* source #b57614 is 3.43:1 */
+  --lc-code-function: #777209; /* source #79740e is 4.42:1 */
+  --lc-code-title: #777209; /* source #79740e is 4.42:1 */
+  --lc-code-params: #3c3836; /* as default: not distinguished by the source */
+  --lc-code-string: #777209; /* source #79740e is 4.42:1 */
+  --lc-code-subst: #3c3836; /* as default: not distinguished by the source */
+  --lc-code-number: #8f3f71;
+  --lc-code-literal: #8f3f71; /* as number: not distinguished by the source */
+  --lc-code-meta: #427b58;
+  --lc-code-attr: #427b58;
+  --lc-code-attribute: #427b58;
+  --lc-code-variable: #076678;
+  --lc-code-symbol: #8f3f71;
+  --lc-code-operator: #3c3836; /* as default: not distinguished by the source */
+  --lc-code-punctuation: #3c3836; /* as default: not distinguished by the source */
+  --lc-code-tag: #076678;
+  --lc-code-name: #427b58;
+  --lc-code-addition: #777209; /* source #79740e is 4.42:1 */
+  --lc-code-deletion: #9d0006;
+  --lc-code-regexp: #777209; /* source #79740e is 4.42:1 */
+  --lc-code-comment-style: italic;
+  --lc-code-function-weight: bold;
+  --lc-code-title-weight: bold;
+  --lc-code-name-weight: bold;
+
+  --lc-coverage-covered: color-mix(in srgb, var(--gb-neutral-green) 15%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--gb-neutral-red) 11%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--gb-neutral-yellow) 18%, var(--lc-console-bg));
+
+  /* syntax colors on tinted source lines move by this OKLCH lightness step (hue and chroma kept) to stay ≥ 4.5:1 */
+  --lc-code-tint-shift: -0.075;
+
+  --lc-confetti-1: var(--gb-neutral-blue);
+  --lc-confetti-2: var(--gb-neutral-purple);
+  --lc-confetti-3: var(--gb-neutral-green);
+  --lc-confetti-4: var(--gb-neutral-aqua);
+  --lc-confetti-5: var(--gb-neutral-yellow);
+  --lc-confetti-6: var(--gb-neutral-orange);
+  --lc-confetti-7: var(--gb-neutral-red);
+}
+
+:root[data-theme-family="gruvbox"][data-theme="dark"] {
+  color-scheme: dark;
+
+  /* roles: dark (as gruvbox.vim with background=dark) */
+  --gb-bg0-hard: var(--gb-dark0-hard);
+  --gb-bg0: var(--gb-dark0);
+  --gb-bg0-soft: var(--gb-dark0-soft);
+  --gb-bg1: var(--gb-dark1);
+  --gb-bg2: var(--gb-dark2);
+  --gb-bg3: var(--gb-dark3);
+  --gb-fg0: var(--gb-light0);
+  --gb-fg1: var(--gb-light1);
+  --gb-fg2: var(--gb-light2);
+  --gb-fg3: var(--gb-light3);
+  --gb-fg4: var(--gb-light4);
+  --gb-red: var(--gb-bright-red);
+  --gb-green: var(--gb-bright-green);
+  --gb-yellow: var(--gb-bright-yellow);
+  --gb-blue: var(--gb-bright-blue);
+  --gb-purple: var(--gb-bright-purple);
+  --gb-aqua: var(--gb-bright-aqua);
+  --gb-orange: var(--gb-bright-orange);
+  --gb-raised: var(--gb-dark0-soft);
+
+  /* differences from the light mapping above */
+  --lc-bg-shell: var(--gb-bg0-hard);
+  --lc-shadow-popup: rgb(0 0 0 / 0.35) 0 0 2px 0, rgb(0 0 0 / 0.45) 0 16px 32px 0;
+  --lc-shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4), 0 2px 6px rgb(0 0 0 / 0.25);
+
+  --lc-fg-muted: color-mix(in srgb, var(--gb-fg4) 85%, var(--gb-fg1)); /* fg4 is 4.2:1 on bg1 */
+
+  --lc-status-skipped: var(--gb-yellow);
+  --lc-status-muted: var(--gb-gray); /* 4.1:1 on bg0, 3.7:1 on bg0 soft (UI ≥ 3:1) */
+  /* bright red is 3.8:1 on bg0 soft and 3.4:1 on the error tint → failure text mixes 40% fg1 in */
+  --lc-status-failed-text: color-mix(in srgb, var(--gb-red) 60%, var(--gb-fg1));
+  --lc-status-passed-text: var(--lc-status-passed);
+  --lc-status-skipped-text: var(--lc-status-skipped);
+
+  --lc-msg-success-bg: color-mix(in srgb, var(--gb-green) 12%, var(--lc-bg-surface));
+  --lc-msg-success-border: color-mix(in srgb, var(--gb-green) 55%, var(--lc-bg-surface));
+  --lc-msg-error-bg: color-mix(in srgb, var(--gb-red) 10%, var(--lc-bg-surface));
+  --lc-msg-error-border: color-mix(in srgb, var(--gb-red) 55%, var(--lc-bg-surface));
+  --lc-msg-warning-bg: color-mix(in srgb, var(--gb-yellow) 12%, var(--lc-bg-surface));
+  --lc-msg-warning-border: color-mix(in srgb, var(--gb-yellow) 55%, var(--lc-bg-surface));
+  --lc-msg-info-bg: var(--lc-bg-surface);
+  --lc-msg-info-border: var(--gb-bg2);
+  --lc-msg-action-bg: var(--gb-bg1);
+  --lc-msg-action-hover-bg: var(--gb-bg2);
+
+  --lc-console-hover: var(--gb-bg0);
+  --lc-console-error-bg: color-mix(in srgb, var(--gb-red) 12%, var(--lc-console-bg));
+  --lc-console-warn-bg: color-mix(in srgb, var(--gb-yellow) 10%, var(--lc-console-bg));
+  /* ANSI (gruvbox-dark xresources): 1–6 neutral would be 3.0–4.4:1 on bg0 hard, so like the light block the
+     normal colors use the bright set (= color9–14); black = dark0 (color0), white = light4 (color7) */
+  --lc-ansi-black: var(--gb-dark0);
+  --lc-ansi-green: var(--gb-green);
+  --lc-ansi-yellow: var(--gb-yellow);
+  --lc-ansi-white: var(--gb-fg4);
+  --lc-ansi-bright-black: var(--gb-gray);
+  --lc-ansi-bright-green: var(--gb-green);
+  --lc-ansi-bright-yellow: var(--gb-yellow);
+
+  /* syntax (dark), vim source: https://github.com/morhetz/gruvbox (colors/gruvbox.vim)
+     License: MIT/X11 (© morhetz, Pavel Pertsev).
+     One token per highlight.js class, colors exactly as the source except where noted: those move
+     only their OKLCH lightness (hue and chroma kept) just enough for 4.5:1 on the code background. */
+  --lc-code-default: #ebdbb2;
+  --lc-code-comment: #938475; /* source #928374 is 4.47:1 */
+  --lc-code-doctag: #fb4934;
+  --lc-code-keyword: #fb4934;
+  --lc-code-built-in: #fabd2f;
+  --lc-code-type: #fabd2f;
+  --lc-code-class: #fabd2f;
+  --lc-code-function: #b8bb26;
+  --lc-code-title: #b8bb26;
+  --lc-code-params: #ebdbb2; /* as default: not distinguished by the source */
+  --lc-code-string: #b8bb26;
+  --lc-code-subst: #ebdbb2; /* as default: not distinguished by the source */
+  --lc-code-number: #d3869b;
+  --lc-code-literal: #d3869b; /* as number: not distinguished by the source */
+  --lc-code-meta: #8ec07c;
+  --lc-code-attr: #8ec07c;
+  --lc-code-attribute: #8ec07c;
+  --lc-code-variable: #83a598;
+  --lc-code-symbol: #d3869b;
+  --lc-code-operator: #ebdbb2; /* as default: not distinguished by the source */
+  --lc-code-punctuation: #ebdbb2; /* as default: not distinguished by the source */
+  --lc-code-tag: #83a598;
+  --lc-code-name: #8ec07c;
+  --lc-code-addition: #b8bb26;
+  --lc-code-deletion: #fb4934;
+  --lc-code-regexp: #b8bb26;
+  --lc-code-comment-style: italic;
+  --lc-code-function-weight: bold;
+  --lc-code-title-weight: bold;
+  --lc-code-name-weight: bold;
+
+  /* coverage tints a little lighter than the other dark themes: the bright red keyword and the gray comment are
+     only just 4.5:1 on bg0 hard, so stronger tints would need a large lightness shift on tinted lines */
+  --lc-coverage-covered: color-mix(in srgb, var(--gb-green) 10%, var(--lc-console-bg));
+  --lc-coverage-uncovered: color-mix(in srgb, var(--gb-red) 11%, var(--lc-console-bg));
+  --lc-coverage-partial: color-mix(in srgb, var(--gb-yellow) 9%, var(--lc-console-bg));
+
+  --lc-code-tint-shift: 0.065;
+}

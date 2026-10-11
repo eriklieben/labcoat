@@ -1,0 +1,21 @@
+/* Tooltip (.lc-tooltip[role=tooltip]), rendered in body with fixed positioning. Inverted surface like Fluent. */
+
+.lc-tooltip {
+  position: fixed;
+  z-index: var(--lc-z-tooltip);
+  max-width: 280px;
+  padding: 5px 9px; /* off-scale: 5px 9px */
+  border-radius: var(--lc-radius-sm);
+  background: var(--lc-fg);
+  box-shadow: var(--lc-shadow-menu);
+  color: var(--lc-bg-surface);
+  font-size: var(--lc-text-sm);
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  animation: lc-tip-in var(--lc-motion-fast) var(--lc-ease-standard);
+}
+@keyframes lc-tip-in {
+  from {
+    opacity: 0;
+  }
+}

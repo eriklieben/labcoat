@@ -1,0 +1,361 @@
+/* <lc-run-affected>: the toolbar's "Run affected" split button + its preview popover (<lc-affected-preview>). */
+
+@layer app.components {
+  .affected-btn {
+    max-width: 320px;
+  }
+  .affected-git {
+    overflow: hidden;
+    max-width: 140px;
+    margin-left: 2px;
+    padding: 0 6px;
+    border-radius: var(--lc-radius-pill);
+    background: var(--lc-bg-badge);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+    font-variant-numeric: tabular-nums;
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .affected-btn:disabled .affected-git {
+    background: transparent;
+  }
+
+  /* ---- preview popover ---- */
+  .lc-popover.affected-popover {
+    width: 600px;
+    max-width: calc(100vw - 16px);
+    padding: 0;
+    background: var(--lc-bg-popup);
+  }
+  .affected-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .ap-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+  }
+  .ap-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    font-size: var(--lc-text-lg);
+    font-weight: 600;
+  }
+  .ap-title .icon {
+    color: var(--lc-fg-muted);
+  }
+  .ap-git {
+    overflow: hidden;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* base picker: a segmented radio group (native radios: arrow keys move the choice) */
+  .ap-base {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .ap-base-opt {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    margin-left: -1px;
+    padding: 0 10px;
+    border: 1px solid var(--lc-stroke);
+    background: var(--lc-bg-surface);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-md);
+    cursor: pointer;
+  }
+  .ap-base-opt:first-of-type {
+    margin-left: 0;
+    border-radius: var(--lc-control-radius) 0 0 var(--lc-control-radius);
+  }
+  .ap-base-opt:last-of-type {
+    border-radius: 0 var(--lc-control-radius) var(--lc-control-radius) 0;
+  }
+  .ap-base-opt:hover {
+    background: var(--lc-bg-hover);
+  }
+  .ap-base-opt.on {
+    z-index: 1;
+    border-color: var(--lc-accent);
+    background: var(--lc-bg-selected);
+    color: var(--lc-fg);
+  }
+  .ap-base-opt input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .ap-base-opt:has(input:focus-visible) {
+    z-index: 2;
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 1px;
+  }
+
+  .ap-range {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 2px 8px;
+  }
+  .ap-range-label {
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+  }
+  .ap-ref {
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-control-radius);
+    background: var(--lc-bg-field, var(--lc-bg-surface));
+    color: var(--lc-fg);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-md);
+  }
+  .ap-ref:focus-visible {
+    border-color: var(--lc-accent);
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 0;
+  }
+  .ap-ref.invalid {
+    border-color: var(--lc-status-failed);
+  }
+  .ap-hint {
+    grid-column: 2;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+  }
+
+  .ap-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    min-height: 22px;
+    font-size: var(--lc-text-md);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .ap-status.loading .ap-headline {
+    color: var(--lc-fg-muted);
+  }
+  .ap-status.error {
+    color: var(--lc-status-failed-text);
+    font-weight: 400;
+  }
+  .ap-status.error .icon {
+    color: var(--lc-status-failed);
+  }
+  .ap-ref-used {
+    color: var(--lc-fg-muted);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+    font-weight: 400;
+  }
+
+  .ap-warnings {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--lc-msg-warning-border);
+    border-radius: var(--lc-radius-md);
+    background: var(--lc-msg-warning-bg);
+    color: var(--lc-msg-fg);
+    font-size: var(--lc-text-sm);
+    list-style: none;
+  }
+  .ap-warnings .icon {
+    color: var(--lc-status-skipped);
+    vertical-align: -3px;
+  }
+  .ap-impact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 10px;
+    padding: 6px 8px;
+    border: 1px solid var(--lc-msg-info-border);
+    border-radius: var(--lc-radius-md);
+    background: var(--lc-msg-info-bg);
+    color: var(--lc-msg-fg);
+    font-size: var(--lc-text-sm);
+  }
+
+  .ap-section {
+    border-top: 1px solid var(--lc-stroke-subtle);
+    padding-top: 6px;
+  }
+  .ap-section > summary {
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ap-section > summary:focus-visible {
+    border-radius: var(--lc-radius-sm);
+    outline: 2px solid var(--lc-focus-ring);
+  }
+  .ap-files,
+  .ap-tests ul {
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ap-files {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .ap-file {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: var(--lc-text-sm);
+  }
+  .ap-file.dim {
+    color: var(--lc-fg-muted);
+  }
+  .ap-st {
+    display: inline-block;
+    width: 18px;
+    border-radius: var(--lc-radius-xs);
+    background: var(--lc-bg-badge);
+    color: var(--lc-fg-secondary);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-xs);
+    font-weight: 700;
+    text-align: center;
+  }
+  .ap-st.st-added,
+  .ap-st.st-untracked {
+    color: var(--lc-status-passed-text);
+  }
+  .ap-st.st-deleted,
+  .ap-st.st-unmerged {
+    color: var(--lc-status-failed-text);
+  }
+  .ap-st.st-renamed,
+  .ap-st.st-copied {
+    color: var(--lc-link);
+  }
+  .ap-path {
+    overflow: hidden;
+    font-family: var(--lc-font-mono);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ap-dir {
+    color: var(--lc-fg-muted);
+  }
+  .ap-map,
+  .ap-count {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ap-map {
+    overflow: hidden;
+    max-width: 180px;
+    text-overflow: ellipsis;
+  }
+
+  .ap-tests {
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .ap-files:focus-visible,
+  .ap-tests:focus-visible {
+    border-radius: var(--lc-radius-sm);
+    outline: 2px solid var(--lc-focus-ring);
+    outline-offset: 1px;
+  }
+  .ap-project + .ap-project {
+    margin-top: 6px;
+  }
+  .ap-project-name {
+    margin: 4px 0 0;
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+  }
+  .ap-test {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    padding: 1px 0 1px 12px;
+    font-size: var(--lc-text-sm);
+  }
+  .ap-test-name {
+    overflow-wrap: anywhere;
+  }
+  .ap-reason,
+  .ap-more {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-xs);
+  }
+  .ap-more {
+    padding-left: 12px;
+  }
+
+  .ap-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--lc-stroke-subtle);
+  }
+  .ap-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--lc-text-sm);
+    cursor: pointer;
+  }
+  .ap-check input {
+    margin: 0;
+    accent-color: var(--lc-accent);
+  }
+  .ap-spacer {
+    flex: 1;
+  }
+
+  @media (max-width: 600px) {
+    .affected-git {
+      display: none;
+    }
+    .ap-file {
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+    }
+    .ap-map {
+      display: none;
+    }
+  }
+}

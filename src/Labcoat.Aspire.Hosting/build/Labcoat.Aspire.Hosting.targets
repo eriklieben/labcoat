@@ -1,0 +1,3 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)../buildTransitive/Labcoat.Aspire.Hosting.targets" />
+</Project>

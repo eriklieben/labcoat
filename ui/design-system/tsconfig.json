@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["src", "gallery", "test"],
+  "exclude": ["gallery/vite.config.ts"]
+}

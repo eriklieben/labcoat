@@ -1,0 +1,103 @@
+/* Pane tabs (.pane-tabs[role=tablist] > .pane-tab[role=tab][aria-selected]), .tab-pill, tone helpers (.tone-good/warn/bad). */
+
+.pane-tabs {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: var(--lc-space-4);
+  height: 36px;
+  padding: 0 var(--lc-space-4);
+}
+.pane-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lc-space-6);
+  height: 32px;
+  padding: 0 var(--lc-space-10);
+  border: 0;
+  border-radius: var(--lc-control-radius) var(--lc-control-radius) 0 0;
+  background: transparent;
+  color: var(--lc-fg-muted);
+  font-size: var(--lc-text-md);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--lc-motion-fast) var(--lc-ease-standard),
+    color var(--lc-motion-fast) var(--lc-ease-standard);
+}
+.pane-tab:hover:not(:disabled) {
+  background: var(--lc-bg-subtle);
+  color: var(--lc-fg);
+}
+.pane-tab[aria-selected="true"] {
+  color: var(--lc-fg);
+  font-weight: 600;
+}
+.pane-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  left: 10px;
+  height: 3px;
+  border-radius: var(--lc-radius-xs);
+  background: var(--lc-accent);
+}
+.pane-tab[aria-selected="true"] .icon {
+  color: var(--lc-accent);
+}
+.pane-tab:disabled {
+  opacity: var(--lc-disabled-opacity);
+  cursor: not-allowed;
+}
+.pane-tabs-vertical {
+  flex-direction: column;
+  align-items: stretch;
+  height: auto;
+  padding: var(--lc-space-4) 0;
+}
+.pane-tabs-vertical .pane-tab {
+  border-radius: var(--lc-control-radius);
+}
+.pane-tabs-vertical .pane-tab[aria-selected="true"]::after {
+  top: 8px;
+  right: auto;
+  bottom: 8px;
+  left: 0;
+  width: 3px;
+  height: auto;
+}
+.pane-tabpanel:focus-visible {
+  outline-offset: -2px;
+}
+
+.tab-pill {
+  padding: 0 var(--lc-space-6);
+  border-radius: var(--lc-radius-lg);
+  background: var(--lc-bg-subtle);
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-text-xs);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+/* tone helpers (>= 80 % good, >= 50 % warn, else bad); --tone feeds meters and pills, --tone-text colored numbers */
+.tone-good {
+  --tone: var(--lc-status-passed);
+  --tone-text: var(--lc-status-passed-text);
+}
+.tone-warn {
+  --tone: var(--lc-status-skipped);
+  --tone-text: var(--lc-status-skipped-text);
+}
+.tone-bad {
+  --tone: var(--lc-status-failed);
+  --tone-text: var(--lc-status-failed-text);
+}
+.tab-pill.tone-good,
+.tab-pill.tone-warn,
+.tab-pill.tone-bad {
+  background: color-mix(in srgb, var(--tone) 18%, transparent);
+  color: color-mix(in srgb, var(--tone-text) 50%, var(--lc-fg)); /* ≥ 4.5:1 on the tint in every theme (scripts/themes-check.mjs) */
+}

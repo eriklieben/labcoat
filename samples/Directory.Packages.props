@@ -1,0 +1,7 @@
+<Project>
+  <!-- The samples are standalone: versions are in each project file, like in your own projects.
+       This file stops the repository's central package management (../Directory.Packages.props) from applying here. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

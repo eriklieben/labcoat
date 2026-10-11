@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of Labcoat.Testing.NUnit, on NUnit itself (NUnit3TestAdapter's Microsoft.Testing.Platform runner): the
+       adapter traces these very tests. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The adapter is built against the oldest supported NUnit (Directory.Packages.props); run it on NUnit 5. -->
+    <PackageReference Include="NUnit" VersionOverride="5.0.0" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <ProjectReference Include="..\..\src\Labcoat.Testing.NUnit\Labcoat.Testing.NUnit.csproj" />
+  </ItemGroup>
+
+  <!-- What the package does for its users (a ProjectReference does not import package build files): registers
+       [assembly: LabcoatTracing]. -->
+  <Import Project="..\..\src\Labcoat.Testing.NUnit\build\Labcoat.Testing.NUnit.targets" />
+
+</Project>

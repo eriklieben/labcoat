@@ -1,0 +1,98 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Labcoat</RootNamespace>
+    <AssemblyName>Labcoat</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Make 'dotnet run' resolve CLI paths against the caller's working directory. -->
+    <RunWorkingDirectory>$(MSBuildStartupDirectory)</RunWorkingDirectory>
+
+    <!-- Memory: a local dev tool serving one or two browser tabs doesn't need the Web SDK's default server GC (one heap
+         per core, sized for throughput). Workstation GC kept the host of a 20,000-test suite at ~0.9 GB RSS instead of
+         ~1.4 GB. Written to Labcoat.runtimeconfig.json, so it also applies when Labcoat.Aspire.Hosting and
+         Labcoat.TestingPlatform start the bundled Labcoat.dll (DOTNET_gcServer=1 still overrides it). Background
+         (concurrent) GC and tiered PGO stay on (the runtime defaults): they cost little memory and keep pauses short. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+
+    <!-- dotnet tool packaging -->
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>labcoat</ToolCommandName>
+    <!-- No package validation (src/Directory.Build.props): a tool package has no lib/ assembly and no public API to
+         compare; its contract is the command line, covered by the tests and the smoke test. -->
+    <EnablePackageValidation>false</EnablePackageValidation>
+    <PackageId>Labcoat</PackageId>
+    <Description>A web UI for Microsoft.Testing.Platform: browse, run and watch your MSTest, NUnit, xUnit v3 and TUnit tests in the browser, with failure diffs, code coverage per test and run history.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>testing;test-runner;test-explorer;mstest;nunit;xunit;tunit;microsoft-testing-platform;code-coverage;dotnet-tool;aspire;web-ui</PackageTags>
+
+    <!-- The UI is served from wwwroot with a PhysicalFileProvider (see LabcoatApp.FindWebRoot), so the static web assets
+         pipeline isn't needed: without it the tool package carries wwwroot exactly once (under tools/), with no
+         staticwebassets/ + build/*.props library assets and no precompressed .br/.gz copies. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.Tests" />
+    <!-- benchmarks/Labcoat.Benchmarks: MtpConnection.TryParseMessage / Consume, FullCoverageStore.Load / Schedule,
+         GitRepo.ParseNameStatus / ParseHunks. -->
+    <InternalsVisibleTo Include="Labcoat.Benchmarks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The HTML report (Export/HtmlReport.cs) inlines the default theme's color tokens. -->
+    <EmbeddedResource Include="..\..\ui\design-system\src\themes\catppuccin.css" LogicalName="Labcoat.Export.theme.css" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- wwwroot ships inside the tool (tools/net10.0/any/wwwroot via publish), not as content/contentFiles. -->
+    <Content Update="wwwroot\**" Pack="false" />
+  </ItemGroup>
+
+  <!-- The UI's npm production dependencies as a CycloneDX SBOM: eng/release.mjs prepare writes it with `npm sbom`
+       and passes its path as -p:LabcoatUiSbom. It is published next to wwwroot as sbom/ui.cdx.json, so it ships
+       wherever the UI ships: tools/net10.0/any/ in this tool package, the runner bundles of Labcoat.Aspire.Hosting
+       (tools/explorer/) and Labcoat.TestingPlatform (tools/labcoat/). A plain `dotnet pack` (CI, local) has none: the
+       packages' own SPDX SBOM lists the UI files, not the npm packages they were built from (docs/releasing.md,
+       "SBOM"). -->
+  <ItemGroup Condition="'$(LabcoatUiSbom)' != ''">
+    <None Include="$(LabcoatUiSbom)" Link="sbom\ui.cdx.json" CopyToPublishDirectory="PreserveNewest" Pack="false" Visible="false" />
+  </ItemGroup>
+
+  <!-- The tool package globs the whole publish directory, and publish only removes files it wrote itself: start a
+       pack from an empty publish directory so UI assets of older builds (hashed file names) never end up in it. -->
+  <Target Name="_LabcoatCleanPublishDirForPack" BeforeTargets="PrepareForPublish" Condition="'$(_IsPacking)' == 'true' and '$(PackAsTool)' == 'true'">
+    <RemoveDir Directories="$(PublishDir)" />
+  </Target>
+
+  <!-- Opt-in UI build: `dotnet pack -p:LabcoatBuildUi=true` (also works for the two packages that bundle the runner) runs
+       `npm ci` (when ui/node_modules is missing) and `npm run build` in ui/ before publishing. Incremental: skipped while
+       wwwroot/index.html is newer than the UI sources. CI builds the UI explicitly instead (see .github/workflows). -->
+  <PropertyGroup>
+    <LabcoatUiDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../ui'))</LabcoatUiDir>
+  </PropertyGroup>
+  <Target Name="LabcoatBuildUi" BeforeTargets="PrepareForPublish" Condition="'$(LabcoatBuildUi)' == 'true'"
+          Inputs="@(_LabcoatUiSource)" Outputs="$(MSBuildProjectDirectory)/wwwroot/index.html" DependsOnTargets="_LabcoatCollectUiSources">
+    <Exec Command="npm ci" WorkingDirectory="$(LabcoatUiDir)" Condition="!Exists('$(LabcoatUiDir)/node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(LabcoatUiDir)" />
+  </Target>
+  <Target Name="_LabcoatCollectUiSources">
+    <ItemGroup>
+      <_LabcoatUiSource Include="$(LabcoatUiDir)/index.html;$(LabcoatUiDir)/package-lock.json;$(LabcoatUiDir)/vite.config.ts;$(LabcoatUiDir)/public/**/*;$(LabcoatUiDir)/src/**/*;$(LabcoatUiDir)/design-system/src/**/*" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Packing without a built UI would publish a tool that only answers "UI not built yet". -->
+  <Target Name="_LabcoatRequireUi" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/wwwroot/index.html')"
+           Text="The UI isn't built (wwwroot/index.html is missing): run 'npm ci &amp;&amp; npm run build' in ui/ (or pack with -p:LabcoatBuildUi=true) before packing." />
+  </Target>
+
+</Project>

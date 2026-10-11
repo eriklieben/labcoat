@@ -1,0 +1,121 @@
+<Project>
+  <!--
+    The input of the package SBOM (src/Directory.Build.props, "SBOM"; docs/releasing.md, "SBOM").
+
+    Microsoft.Sbom.Targets runs component detection on a folder, by default the project folder. That would also pick up
+    the nuspec files every pack leaves in obj/ (the package itself and every older version packed in this clone), and
+    from project.assets.json it lists what restore downloaded rather than what the package depends on:
+    - build-only references (PrivateAssets="all": SourceLink, Microsoft.Sbom.Targets) and their dependencies;
+    - PackageDownload items: the package validation baseline (this package at the previous release) and the net8.0
+      targeting packs;
+    - but not the closure of a project reference: Labcoat.Testing.MSTest / NUnit / TUnit / XUnit depend on the
+      Labcoat.Testing *package* (and through it on Aspire.Hosting, OpenTelemetry, ...), which detection skips because
+      it is a project in the restore graph.
+    So component detection gets a folder with only a copy of project.assets.json, rewritten to the dependencies the
+    package declares: build-only references and downloads removed, project references that flow to the package
+    (not PrivateAssets="all") turned into package references of the same version. The bundled runner of
+    Labcoat.Aspire.Hosting / Labcoat.TestingPlatform is a PrivateAssets="all" build-order reference: not a dependency,
+    its files are listed (with their hashes) in the SBOM's file list.
+  -->
+  <Target Name="_LabcoatSbomComponents" BeforeTargets="GenerateSbomTarget"
+          Condition="'$(IsPackable)' == 'true' and '$(GenerateSBOM)' == 'true'">
+    <PropertyGroup>
+      <SbomGenerationBuildComponentPath>$([MSBuild]::NormalizePath(
+        $(MSBuildProjectDirectory), $(BaseIntermediateOutputPath), sbom-components))</SbomGenerationBuildComponentPath>
+    </PropertyGroup>
+    <RemoveDir Directories="$(SbomGenerationBuildComponentPath)" />
+    <MakeDir Directories="$(SbomGenerationBuildComponentPath)" />
+    <LabcoatSbomRestoreGraph AssetsFile="$(ProjectAssetsFile)"
+                             OutputFile="$(SbomGenerationBuildComponentPath)/project.assets.json" />
+  </Target>
+
+  <!-- Inline task (RoslynCodeTaskFactory, part of MSBuild: no extra dependency). It only references netstandard, so the
+       JSON is edited through its XML mapping (JsonReaderWriterFactory): a member whose name isn't an XML name, such as
+       "Aspire.Hosting/13.4.5", is an <item item="name"> element in the namespace "item". -->
+  <UsingTask TaskName="LabcoatSbomRestoreGraph" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssetsFile Required="true" />
+      <OutputFile Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Runtime.Serialization.Json" />
+      <Using Namespace="System.Xml" />
+      <Using Namespace="System.Xml.Linq" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        Func<XElement, string> name = e => (string)e.Attribute("item") ?? e.Name.LocalName;
+        Func<XElement, string, XElement> child = (e, n) => e == null ? null : e.Elements().FirstOrDefault(c => name(c) == n);
+        Func<string, string, XElement> member = (n, type) =>
+          new XElement(XName.Get("item", "item"), new XAttribute(XNamespace.Xmlns + "a", "item"),
+            new XAttribute("item", n), new XAttribute("type", type));
+
+        XElement root;
+        using (var reader = JsonReaderWriterFactory.CreateJsonReader(File.ReadAllBytes(AssetsFile), XmlDictionaryReaderQuotas.Max))
+          root = XElement.Load(reader);
+        var project = child(root, "project");
+        var restore = child(project, "restore");
+        var projectDir = Path.GetDirectoryName((string)child(restore, "projectPath"));
+
+        // Project references that flow to the package, per target framework (full paths).
+        var flowing = new Dictionary<string, HashSet<string>>();
+        foreach (var tfm in (child(restore, "frameworks") ?? new XElement("x")).Elements())
+        {
+          var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+          foreach (var reference in (child(tfm, "projectReferences") ?? new XElement("x")).Elements())
+          {
+            var privateAssets = (string)child(reference, "privateAssets") ?? "";
+            if (!privateAssets.Split(',', ';').Any(a => a.Trim().Equals("all", StringComparison.OrdinalIgnoreCase)))
+              paths.Add(Path.GetFullPath((string)child(reference, "projectPath")));
+          }
+          flowing[name(tfm)] = paths;
+        }
+
+        // Those projects become packages (name/version as restore resolved them).
+        var promoted = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // library key -> full path
+        foreach (var library in child(root, "libraries").Elements())
+        {
+          var type = child(library, "type");
+          if ((string)type != "project") continue;
+          var fullPath = Path.GetFullPath(Path.Combine(projectDir, (string)child(library, "path")));
+          if (!flowing.Values.Any(p => p.Contains(fullPath))) continue;
+          type.Value = "package";
+          promoted[name(library)] = fullPath;
+        }
+        foreach (var target in child(root, "targets").Elements())
+          foreach (var library in target.Elements())
+            if (promoted.ContainsKey(name(library)) && (string)child(library, "type") == "project")
+              child(library, "type").Value = "package";
+
+        foreach (var tfm in child(project, "frameworks").Elements())
+        {
+          var downloads = child(tfm, "downloadDependencies");
+          if (downloads != null) downloads.Remove();
+          var dependencies = child(tfm, "dependencies");
+          if (dependencies == null) tfm.Add(dependencies = member("dependencies", "object"));
+          foreach (var dependency in dependencies.Elements().ToList())
+            if (string.Equals((string)child(dependency, "suppressParent"), "All", StringComparison.OrdinalIgnoreCase))
+              dependency.Remove();
+          HashSet<string> paths;
+          if (!flowing.TryGetValue(name(tfm), out paths)) continue;
+          foreach (var entry in promoted.Where(p => paths.Contains(p.Value)))
+          {
+            var parts = entry.Key.Split('/');
+            var dependency = member(parts[0], "object");
+            dependency.Add(new XElement("target", new XAttribute("type", "string"), "Package"));
+            dependency.Add(new XElement("version", new XAttribute("type", "string"), "[" + parts[1] + ", )"));
+            dependencies.Add(dependency);
+          }
+        }
+
+        using (var stream = File.Create(OutputFile))
+        using (var writer = JsonReaderWriterFactory.CreateJsonWriter(stream, System.Text.Encoding.UTF8, false))
+          root.WriteTo(writer);
+        Log.LogMessage(MessageImportance.Low, "SBOM input: " + OutputFile + (promoted.Count > 0
+          ? " (project references as packages: " + string.Join(", ", promoted.Keys) + ")" : ""));
+      ]]></Code>
+    </Task>
+  </UsingTask>
+</Project>

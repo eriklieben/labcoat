@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an idea or an improvement for Labcoat.
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! The maintainer decides what goes into Labcoat, so a request may be declined when it
+        doesn't fit the project's scope, even when it is a good idea. Please don't start on a pull request before it
+        has been agreed on here. See [What goes into Labcoat](https://github.com/eriklieben/labcoat/blob/main/CONTRIBUTING.md#what-goes-into-labcoat).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation and what is hard or impossible today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: The behavior, UI or API you have in mind. Mockups and examples from other tools are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Test tree / running tests
+        - Failure details
+        - Coverage
+        - Watch mode
+        - History / flaky tests
+        - Aspire integration
+        - Command line / tool
+        - Test framework support
+        - Themes / accessibility
+        - Other

@@ -1,0 +1,152 @@
+/* <lc-project-diagnostics>. */
+
+@layer app.components {
+  /* diagnostics: a host finding under the checklist item it explains */
+  .diag-finding {
+    margin: var(--lc-space-2) 0 var(--lc-space-4);
+  }
+  .diag-finding-msg {
+    color: var(--lc-fg);
+  }
+  .diag-check-icon.level-error {
+    color: var(--lc-status-failed);
+  }
+  .diag-check-icon.level-warning {
+    color: var(--lc-status-skipped);
+  }
+
+  /* <lc-project-diagnostics>: why a project has no tests. */
+  .project-diagnostics {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-16);
+    max-width: 760px;
+    padding: var(--lc-space-8) 0 var(--lc-space-16);
+    color: var(--lc-fg);
+  }
+  .diag-head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--lc-space-16);
+  }
+  .diag-art {
+    flex: none;
+    width: 52px;
+    height: 52px;
+    margin: 0;
+  }
+  .diag-titles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-4);
+    min-width: 0;
+  }
+  .diag-title {
+    margin: 0;
+    font-family: var(--lc-font-display);
+    font-size: var(--lc-text-lg);
+    font-weight: 500;
+    line-height: 24px;
+    overflow-wrap: anywhere;
+  }
+  .diag-sub,
+  .diag-hint {
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-md);
+    line-height: var(--lc-line-height);
+  }
+  .diag-link {
+    display: inline-block;
+    margin-top: var(--lc-space-4);
+  }
+  .diag-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lc-space-8);
+  }
+  .diag-section-title {
+    margin: 0;
+    font-size: var(--lc-text-md);
+    font-weight: 600;
+  }
+  .diag-checklist {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--lc-stroke);
+    border-radius: var(--lc-radius-md);
+    background: var(--lc-bg-surface);
+    list-style: none;
+  }
+  .diag-item,
+  .diag-check {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--lc-space-10);
+    padding: var(--lc-space-10) var(--lc-space-14);
+  }
+  .diag-item + .diag-item,
+  .diag-check + .diag-check {
+    border-top: 1px solid var(--lc-stroke-subtle);
+  }
+  .diag-icon,
+  .diag-check-icon {
+    flex: none;
+    margin-top: var(--lc-space-2);
+  }
+  .diag-item.level-error .diag-icon,
+  .diag-check.flagged .diag-check-icon {
+    color: var(--lc-status-failed);
+  }
+  .diag-item.level-warning .diag-icon {
+    color: var(--lc-status-skipped);
+  }
+  .diag-item.level-info .diag-icon,
+  .diag-check-icon {
+    color: var(--lc-fg-muted);
+  }
+  .diag-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--lc-space-2);
+    min-width: 0;
+  }
+  .diag-message {
+    font-size: var(--lc-text-md);
+    font-weight: 500;
+    line-height: var(--lc-line-height);
+  }
+  .diag-check.flagged .diag-message {
+    color: var(--lc-status-failed-text);
+  }
+  .diag-code {
+    padding: 0 3px; /* off-scale: 3px */
+    border-radius: 3px;
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg);
+    font-family: var(--lc-font-mono);
+    font-size: var(--lc-text-sm);
+  }
+  .diag-details summary {
+    color: var(--lc-link);
+    font-size: var(--lc-text-sm);
+    cursor: pointer;
+  }
+  .diag-pre {
+    max-height: 220px;
+    margin: var(--lc-space-6) 0 0;
+    padding: var(--lc-space-8) var(--lc-space-10);
+    overflow: auto;
+    border-radius: var(--lc-radius-sm);
+    background: var(--lc-console-bg);
+    color: var(--lc-console-fg);
+    font-size: var(--lc-text-sm);
+    white-space: pre-wrap;
+  }
+  .diag-actions {
+    display: flex;
+    gap: var(--lc-space-8);
+  }
+}

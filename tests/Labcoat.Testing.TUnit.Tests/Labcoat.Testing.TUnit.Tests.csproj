@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of Labcoat.Testing.TUnit, on TUnit itself: the adapter traces these very tests. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <ProjectReference Include="..\..\src\Labcoat.Testing.TUnit\Labcoat.Testing.TUnit.csproj" />
+  </ItemGroup>
+
+  <!-- What the package does for its users (a ProjectReference does not import package build files): registers
+       [assembly: LabcoatTracing]. -->
+  <Import Project="..\..\src\Labcoat.Testing.TUnit\build\Labcoat.Testing.TUnit.targets" />
+
+</Project>

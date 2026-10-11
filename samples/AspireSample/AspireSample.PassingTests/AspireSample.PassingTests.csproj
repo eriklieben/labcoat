@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The all-green twin of AspireSample.Tests: the same unit tests and API integration tests, minus the
+    intentionally failing / ignored demo tests in OrderValidationTests. The sources are linked from
+    AspireSample.Tests so both projects stay in sync. Hosted in the AppHost as the "tests-passing" Labcoat.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <RootNamespace>AspireSample.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.6.1" />
+    <PackageReference Include="MSTest" Version="4.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AspireSample.AppHost\AspireSample.AppHost.csproj" />
+    <ProjectReference Include="..\AspireSample.Api\AspireSample.Api.csproj" />
+    <ProjectReference Include="..\..\..\src\Labcoat.Testing.MSTest\Labcoat.Testing.MSTest.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AspireSample.Tests\MSTestSettings.cs" Link="MSTestSettings.cs" />
+    <Compile Include="..\AspireSample.Tests\LabcoatHooks.cs" Link="LabcoatHooks.cs" />
+    <Compile Include="..\AspireSample.Tests\Integration\AspireAppFixture.cs" Link="Integration\AspireAppFixture.cs" />
+    <Compile Include="..\AspireSample.Tests\Integration\OrdersApiTests.cs" Link="Integration\OrdersApiTests.cs" />
+    <Compile Include="..\AspireSample.Tests\Unit\OrderPricingTests.cs" Link="Unit\OrderPricingTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.Net" />
+    <Using Include="System.Net.Http.Json" />
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Loaded into the test application: target the lowest TFM Microsoft.Testing.Platform 2 supports. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Labcoat.TestingPlatform</RootNamespace>
+    <AssemblyName>Labcoat.TestingPlatform</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- An extension library, not a test application: the Microsoft.Testing.Platform package would otherwise mark it as
+         one, and `dotnet test` (MTP mode, see global.json) would try to run it. -->
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+    <IsTestProject>false</IsTestProject>
+
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.TestingPlatform</PackageId>
+    <Description>Microsoft.Testing.Platform extension for Labcoat: 'dotnet run -- --labcoat' opens the Labcoat web UI for this test project instead of running its tests. Includes the runner, so there is nothing else to install.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>testing;test-runner;test-explorer;mstest;nunit;xunit;tunit;microsoft-testing-platform;testing-platform-extension;labcoat</PackageTags>
+
+    <!-- The runner (src/Labcoat) is published into this folder and shipped inside the package under tools/labcoat/.
+         The test app starts it from there (path recorded in its runtimeconfig.json): nothing is copied to bin/. -->
+    <LabcoatProject>$(MSBuildThisFileDirectory)..\Labcoat\Labcoat.csproj</LabcoatProject>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_LabcoatPackBundle</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 2.x: ITestHostApplicationLifetime (MSTest 4, xUnit v3 3.x, NUnit 4.4+, TUnit). -->
+    <PackageReference Include="Microsoft.Testing.Platform" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Labcoat.TestingPlatform.Tests" />
+  </ItemGroup>
+
+  <!--
+    Build order only (see Labcoat.Aspire.Hosting.csproj): the runner is built by the same project instance as in the
+    rest of the solution before _LabcoatPackBundle publishes it without building it again. The runner targets net10.0
+    and this library net8.0: SkipGetTargetFrameworkProperties builds the runner for its own TFM, and nothing flows to
+    this assembly, its output or its package.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="$(LabcoatProject)" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="build\Labcoat.TestingPlatform.props" Pack="true" PackagePath="build\" />
+    <None Include="build\Labcoat.TestingPlatform.targets" Pack="true" PackagePath="build\" />
+    <None Include="buildTransitive\Labcoat.TestingPlatform.props" Pack="true" PackagePath="buildTransitive\" />
+    <None Include="buildTransitive\Labcoat.TestingPlatform.targets" Pack="true" PackagePath="buildTransitive\" />
+  </ItemGroup>
+
+  <!-- NuGet package: ship a clean publish of the runner (framework-dependent, launched as `dotnet Labcoat.dll`). -->
+  <Target Name="_LabcoatPackBundle">
+    <PropertyGroup>
+      <_LabcoatPackDir>$(MSBuildThisFileDirectory)$(BaseIntermediateOutputPath)labcoat-pack\$(Configuration)\</_LabcoatPackDir>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_LabcoatPackDir)" />
+    <!-- RemoveProperties: this target runs in the net8.0 inner build; the runner is net10.0. NoBuild: pack built this
+         project, and with it the runner (ProjectReference above), first; publishing copies that build. -->
+    <MSBuild Projects="$(LabcoatProject)" Targets="Publish" RemoveProperties="TargetFramework;RuntimeIdentifier"
+             Properties="Configuration=$(Configuration);NoBuild=true;PublishDir=$(_LabcoatPackDir);PublishDepsFilePath=$(_LabcoatPackDir)Labcoat.deps.json;UseAppHost=false" />
+    <!-- Same guard as the Labcoat tool package: never ship a runner without its UI. -->
+    <Error Condition="!Exists('$(_LabcoatPackDir)wwwroot/index.html')"
+           Text="The UI isn't built (src/Labcoat/wwwroot/index.html is missing): run 'npm ci &amp;&amp; npm run build' in ui/ (or pack with -p:LabcoatBuildUi=true)." />
+    <ItemGroup>
+      <_LabcoatPackFile Include="$(_LabcoatPackDir)**\*" />
+      <TfmSpecificPackageFile Include="@(_LabcoatPackFile)" PackagePath="tools\labcoat\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,238 @@
+// Renovate (https://docs.renovatebot.com): dependency update PRs. Needs the Mend Renovate GitHub App installed on the
+// repository (docs/releasing.md, "Dependency updates: Renovate, and Dependabot alerts only"). Validate after a change:
+//
+//   npx --yes --package renovate@44.115.1 -- renovate-config-validator --strict
+//
+// PR titles are the squash-merge commit message, so they decide about releases (CONTRIBUTING.md, "Commit messages and
+// releases"; release.config.mjs):
+// - fix(deps): ...        a dependency that ships: src/ NuGet references (versions in Directory.Packages.props), the
+//                         runtime dependencies of the UI bundled into the tool (ui/, ui/design-system). Releases a patch
+//                         version; listed under "Dependencies" in the release notes.
+// - build(deps): ...      samples, the .NET SDK (global.json), build-only packages (SourceLink,
+//                         Microsoft.Sbom.Targets). No release; listed under "Dependencies" when something else releases.
+// - build(deps-dev): ...  devDependencies (Vite, Vitest, TypeScript, Playwright, semantic-release, commitlint) and test
+//                         packages. No release, not in the release notes.
+// - ci(deps): ...         GitHub Actions. No release.
+// A group that mixes shipped and non-shipped packages gets the most important type (fix before build), so it releases.
+//
+// Security: Renovate opens a separate PR right away for a vulnerable dependency (from the repository's Dependabot alerts
+// and from OSV): not grouped, not held by the schedule or the release age, title suffix "[security]", label `security`.
+//
+// Automerge is off on purpose (for now): every merge to main runs the release job, branch protection with required
+// checks isn't set up yet, and the first months of Renovate PRs are worth a look. To turn it on later for tooling only,
+// add to packageRules (and require the CI checks on main, Renovate then merges only green PRs):
+//   { matchDepTypes: ["devDependencies"], matchUpdateTypes: ["minor", "patch"], automerge: true, automergeType: "pr" }
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // helpers:pinGitHubActionDigests: actions stay pinned to a full commit SHA (`uses: owner/repo@<sha> # v1.2.3`), and
+  // Renovate updates the SHA and the version comment together (required once "Require SHA pinning" is on).
+  extends: ["config:recommended", ":semanticCommits", ":dependencyDashboard", "helpers:pinGitHubActionDigests"],
+  timezone: "Europe/Amsterdam",
+  // Weekly, Monday early morning; the root tooling and GitHub Actions monthly (rules below).
+  schedule: ["* 0-5 * * 1"],
+  prConcurrentLimit: 10,
+  prHourlyLimit: 4,
+  // Supply chain: wait until a release is 3 days old (yanked / compromised releases are usually gone by then).
+  minimumReleaseAge: "3 days",
+  labels: ["dependencies"],
+  semanticCommitScope: "deps",
+  // The design system is an npm workspace of ui/, not a registry package.
+  ignoreDeps: ["@eriklieben/labcoat-design-system"],
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["dependencies", "security"],
+  },
+  osvVulnerabilityAlerts: true,
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["* 0-5 1 * *"],
+  },
+  packageRules: [
+    // ---------------------------------------------------------------------------------------------- commit types
+    {
+      description: "Default: build(deps) (no release). The rules below pick fix(deps) for what ships.",
+      matchFileNames: ["**"],
+      semanticCommitType: "build",
+      semanticCommitScope: "deps",
+    },
+    {
+      description: "NuGet packages of the shipped libraries and the tool (central versions in the root): fix(deps).",
+      matchFileNames: ["Directory.Packages.props", "src/**"],
+      semanticCommitType: "fix",
+    },
+    {
+      description: "Root Directory.Packages.props, test-only packages: build(deps-dev).",
+      matchFileNames: ["Directory.Packages.props"],
+      matchPackageNames: ["MSTest", "NUnit3TestAdapter", "xunit.v3.mtp-v2", "Microsoft.Testing.Extensions.CodeCoverage", "Microsoft.AspNetCore.TestHost"],
+      semanticCommitType: "build",
+      semanticCommitScope: "deps-dev",
+    },
+    {
+      description: "Root Directory.Packages.props, build-only packages (not a dependency of the packages): build(deps).",
+      matchFileNames: ["Directory.Packages.props"],
+      matchPackageNames: ["Microsoft.SourceLink.*", "Microsoft.Sbom.Targets"],
+      semanticCommitType: "build",
+    },
+    {
+      description: "Test projects: build(deps-dev).",
+      matchFileNames: ["tests/**"],
+      semanticCommitType: "build",
+      semanticCommitScope: "deps-dev",
+    },
+    {
+      description: "Benchmark project (benchmarks/, not shipped): build(deps-dev).",
+      matchFileNames: ["benchmarks/**"],
+      semanticCommitType: "build",
+      semanticCommitScope: "deps-dev",
+    },
+    {
+      description: "The UI's runtime dependencies are bundled into the Labcoat tool: fix(deps).",
+      matchManagers: ["npm"],
+      matchFileNames: ["ui/package.json", "ui/design-system/package.json"],
+      matchDepTypes: ["dependencies"],
+      semanticCommitType: "fix",
+    },
+    {
+      description: "npm devDependencies and the root release / commit tooling: build(deps-dev).",
+      matchManagers: ["npm"],
+      matchDepTypes: ["devDependencies"],
+      semanticCommitType: "build",
+      semanticCommitScope: "deps-dev",
+    },
+    {
+      description: "`engines` in package.json is the supported Node.js range (a policy, not a dependency): not updated.",
+      matchDepTypes: ["engines"],
+      enabled: false,
+    },
+    {
+      description: "Pinning a range and the monthly lock file refresh don't change what ships until the next release: build(deps).",
+      matchUpdateTypes: ["pin", "lockFileMaintenance"],
+      semanticCommitType: "build",
+    },
+    {
+      description: "GitHub Actions, also digest pins and digest updates: ci(deps). After the pin rule above, so it wins.",
+      matchManagers: ["github-actions"],
+      semanticCommitType: "ci",
+    },
+    {
+      description: "CI tools in the .NET tool manifest (dotnet-sonarscanner for the sonar job in ci.yml): ci(deps), no release.",
+      matchFileNames: [".config/dotnet-tools.json"],
+      semanticCommitType: "ci",
+    },
+    {
+      description: "Runner images (runs-on: ubuntu-24.04) are pinned on purpose and moved to the next LTS by hand, in all workflows at once (docs/releasing.md, \"Runner images\").",
+      matchManagers: ["github-actions"],
+      matchDatasources: ["github-runners"],
+      enabled: false,
+    },
+
+    // ---------------------------------------------------------------------------------------------- npm ranges
+    {
+      description: "ui/ is an application (bundled into the tool) and the root is tooling: exact versions.",
+      matchManagers: ["npm"],
+      rangeStrategy: "pin",
+    },
+
+    // ---------------------------------------------------------------------------------------------- schedules
+    {
+      description: "Release / commit tooling in the root, GitHub Actions and the CI tool manifest: monthly.",
+      matchFileNames: ["package.json", ".github/workflows/**", ".config/dotnet-tools.json"],
+      schedule: ["* 0-5 1 * *"],
+    },
+
+    // ---------------------------------------------------------------------------------------------- groups
+    {
+      groupName: "MSTest and Microsoft.Testing.Platform",
+      matchPackageNames: ["MSTest*", "Microsoft.Testing.*"],
+      semanticCommitScope: "deps-dev",
+    },
+    {
+      groupName: "NUnit",
+      matchPackageNames: ["NUnit", "NUnit3TestAdapter", "NUnit.Analyzers"],
+    },
+    {
+      groupName: "xUnit v3",
+      matchPackageNames: ["xunit.v3*"],
+    },
+    {
+      groupName: "Aspire",
+      matchPackageNames: ["Aspire.*"],
+      semanticCommitScope: "deps",
+    },
+    {
+      groupName: "OpenTelemetry",
+      matchPackageNames: ["OpenTelemetry*"],
+      semanticCommitScope: "deps",
+    },
+    {
+      groupName: "Microsoft.Extensions",
+      matchPackageNames: ["Microsoft.Extensions.*"],
+      semanticCommitScope: "deps",
+    },
+    {
+      description: "benchmarks/Labcoat.Benchmarks only (version in Directory.Packages.props, not shipped): build(deps-dev).",
+      groupName: "BenchmarkDotNet",
+      matchPackageNames: ["BenchmarkDotNet", "BenchmarkDotNet.*"],
+      semanticCommitType: "build",
+      semanticCommitScope: "deps-dev",
+    },
+    {
+      description: "MSBuild tooling of the packages in src/ (SourceLink, the SBOM generator): build-only, one PR.",
+      groupName: "NuGet build tooling",
+      matchFileNames: ["Directory.Packages.props"],
+      matchPackageNames: ["Microsoft.SourceLink.*", "Microsoft.Sbom.Targets"],
+    },
+    {
+      groupName: "Vite and Vitest",
+      matchPackageNames: ["vite", "vitest", "@vitest/*"],
+    },
+    {
+      groupName: "Playwright",
+      matchPackageNames: ["playwright", "@playwright/*"],
+    },
+    {
+      groupName: "release tooling",
+      matchPackageNames: [
+        "semantic-release",
+        "@semantic-release/*",
+        "@commitlint/*",
+        "conventional-changelog-*",
+        "simple-git-hooks",
+      ],
+    },
+    {
+      description: "conventional-changelog-conventionalcommits 10+ belongs to the next major versions of the semantic-release plugins (commit-analyzer 14, release-notes-generator 15): move them together, by hand.",
+      matchPackageNames: ["conventional-changelog-conventionalcommits"],
+      allowedVersions: "<10",
+    },
+    {
+      groupName: "GitHub Actions",
+      matchManagers: ["github-actions"],
+    },
+    {
+      groupName: ".NET SDK",
+      matchDepTypes: ["dotnet-sdk"],
+    },
+
+    // ---------------------------------------------------------------------------------------------- needs review
+    {
+      description: "Minimum versions for users of Labcoat.Testing.* / Labcoat.TestingPlatform (see Directory.Packages.props): raising them is a decision, so the PR is only created when ticked on the Dependency Dashboard.",
+      matchFileNames: ["Directory.Packages.props"],
+      matchPackageNames: ["MSTest.TestFramework", "Microsoft.Testing.Platform", "TUnit.Core", "NUnit", "xunit.v3.extensibility.core"],
+      groupName: "test platform minimum versions",
+      semanticCommitType: "fix",
+      semanticCommitScope: "deps",
+      dependencyDashboardApproval: true,
+      addLabels: ["needs-review"],
+    },
+    {
+      description: "alien-signals: the reactive core reuses its graph algorithm (ui/design-system). Own PR, never automerged; the canary test must pass.",
+      matchPackageNames: ["alien-signals"],
+      addLabels: ["needs-review"],
+      automerge: false,
+      prBodyNotes: [
+        "**alien-signals** is the dependency graph under the design system's reactive core (ui/ARCHITECTURE.md, \"Scheduling\"). CI runs the canary test (`ui/test/design-system/core/scheduler.test.ts`, in `npm test`) and `npm run check:reactive`. If the canary fails, upstream's scheduler changed: don't just fix the test, reconsider whether the own scheduler is still needed. Read the alien-signals changelog before merging.",
+      ],
+    },
+  ],
+}

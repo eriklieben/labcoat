@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Run on Microsoft.Testing.Platform (MTP): the test project is a self-contained executable. -->
+    <OutputType>Exe</OutputType>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" Version="13.6.1" />
+    <PackageReference Include="MSTest" Version="4.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AspireSample.AppHost\AspireSample.AppHost.csproj" />
+    <!-- Referenced only for the pure unit tests of OrderPricing (no Aspire app needed). -->
+    <ProjectReference Include="..\AspireSample.Api\AspireSample.Api.csproj" />
+    <!-- Per-test traces in the Aspire dashboard when run from Labcoat. In your own tests: <PackageReference Include="Labcoat.Testing.MSTest" ... />. -->
+    <ProjectReference Include="..\..\..\src\Labcoat.Testing.MSTest\Labcoat.Testing.MSTest.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System.Net" />
+    <Using Include="System.Net.Http.Json" />
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

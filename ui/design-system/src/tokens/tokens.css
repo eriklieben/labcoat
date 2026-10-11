@@ -1,0 +1,161 @@
+/* ==========================================================================================
+   Labcoat design tokens, layer 1: fonts + non-color tokens (type scale, sizes, radii, stacking, motion)
+   + derived mode-aware tokens (end of file).
+
+   Colors live in the theme files (../themes/*.css), which only assign the semantic --lc-* tokens. Components and
+   the app use --lc-* tokens only (the old Aspire / Fluent alias names were removed with the styles.css cleanup).
+   ========================================================================================== */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/Geist-Variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/GeistMono-Variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/latin-600-normal.woff2") format("woff2");
+}
+
+:root {
+  /* typography, sizes, radii, motion */
+  --lc-font-sans: "Geist", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --lc-font-mono: "Cascadia Mono", "Geist Mono", Consolas, ui-monospace, "Courier New", monospace;
+  --lc-font-display: "Poppins", var(--lc-font-sans);
+  --lc-font-size: 14px;
+  --lc-line-height: 20px;
+  /* type scale: every font size in component CSS is one of these (no 10 / 11.5 / 12.5 px one-offs) */
+  --lc-text-xs: 11px; /* captions, badges, rail labels (the minimum) */
+  --lc-text-sm: 12px; /* secondary text, chips, meta */
+  --lc-text-md: 13px; /* dense UI text: tree rows, tables, code */
+  --lc-text-base: 14px; /* body (= --lc-font-size) */
+  --lc-text-lg: 16px; /* small headings */
+  --lc-text-xl: 18px;
+  --lc-text-2xl: 20px; /* pane titles */
+  --lc-text-3xl: 22px; /* stat values */
+  --lc-text-4xl: 28px; /* report numbers */
+  --lc-control-height: 28px;
+  --lc-control-radius: 6px;
+  --lc-popup-radius: 10px;
+  --lc-disabled-opacity: 0.3;
+  --lc-row-h: 28px;
+  --lc-rail-w: 72px; /* room for inset rail tiles (6px gaps) with one-word labels */
+  --lc-scrollbar-size: 8px;
+  /* motion (see MOTION.md): durations, Fluent 2 curves, entrance offsets. JS mirrors these in components/motion.ts */
+  --lc-motion-instant: 80ms; /* press, exit of tiny things, hover reveal */
+  --lc-motion-fast: 120ms; /* hover/press colors, popover/tooltip in, crossfades */
+  --lc-motion-base: 200ms; /* content swap, expand, tab/rail indicator, dialog, message bar */
+  --lc-motion-slow: 320ms; /* meter fill, count-up */
+  --lc-motion-xslow: 600ms; /* run progress layers, locator ring, sheen */
+  --lc-motion-progress: var(--lc-motion-xslow);
+  --lc-motion-pop: 140ms; /* popover/menu in, list row in, step reveal */
+  --lc-motion-enter: 160ms; /* content swap (.lc-enter), caret, switch thumb, palette in */
+  --lc-motion-dialog: 180ms; /* centered dialog in */
+  --lc-motion-exit: 100ms; /* dialog / palette out */
+  --lc-ease-standard: cubic-bezier(0.33, 0, 0.67, 1); /* Fluent easyEase: color/opacity state changes */
+  --lc-ease-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1); /* Fluent decelerateMax: things entering */
+  --lc-ease-accelerate: cubic-bezier(0.7, 0, 1, 0.5); /* Fluent accelerateMid: things leaving */
+  --lc-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quint: things moving */
+  --lc-motion-rise: 4px; /* entrance offset (0 with reduced motion) */
+  --lc-motion-scale-in: 0.97; /* popup entrance scale (1 with reduced motion) */
+  --lc-motion-flash: 900ms; /* one-shot flash: lc-flash tint, run-complete brightness */
+  --lc-motion-pulse: 1.2s; /* state loop period: pulsing dots (connecting, host starting) */
+  --lc-motion-shimmer: 1.4s; /* loop period: skeleton shimmer, indeterminate sweep */
+  --lc-motion-stripes: 0.8s; /* loop period: in-run progress stripes */
+  --lc-motion-celebrate: 1.6s; /* all-passed summary glow (decorative, once) */
+  --lc-motion-spin: 0.7s; /* spinner turn */
+  --lc-motion-spin-reduced: 2.4s; /* spinner turn with reduced motion */
+  --lc-ease-loop: ease-in-out; /* symmetric curve for pulsing loops (the Fluent curves are one-way) */
+  /* radius scale (controls: --lc-control-radius = md, popups: --lc-popup-radius = 10px) */
+  --lc-radius-xs: 2px; /* bars, tiny marks */
+  --lc-radius-sm: 4px; /* badges, chips inside rows, menu items */
+  --lc-radius-md: 6px;
+  --lc-radius-lg: 8px; /* cards, panels, tables */
+  --lc-radius-xl: 12px;
+  --lc-radius-pill: 999px;
+  /* spacing scale: padding / margin / gap (--lc-space-N = N px); off-scale optical values stay literal with a comment */
+  --lc-space-2: 2px;
+  --lc-space-4: 4px;
+  --lc-space-6: 6px;
+  --lc-space-8: 8px;
+  --lc-space-10: 10px;
+  --lc-space-12: 12px;
+  --lc-space-14: 14px;
+  --lc-space-16: 16px;
+  --lc-space-20: 20px;
+  --lc-space-24: 24px;
+  --lc-space-28: 28px;
+  --lc-space-32: 32px;
+  /* stacking */
+  --lc-dimmed-opacity: 0.5; /* pending / stale / outdated / not-in-run / pruned states */
+  --lc-z-sticky: 1; /* sticky table headers */
+  --lc-z-dropdown: 20; /* inline dropdowns (search hints) */
+  --lc-z-sheet: 40; /* side sheets (run diff) */
+  --lc-z-menu: 50; /* app menus (run switcher) */
+  --lc-z-popover: 1000; /* design-system popovers and menus (in body) */
+  --lc-z-tooltip: 1100;
+  --lc-z-toast: 1200;
+
+  /* ---- derived, mode-aware tokens --------------------------------------------------------------------------
+     Built from the theme's semantic tokens; light values on :root, dark values on [data-theme="dark"]. They hold the
+     light/dark differences app CSS used to express with [data-theme] selectors. A theme family may override any of
+     them (its selectors are more specific; Aspire's come later). */
+  --lc-stroke-pane: var(--lc-stroke-subtle); /* borders of panes, cards, tables and the separators inside them */
+  --lc-stroke-pill: var(--lc-stroke-subtle); /* outline of status pills (run summary, project status) */
+  --lc-bg-card: var(--lc-bg-surface); /* stat and coverage cards */
+  --lc-bg-field: var(--lc-bg-surface); /* search / filter fields */
+  --lc-bg-track: var(--lc-stroke-subtle); /* empty part of the run progress bar */
+  --lc-bg-row-hover: var(--lc-bg-hover); /* tree rows, failure list, coverage file rows */
+  --lc-bg-control-hover: var(--lc-bg-surface); /* small row action buttons */
+  --lc-status-failed-count: var(--lc-status-failed-text); /* failure counts as text */
+  /* source view (code with coverage / range / failure tints) */
+  --lc-coverage-covered-line: color-mix(in srgb, var(--lc-coverage-covered) 50%, var(--lc-console-bg));
+  --lc-coverage-uncovered-line: color-mix(in srgb, var(--lc-coverage-uncovered) 50%, var(--lc-console-bg));
+  --lc-coverage-partial-line: color-mix(in srgb, var(--lc-coverage-partial) 50%, var(--lc-console-bg));
+  --lc-src-tint-text: var(--lc-console-fg); /* text color that numbers on tinted lines mix toward */
+  --lc-src-tint-mix: 42%; /* share of the status / muted color in that mix */
+  --lc-src-range-mix: 45%; /* share of the accent for the method range's line numbers */
+  --lc-src-hover-brightness: 0.97;
+  --lc-highlight: #fff; /* glint / sheen on saturated fills (the same in every theme) */
+  --lc-bg-meter-track: var(--lc-bg-subtle); /* meter and progress tracks */
+  /* failure count badge (button count): a light failure tint + the failure text mixed toward the page text, ≥ 4.5:1 in
+     every family and mode (two-digit counts are body text for WCAG) */
+  --lc-status-failed-badge: color-mix(in srgb, var(--lc-status-failed-text) 75%, var(--lc-fg));
+  --lc-status-failed-badge-bg: color-mix(in srgb, var(--lc-status-failed) 12%, transparent);
+}
+:root[data-theme="dark"] {
+  --lc-stroke-pane: var(--lc-stroke-grid);
+  --lc-stroke-pill: var(--lc-stroke);
+  --lc-bg-card: color-mix(in srgb, var(--lc-bg-page) 50%, var(--lc-bg-surface));
+  --lc-bg-field: var(--lc-bg-page);
+  --lc-bg-track: var(--lc-bg-subtle);
+  --lc-bg-row-hover: var(--lc-bg-subtle);
+  --lc-bg-control-hover: var(--lc-bg-menu-hover);
+  --lc-status-failed-count: var(--lc-status-failed-text);
+  --lc-coverage-covered-line: var(--lc-coverage-covered);
+  --lc-coverage-uncovered-line: var(--lc-coverage-uncovered);
+  --lc-coverage-partial-line: var(--lc-coverage-partial);
+  --lc-src-tint-text: var(--lc-fg);
+  --lc-src-tint-mix: 35%;
+  --lc-src-range-mix: 35%;
+  --lc-src-hover-brightness: 1.08;
+  --lc-bg-meter-track: color-mix(in srgb, var(--lc-stroke) 55%, transparent);
+}

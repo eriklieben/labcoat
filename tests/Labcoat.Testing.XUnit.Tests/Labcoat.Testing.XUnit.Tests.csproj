@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests of Labcoat.Testing.XUnit, on xUnit v3 itself (Microsoft.Testing.Platform v2 runner): the adapter traces
+       these very tests. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The adapter is built against the oldest supported xunit.v3.extensibility.core; this runs it on the current xUnit. -->
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <ProjectReference Include="..\..\src\Labcoat.Testing.XUnit\Labcoat.Testing.XUnit.csproj" />
+  </ItemGroup>
+
+  <!-- What the package does for its users (a ProjectReference does not import package build files): registers
+       [assembly: LabcoatTracing]. -->
+  <Import Project="..\..\src\Labcoat.Testing.XUnit\build\Labcoat.Testing.XUnit.targets" />
+
+</Project>

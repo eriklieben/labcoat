@@ -1,0 +1,40 @@
+/* Property grid (.prop-grid > .prop-name + .prop-value[.badges]); works on a dl/dt/dd or on divs. */
+
+.prop-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0 0 var(--lc-space-16);
+  overflow: hidden;
+  border: 1px solid var(--lc-stroke-pane);
+  border-radius: var(--lc-radius-lg);
+  font-size: var(--lc-text-md);
+}
+.prop-name,
+.prop-value {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  margin: 0;
+  padding: var(--lc-space-6) var(--lc-space-12);
+  border-bottom: 1px solid var(--lc-stroke-pane);
+}
+.prop-grid > :nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+.prop-name {
+  min-width: 110px;
+  background: color-mix(in srgb, var(--lc-bg-page) 50%, transparent);
+  color: var(--lc-fg-muted);
+}
+.prop-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.prop-value.badges {
+  flex-wrap: wrap;
+  gap: var(--lc-space-6);
+}
+.prop-value.mono {
+  font-family: var(--lc-font-mono);
+  font-size: var(--lc-text-md);
+}

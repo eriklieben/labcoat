@@ -1,0 +1,138 @@
+/* Modal dialog (dialog.lc-dialog[.lc-dialog-sm|md|lg][.lc-dialog-top][.bare] > .lc-dialog-surface > .lc-dialog-header/body/footer). */
+
+.lc-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 64px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--lc-stroke);
+  border-radius: var(--lc-popup-radius);
+  background: var(--lc-bg-popup);
+  box-shadow: var(--lc-shadow-popup);
+  color: var(--lc-fg);
+  /* P9: native enter/exit. Exit (this rule's transition): 100 ms fade + scale .98, accelerate; the element stays in
+     the top layer while it fades (overlay/display allow-discrete). Enter: [open] + @starting-style below. */
+  opacity: 0;
+  transform: scale(calc(1 - (1 - var(--lc-motion-scale-in)) * 0.667));
+  transition:
+    opacity var(--lc-motion-exit) var(--lc-ease-accelerate),
+    transform var(--lc-motion-exit) var(--lc-ease-accelerate),
+    overlay var(--lc-motion-exit) allow-discrete,
+    display var(--lc-motion-exit) allow-discrete;
+}
+.lc-dialog[open] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--lc-motion-dialog) var(--lc-ease-decelerate),
+    transform var(--lc-motion-dialog) var(--lc-ease-decelerate),
+    overlay var(--lc-motion-dialog) allow-discrete,
+    display var(--lc-motion-dialog) allow-discrete;
+}
+@starting-style {
+  .lc-dialog[open] {
+    opacity: 0;
+    transform: translateY(calc(var(--lc-motion-rise) * 1.5)) scale(calc(1 - (1 - var(--lc-motion-scale-in)) * 0.667));
+  }
+}
+/* the palette lives at the top: it drops in from above (160 ms) */
+.lc-dialog-top[open] {
+  transition-duration: var(--lc-motion-enter);
+}
+@starting-style {
+  .lc-dialog-top[open] {
+    opacity: 0;
+    transform: translateY(calc(var(--lc-motion-rise) * -2)) scale(calc(1 - (1 - var(--lc-motion-scale-in)) * 0.667));
+  }
+}
+.lc-dialog:focus {
+  outline: none;
+}
+.lc-dialog::backdrop {
+  background: color-mix(in srgb, var(--lc-bg-shell) 35%, rgb(0 0 0 / 0.45));
+  opacity: 0;
+  transition:
+    opacity var(--lc-motion-exit) var(--lc-ease-accelerate),
+    overlay var(--lc-motion-exit) allow-discrete,
+    display var(--lc-motion-exit) allow-discrete;
+}
+.lc-dialog[open]::backdrop {
+  opacity: 1;
+  transition:
+    opacity var(--lc-motion-fast) var(--lc-ease-standard),
+    overlay var(--lc-motion-fast) allow-discrete,
+    display var(--lc-motion-fast) allow-discrete;
+}
+@starting-style {
+  .lc-dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+.lc-dialog-sm {
+  width: min(400px, calc(100vw - 32px));
+}
+.lc-dialog-lg {
+  width: min(800px, calc(100vw - 32px));
+}
+.lc-dialog-top {
+  margin-top: min(12vh, 120px);
+}
+.lc-dialog-surface {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+.lc-dialog-header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: var(--lc-space-12);
+  padding: var(--lc-space-16) var(--lc-space-16) var(--lc-space-8) var(--lc-space-20);
+}
+.lc-dialog-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lc-dialog-title {
+  margin: var(--lc-space-2) 0 0;
+  font-family: var(--lc-font-display);
+  font-size: var(--lc-text-lg);
+  font-weight: 500;
+  line-height: 24px;
+}
+.lc-dialog-desc {
+  margin: var(--lc-space-2) 0 0;
+  color: var(--lc-fg-muted);
+  font-size: var(--lc-text-md);
+}
+.lc-dialog-close {
+  margin: -2px -4px 0 0; /* off-scale: -2px -4px */
+}
+.lc-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--lc-space-8) var(--lc-space-20) var(--lc-space-16);
+  overflow: auto;
+  font-size: var(--lc-text-md);
+}
+.lc-dialog.bare .lc-dialog-body {
+  padding: 0;
+}
+.lc-dialog-footer {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: var(--lc-space-8);
+  padding: var(--lc-space-12) var(--lc-space-20) var(--lc-space-16);
+  border-top: 1px solid var(--lc-stroke-subtle);
+}
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

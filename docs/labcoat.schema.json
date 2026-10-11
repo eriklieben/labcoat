@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/eriklieben/labcoat/main/docs/labcoat.schema.json",
+  "title": "Labcoat settings file",
+  "description": "Settings for Labcoat (a web UI for Microsoft.Testing.Platform tests): .labcoat.json or .config/labcoat.json in a workspace, or the user file ~/.labcoat.json (also ~/.config/labcoat/config.json, %APPDATA%\\Labcoat\\config.json). See docs/configuration.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "The schema of this file, for editor completion."
+    },
+    "ui": {
+      "type": "object",
+      "description": "Defaults for the UI's settings (the Settings page). A choice made in the browser wins over a default, unless the setting is listed in \"locked\".",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "description": "Color palette. Built-in default: catppuccin.",
+          "enum": ["catppuccin", "aspire", "github", "one", "dracula", "solarized", "gruvbox"]
+        },
+        "mode": {
+          "description": "Light or dark, or follow the operating system. Built-in default: system.",
+          "enum": ["system", "light", "dark"]
+        },
+        "motion": {
+          "description": "Animations: follow the operating system's reduce-motion setting, short fades only, or none. Built-in default: system.",
+          "enum": ["system", "reduced", "off"]
+        },
+        "editor": {
+          "description": "The editor every \"open in editor\" action launches. Built-in default: vscode.",
+          "enum": ["vscode", "rider", "visualstudio"]
+        },
+        "coverageTint": {
+          "description": "How the coverage source view marks lines: a tint across the full line, or a bar in the gutter. Built-in default: line.",
+          "enum": ["line", "gutter"]
+        },
+        "confetti": {
+          "type": "boolean",
+          "description": "A confetti burst when a run turns the suite green. Built-in default: false."
+        },
+        "partialRunsInHistory": {
+          "type": "boolean",
+          "description": "List runs of a single test, a class or a few tests in the run switcher and the per-test history. Built-in default: false."
+        },
+        "openOutputOnError": {
+          "type": "boolean",
+          "description": "Open the output panel when a build or run logs an error. Built-in default: false."
+        },
+        "singleKeyShortcuts": {
+          "type": "boolean",
+          "description": "Single-key shortcuts (W, ?, R / C / O in the tree). Built-in default: true."
+        },
+        "locked": {
+          "description": "Settings the browser can't change: they are shown disabled and always use the value set here (or the built-in default). \"all\" or true locks every setting.",
+          "oneOf": [
+            {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": ["theme", "mode", "motion", "editor", "coverageTint", "confetti", "partialRunsInHistory", "openOutputOnError", "singleKeyShortcuts", "all"]
+              }
+            },
+            { "const": "all" },
+            { "type": "boolean" }
+          ]
+        }
+      }
+    },
+    "watch": {
+      "type": "boolean",
+      "description": "Start in watch mode (like --watch)."
+    },
+    "coverage": {
+      "description": "Code coverage: true starts with collection on (like --coverage); an object also chooses the settings and filters (docs/features.md \"Code coverage\").",
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Start with code coverage collection on (like --coverage)."
+            },
+            "settings": {
+              "type": "string",
+              "description": "Coverage settings file (a Microsoft.CodeCoverage configuration or a .runsettings with a CodeCoverage section) for every test project, like --coverage-settings. Relative: to each test project, then to this file's directory. Default: the project's own coverage.settings.xml / CodeCoverage.xml / *.coverage.xml / *.runsettings, else Labcoat's defaults."
+            },
+            "include": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Module names or path globs to count although Labcoat's defaults leave them out, e.g. \"Labcoat.*\" (like --coverage-include). A glob without / matches a module or file name; with /, a source path."
+            },
+            "exclude": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Module names or path globs never to count, e.g. \"MyApp.Tools\" or \"**/Migrations/**\" (like --coverage-exclude). Applies with a settings file too."
+            }
+          }
+        }
+      ]
+    },
+    "traces": {
+      "type": "boolean",
+      "description": "Start with per-test trace collection on (like --traces; only has an effect under an Aspire AppHost)."
+    },
+    "affectedBase": {
+      "type": "string",
+      "pattern": "^(?!-)[A-Za-z0-9._/@{}~^:+\\-]+$",
+      "description": "Base git ref of 'Run affected: branch vs …', e.g. \"origin/develop\" (like --affected-base). Default: origin/HEAD, else origin/main, origin/master, main or master."
+    },
+    "impactMap": {
+      "enum": ["class", "test", "auto"],
+      "description": "Granularity of the test impact map used by watch mode and 'Run affected' (like --impact-map): class = one coverage run per test class (fast; every test of a class shares its data), test = one coverage run per test (exact, slower), auto = per class, then the classes a change maps to are refined per test in the background. Default: auto."
+    },
+    "maxParallelProjects": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64,
+      "description": "Test projects discovered and run at the same time (like --max-parallel). Builds are one dotnet build for all projects either way. Default: the number of processors, at most 4."
+    },
+    "hangThreshold": {
+      "type": ["number", "string"],
+      "pattern": "^\\s*(off|none|\\d+(\\.\\d+)?\\s*(ms|s|sec|m|min|h|hour)?)\\s*$",
+      "description": "A running test is shown as possibly hanging after this long (like --hang-threshold): seconds, or a duration such as \"90s\", \"2m\". 0 or \"off\" turns it off. Default: 60 seconds."
+    },
+    "testTimeout": {
+      "type": ["number", "string"],
+      "pattern": "^\\s*(off|none|\\d+(\\.\\d+)?\\s*(ms|s|sec|m|min|h|hour)?)\\s*$",
+      "description": "Per-test timeout (like --test-timeout): a test running longer is marked timed out and its project's run is cancelled. Seconds, or a duration such as \"30s\", \"5m\". 0 or \"off\" = no timeout (the default). Not MTP's --timeout, which limits a whole test session."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "HTTP port (used as an explicit port). --port, PORT and ASPNETCORE_URLS win over it."
+    }
+  }
+}

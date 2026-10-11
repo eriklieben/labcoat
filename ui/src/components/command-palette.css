@@ -1,0 +1,102 @@
+/* Command palette dialog (commandPalette() in command-palette.ts). */
+
+@layer app.components {
+  .palette-dialog {
+    width: min(640px, calc(100vw - 32px));
+  }
+  .palette-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-10);
+    padding: var(--lc-space-10) var(--lc-space-14);
+    border-bottom: 1px solid var(--lc-stroke-subtle);
+    color: var(--lc-fg-muted);
+  }
+  .palette-mode {
+    padding: 1px var(--lc-space-8); /* off-scale: 1px */
+    border-radius: var(--lc-radius-pill);
+    background: var(--lc-bg-subtle);
+    color: var(--lc-fg-secondary);
+    font-size: var(--lc-text-sm);
+    font-weight: 600;
+  }
+  .palette-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: var(--lc-space-4) 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--lc-fg);
+    font: inherit;
+    font-size: var(--lc-text-lg);
+  }
+  .palette-input::placeholder {
+    color: var(--lc-fg-muted);
+  }
+  .palette-list {
+    max-height: min(420px, 60vh);
+    padding: var(--lc-space-6);
+    overflow-y: auto;
+  }
+  .palette-item {
+    display: flex;
+    align-items: center;
+    gap: var(--lc-space-10);
+    min-height: 34px;
+    padding: var(--lc-space-4) var(--lc-space-10);
+    border-radius: var(--lc-control-radius);
+    color: var(--lc-fg);
+    font-size: var(--lc-text-md);
+    cursor: pointer;
+  }
+  .palette-item.active {
+    background: var(--lc-bg-selected);
+    box-shadow: inset 2px 0 0 var(--lc-accent);
+  }
+  .palette-item.disabled {
+    opacity: var(--lc-disabled-opacity);
+    cursor: default;
+  }
+  .palette-icon {
+    display: inline-flex;
+    flex: none;
+    width: 16px;
+    color: var(--lc-fg-secondary);
+  }
+  .palette-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .palette-label mark {
+    background: none;
+    color: var(--lc-link);
+    font-weight: 600;
+  }
+  .palette-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .palette-sub {
+    flex: none;
+    /* the chevron sits at the right edge like a shortcut, with or without a detail text */
+    margin-left: auto;
+    color: var(--lc-fg-muted);
+  }
+  .palette-kbd,
+  .palette-esc {
+    flex: none;
+    margin-left: auto;
+  }
+  .palette-empty {
+    padding: var(--lc-space-16);
+    color: var(--lc-fg-muted);
+    text-align: center;
+  }
+}

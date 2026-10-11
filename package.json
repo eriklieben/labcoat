@@ -1,0 +1,31 @@
+{
+  "name": "labcoat-repo",
+  "private": true,
+  "license": "MIT",
+  "description": "Release and commit tooling for the Labcoat repository (semantic-release, commitlint). The web UI lives in ui/ (its own npm workspace).",
+  "type": "module",
+  "engines": {
+    "node": "^22.22.2 || >=24.15.0"
+  },
+  "scripts": {
+    "prepare": "simple-git-hooks",
+    "commitlint": "commitlint",
+    "release:dry-run": "semantic-release --dry-run --no-ci"
+  },
+  "simple-git-hooks": {
+    "commit-msg": "npx --no -- commitlint --edit \"$1\""
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "@semantic-release/changelog": "7.0.0",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "11.0.1",
+    "@semantic-release/github": "12.0.10",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "conventional-changelog-conventionalcommits": "9.3.1",
+    "semantic-release": "25.0.9",
+    "simple-git-hooks": "2.14.0"
+  }
+}

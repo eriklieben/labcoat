@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!-- Shape of Microsoft.Testing.Extensions.CodeCoverage output; $ROOT$ is replaced by the test. -->
+<coverage line-rate="0.5" branch-rate="0.5" version="1.9" timestamp="1791531265" lines-covered="5" lines-valid="10">
+  <sources>
+    <source>$ROOT$</source>
+  </sources>
+  <packages>
+    <package name="Shop.Core" line-rate="0.5" branch-rate="0.5" complexity="4">
+      <classes>
+        <class name="Shop.Core.Calc" filename="src/Math/Calc.cs" line-rate="0.5" branch-rate="0.5" complexity="2">
+          <methods>
+            <method name="Add" signature="(int, int)" line-rate="1" branch-rate="1" complexity="1">
+              <lines>
+                <line number="10" hits="3" branch="False" />
+                <line number="11" hits="3" branch="False" />
+                <line number="12" hits="3" branch="False" />
+              </lines>
+            </method>
+            <method name="Divide" signature="(int, int)" line-rate="0.5" branch-rate="0.5" complexity="2">
+              <lines>
+                <line number="20" hits="1" branch="True" condition-coverage="50% (1/2)" />
+                <line number="21" hits="0" branch="False" />
+                <line number="22" hits="1" branch="False" />
+              </lines>
+            </method>
+            <method name="Unused" signature="()" line-rate="0" branch-rate="1" complexity="1">
+              <lines>
+                <line number="30" hits="0" branch="False" />
+                <line number="31" hits="0" branch="False" />
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="10" hits="3" branch="False" />
+            <line number="11" hits="3" branch="False" />
+            <line number="12" hits="3" branch="False" />
+            <line number="20" hits="1" branch="True" condition-coverage="50% (1/2)">
+              <conditions>
+                <condition number="0" type="jump" coverage="50%" />
+              </conditions>
+            </line>
+            <line number="21" hits="0" branch="False" />
+            <line number="22" hits="1" branch="False" />
+            <line number="30" hits="0" branch="False" />
+            <line number="31" hits="0" branch="False" />
+            <line number="nope" hits="1" branch="False" />
+          </lines>
+        </class>
+        <!-- Compiler-generated state machine of the same file: the same line again (max within one report). -->
+        <class name="Shop.Core.Calc/&lt;DivideAsync&gt;d__3" filename="src/Math/Calc.cs" line-rate="1" branch-rate="1" complexity="1">
+          <methods />
+          <lines>
+            <line number="21" hits="5" branch="False" />
+            <line number="20" hits="0" branch="True" condition-coverage="100% (2/2)" />
+          </lines>
+        </class>
+        <!-- No class-level lines: the method lines are used. -->
+        <class name="Shop.Core.Format" filename="src/Text/Format.cs" line-rate="1" branch-rate="1" complexity="1">
+          <methods>
+            <method name="Money" signature="(decimal)" line-rate="1" branch-rate="1" complexity="1">
+              <lines>
+                <line number="5" hits="9999999999" branch="False" />
+                <line number="6" hits="2" branch="False" />
+              </lines>
+            </method>
+          </methods>
+        </class>
+        <!-- No methods at all: covered class lines become one-line spans for the impact map. -->
+        <class name="Shop.Core.Constants" filename="src/Constants.cs" line-rate="0.5" branch-rate="1" complexity="1">
+          <lines>
+            <line number="3" hits="1" branch="False" />
+            <line number="4" hits="0" branch="False" />
+          </lines>
+        </class>
+        <!-- Nothing executed: no impact map entry. -->
+        <class name="Shop.Core.Dead" filename="src/Dead.cs" line-rate="0" branch-rate="1" complexity="1">
+          <methods>
+            <method name="Never" signature="()" line-rate="0" branch-rate="1" complexity="1">
+              <lines>
+                <line number="1" hits="0" branch="False" />
+              </lines>
+            </method>
+          </methods>
+          <lines>
+            <line number="1" hits="0" branch="False" />
+          </lines>
+        </class>
+        <class name="Shop.Core.NoFile" filename="" line-rate="1" branch-rate="1" complexity="1">
+          <lines>
+            <line number="1" hits="1" branch="False" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+    <package name="Shop.Tests" line-rate="1" branch-rate="1" complexity="1">
+      <classes>
+        <class name="Shop.Tests.CalcTests" filename="tests/CalcTests.cs" line-rate="1" branch-rate="1" complexity="1">
+          <lines>
+            <line number="7" hits="1" branch="False" />
+          </lines>
+        </class>
+      </classes>
+    </package>
+  </packages>
+</coverage>

@@ -1,0 +1,317 @@
+/* Motion utilities + the central motion policy (see ui/MOTION.md).
+   Durations/curves are tokens in tokens.css; JS helpers live in components/motion.ts.
+
+   Policy, in one place (components don't add their own prefers-reduced-motion blocks):
+   - Reduced (system `prefers-reduced-motion: reduce`, or html[data-motion="reduced"]): no movement. Rise/scale tokens
+     become 0 / 1, so entrances turn into short fades; base/slow durations are capped at --lc-motion-fast; loops stop
+     (spinners slow down, pulses stop, shimmer is static); transform transitions are instant.
+   - Off (html[data-motion="off"]): no transitions or animations at all, except spinners (state, slowed down).
+   - Busy (html.lc-busy, set by the shell during big runs and while the tab is hidden): decorative motion is off
+     (list enter, sheen, count-up, shimmer); state motion (progress, spinners, status pop, P6 flash) stays.
+   - html[data-motion="full"] ignores the system setting. */
+
+/* ---- reduced: tokens ------------------------------------------------------------------------------------------- */
+:root[data-motion="reduced"] {
+  --lc-motion-rise: 0px;
+  --lc-motion-scale-in: 1;
+  --lc-motion-base: var(--lc-motion-fast);
+  --lc-motion-slow: var(--lc-motion-fast);
+  --lc-motion-enter: var(--lc-motion-fast);
+  --lc-motion-dialog: var(--lc-motion-fast);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) {
+    --lc-motion-rise: 0px;
+    --lc-motion-scale-in: 1;
+    --lc-motion-base: var(--lc-motion-fast);
+    --lc-motion-slow: var(--lc-motion-fast);
+    --lc-motion-enter: var(--lc-motion-fast);
+    --lc-motion-dialog: var(--lc-motion-fast);
+  }
+}
+
+/* ---- entrance utilities ------------------------------------------------------------------------------------------ */
+@keyframes lc-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--lc-motion-rise));
+  }
+}
+@keyframes lc-enter-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lc-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--lc-motion-rise) * -1));
+  }
+}
+@keyframes lc-enter-x {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--lc-motion-rise) * -1));
+  }
+}
+@keyframes lc-exit-fade {
+  to {
+    opacity: 0;
+  }
+}
+/* content swap: opacity + 4 px rise (P1, P12) */
+.lc-enter {
+  animation: lc-enter var(--lc-motion-enter) var(--lc-ease-decelerate) both;
+}
+/* opacity only (palette submenus, label swaps) */
+.lc-enter-fade {
+  animation: lc-enter-fade var(--lc-motion-exit) var(--lc-ease-standard) both;
+}
+/* list insert: from 4 px above (P2, P17); stagger with --lc-i (0..7) */
+.lc-row-enter {
+  animation: lc-row-enter var(--lc-motion-pop) var(--lc-ease-decelerate) both;
+  animation-delay: calc(min(var(--lc-i, 0), 7) * 15ms);
+}
+/* step reveal from the left (watch strip, annotations) */
+.lc-enter-x {
+  animation: lc-enter-x var(--lc-motion-pop) var(--lc-ease-decelerate) both;
+  animation-delay: var(--lc-delay, 0ms);
+}
+
+/* ---- one-shot feedback ------------------------------------------------------------------------------------------- */
+/* P6: tint that fades once (class added by flash()). :where() = no specificity: an absolutely positioned host
+   (virtualized rows) keeps its own position. */
+:where(.lc-flash-bad, .lc-flash-good, .lc-flash-accent) {
+  position: relative;
+}
+.lc-flash-bad::before,
+.lc-flash-good::before,
+.lc-flash-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  animation: lc-flash var(--lc-motion-flash) var(--lc-ease-decelerate) 1;
+}
+.lc-flash-bad::before {
+  background: color-mix(in srgb, var(--lc-status-failed) 18%, transparent);
+}
+.lc-flash-good::before {
+  background: color-mix(in srgb, var(--lc-status-passed) 18%, transparent);
+}
+.lc-flash-accent::before {
+  background: color-mix(in srgb, var(--lc-accent) 18%, transparent);
+}
+@keyframes lc-flash {
+  from {
+    opacity: 1;
+  }
+}
+/* P7: "you landed here" ring (inset 2 px accent, 600 ms) */
+:where(.lc-locator) {
+  position: relative;
+}
+.lc-locator::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--lc-accent);
+  pointer-events: none;
+  opacity: 0;
+  animation: lc-flash var(--lc-motion-xslow) var(--lc-ease-standard) 1;
+}
+/* P11: one sheen across a bar (host: position relative + overflow hidden) */
+.lc-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--lc-highlight) 45%, transparent), transparent);
+  transform: translateX(-110%);
+  pointer-events: none;
+  animation: lc-sheen var(--lc-motion-xslow) var(--lc-ease-standard) 1 both;
+}
+@keyframes lc-sheen {
+  to {
+    transform: translateX(260%);
+  }
+}
+/* state loop: "working / connecting" (stops with reduced motion; not a busy-gate decoration) */
+.lc-pulse {
+  animation: pulse var(--lc-motion-pulse) var(--lc-ease-standard) infinite;
+}
+.lc-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- disclosure caret (P2, P14) ------------------------------------------------------------------------------------ */
+.lc-caret {
+  transition: transform var(--lc-motion-enter) var(--lc-ease-emphasized);
+}
+.lc-caret.open,
+[aria-expanded="true"] > .lc-caret {
+  transform: rotate(90deg);
+}
+
+/* ---- height reserve: one section at a time (P3 message bars via reveal(), P14 collapsible()) ---------------------- */
+/* grid-template-columns: minmax(0, 1fr) + min-width: 0 — a grid item's min-width is its content's min size, so wide
+   content (code, long lists) would otherwise widen the whole pane instead of scrolling inside it. */
+.lc-reveal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+}
+.lc-reveal > .lc-reveal-inner {
+  min-width: 0;
+  min-height: 0;
+}
+.lc-reveal.lc-animating > .lc-reveal-inner {
+  overflow: hidden;
+}
+.lc-reveal.lc-entering {
+  animation: lc-reveal-rows var(--lc-motion-base) var(--lc-ease-emphasized) both;
+}
+.lc-reveal.lc-entering > .lc-reveal-inner > * {
+  animation: lc-reveal-content var(--lc-motion-base) var(--lc-ease-decelerate) both;
+}
+@keyframes lc-reveal-rows {
+  from {
+    grid-template-rows: 0fr;
+  }
+}
+@keyframes lc-reveal-content {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--lc-motion-rise) * -1.5));
+  }
+}
+
+.lc-collapsible {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--lc-motion-base) var(--lc-ease-emphasized);
+}
+.lc-collapsible.open {
+  grid-template-rows: 1fr;
+}
+.lc-collapsible > .lc-collapsible-inner {
+  min-width: 0;
+  min-height: 0;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--lc-motion-fast) var(--lc-ease-standard),
+    visibility 0s linear var(--lc-motion-base);
+}
+.lc-collapsible:not(.open) > .lc-collapsible-inner,
+.lc-collapsible.lc-animating > .lc-collapsible-inner {
+  overflow: hidden;
+}
+.lc-collapsible.open > .lc-collapsible-inner {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity var(--lc-motion-fast) var(--lc-ease-standard) 40ms,
+    visibility 0s;
+}
+.lc-collapsible.lc-instant,
+.lc-collapsible.lc-instant > .lc-collapsible-inner {
+  transition: none;
+}
+
+/* ---- skeleton + delayed loading (P16) ------------------------------------------------------------------------------ */
+/* nothing for 300 ms, then blocks with a slow shimmer; content replacing it fades in (.lc-enter-fade) */
+.lc-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: lc-enter-fade var(--lc-motion-fast) var(--lc-ease-standard) 300ms both;
+}
+.lc-delayed {
+  animation: lc-enter-fade var(--lc-motion-fast) var(--lc-ease-standard) var(--lc-delay, 300ms) both;
+}
+.lc-skeleton-line {
+  position: relative;
+  display: block;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--lc-bg-subtle);
+}
+.lc-skeleton-line.lg {
+  height: 20px;
+}
+.lc-skeleton-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--lc-fg) 7%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: lc-shimmer var(--lc-motion-shimmer) linear infinite;
+}
+@keyframes lc-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---- busy gate: decorative motion off during big runs ---------------------------------------------------------- */
+:root.lc-busy .lc-row-enter,
+:root.lc-busy .lc-enter-x,
+:root.lc-busy .lc-sheen::after,
+:root.lc-busy .lc-skeleton-line::after,
+:root.lc-busy .lc-decor {
+  animation: none !important;
+}
+
+/* ---- reduced: loops and transform transitions -------------------------------------------------------------------- */
+:root[data-motion="reduced"] :is(.spinner, .spin svg) {
+  animation-duration: var(--lc-motion-spin-reduced);
+}
+:root[data-motion="reduced"] :is(.queued-dot, .lc-pulse, .lc-decor),
+:root[data-motion="reduced"] :is(.lc-skeleton-line, .lc-sheen)::after {
+  animation: none !important;
+}
+:root[data-motion="reduced"] :is(.meter-fill, .lc-progress-fill, .switch-thumb, .lc-caret, .lc-collapsible, .lc-collapsible-inner) {
+  transition-duration: 0s !important;
+}
+:root[data-motion="reduced"] .lc-reveal.lc-entering {
+  animation: none;
+}
+:root[data-motion="reduced"] .st-anim {
+  animation-name: lc-enter-fade;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) :is(.spinner, .spin svg) {
+    animation-duration: var(--lc-motion-spin-reduced);
+  }
+  :root:not([data-motion]) :is(.queued-dot, .lc-pulse, .lc-decor),
+  :root:not([data-motion]) :is(.lc-skeleton-line, .lc-sheen)::after {
+    animation: none !important;
+  }
+  :root:not([data-motion]) :is(.meter-fill, .lc-progress-fill, .switch-thumb, .lc-caret, .lc-collapsible, .lc-collapsible-inner) {
+    transition-duration: 0s !important;
+  }
+  :root:not([data-motion]) .lc-reveal.lc-entering {
+    animation: none;
+  }
+  :root:not([data-motion]) .st-anim {
+    animation-name: lc-enter-fade;
+  }
+}
+
+/* ---- off: nothing moves (spinners keep turning, slowly: they are state) ------------------------------------------- */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after,
+:root[data-motion="off"] ::backdrop {
+  transition: none !important;
+  animation: none !important;
+}
+:root[data-motion="off"] :is(.spinner, .spin svg) {
+  animation: spin var(--lc-motion-spin-reduced) linear infinite !important;
+}
