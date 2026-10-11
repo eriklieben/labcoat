@@ -21,7 +21,10 @@ public sealed class OrderServiceTests
     public async Task PlaceOrder_SendsConfirmationEmail()
     {
         await Task.Delay(900, TestContext.CancellationToken);
+        // A deliberate failure: the sample shows Labcoat's expected/actual view, which Assert.Fail would lose.
+#pragma warning disable MSTEST0025
         Assert.AreEqual("sent", "queued", "Confirmation email was not dispatched");
+#pragma warning restore MSTEST0025
     }
 
     [TestMethod]

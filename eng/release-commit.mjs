@@ -2,7 +2,7 @@
 // GitHub API instead of `git commit` + `git push`. Used instead of @semantic-release/git when the release job has a
 // token of the "labcoat-release" GitHub App (LABCOAT_RELEASE_COMMIT=api, see release.yml): GitHub signs commits that
 // the GraphQL mutation createCommitOnBranch makes with an App installation token, so the release commit shows
-// "Verified", authored by labcoat-release[bot]. Setup: docs/releasing.md, "Verified release commits (GitHub App)".
+// "Verified", authored by labcoat-release[bot]. Overview: docs/releasing.md, "How a release works".
 //
 // prepare (after @semantic-release/changelog and `eng/release.mjs prepare` wrote CHANGELOG.md and
 // src/Directory.Build.props):

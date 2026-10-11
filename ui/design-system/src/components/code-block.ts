@@ -21,44 +21,62 @@ export const escapeHtml = (s: string) => s.replaceAll("&", "&amp;").replaceAll("
 
 /** Split highlighted HTML into one well-formed HTML string per line (closing and reopening spans at newlines). */
 export function splitHtmlLines(html: string): string[] {
-  const lines: string[] = [];
-  const open: string[] = []; // open tags, e.g. '<span class="hljs-string">'
-  let cur = "";
   // A linear scan (no regex backtracking): tags <x…> / </x…>, newlines and text runs. A "<" that doesn't start a
   // complete tag is dropped, as before; highlighter output escapes literal "<" as &lt;.
-  let gt = -1; // the next ">" at or after i (looked up again only once i has passed it, so the scan stays linear)
+  const s: SplitState = { html, lines: [], open: [], cur: "", gt: -1 };
   for (let i = 0; i < html.length; ) {
     const c = html[i];
-    if (c === "\n") {
-      lines.push(cur + "</span>".repeat(open.length));
-      cur = open.join("");
-      i++;
-    } else if (c === "<") {
-      if (gt < i) gt = html.indexOf(">", i);
-      if (gt < 0 || !isTagStart(html, i)) {
-        i++;
-        continue;
-      }
-      const tag = html.slice(i, gt + 1);
-      if (tag.startsWith("</")) open.pop();
-      else if (!tag.endsWith("/>")) open.push(tag);
-      cur += tag;
-      i = gt + 1;
-    } else {
-      let end = i;
-      while (end < html.length && html[end] !== "<" && html[end] !== "\n") end++;
-      cur += html.slice(i, end);
-      i = end;
-    }
+    if (c === "\n") i = splitNewline(s, i);
+    else if (c === "<") i = splitTag(s, i);
+    else i = splitText(s, i);
   }
-  lines.push(cur);
-  return lines;
+  s.lines.push(s.cur);
+  return s.lines;
+}
+
+interface SplitState {
+  readonly html: string;
+  readonly lines: string[];
+  /** open tags, e.g. '<span class="hljs-string">' */
+  readonly open: string[];
+  /** the line so far */
+  cur: string;
+  /** the next ">" at or after the scan position (looked up again only once the scan has passed it: linear) */
+  gt: number;
+}
+
+/** A newline at `i`: close the open spans, start the next line by reopening them. Returns the next position. */
+function splitNewline(s: SplitState, i: number): number {
+  s.lines.push(s.cur + "</span>".repeat(s.open.length));
+  s.cur = s.open.join("");
+  return i + 1;
+}
+
+/** A "<" at `i`: a complete tag is copied (and tracked as opened / closed), anything else is dropped. */
+function splitTag(s: SplitState, i: number): number {
+  const { html } = s;
+  if (s.gt < i) s.gt = html.indexOf(">", i);
+  if (s.gt < 0 || !isTagStart(html, i)) return i + 1;
+  const tag = html.slice(i, s.gt + 1);
+  if (tag.startsWith("</")) s.open.pop();
+  else if (!tag.endsWith("/>")) s.open.push(tag);
+  s.cur += tag;
+  return s.gt + 1;
+}
+
+/** A text run from `i` up to the next "<" or newline. */
+function splitText(s: SplitState, i: number): number {
+  const { html } = s;
+  let end = i;
+  while (end < html.length && html[end] !== "<" && html[end] !== "\n") end++;
+  s.cur += html.slice(i, end);
+  return end;
 }
 
 /** `<` + optional `/` + an ASCII letter at position `i`. */
 const isTagStart = (html: string, i: number): boolean => {
   const at = html[i + 1] === "/" ? i + 2 : i + 1;
-  const ch = html.charCodeAt(at);
+  const ch = html.codePointAt(at) ?? 0; // past the end: not a letter
   return (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122);
 };
 

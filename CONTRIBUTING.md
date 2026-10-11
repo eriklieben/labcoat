@@ -454,8 +454,7 @@ GITHUB_TOKEN=$(gh auth token) npx semantic-release --dry-run --no-ci
 To check the packing step without releasing: `node eng/release.mjs prepare 0.0.0-local.1` (packs into `artifacts/`;
 it also sets `<VersionPrefix>`, so revert `src/Directory.Build.props` afterwards).
 
-Secrets, NuGet trusted publishing, branch protection, the first release and how to go 1.0:
-[docs/releasing.md](docs/releasing.md).
+More on releases (what a release contains, verifying packages, prereleases): [docs/releasing.md](docs/releasing.md).
 
 ### Dependency updates
 
@@ -473,5 +472,4 @@ Vulnerable dependencies get a separate PR right away, titled `... [security]` (l
 alerts are the signal, Renovate opens the fix (Dependabot itself opens no PRs). PRs labeled `needs-review`
 (`alien-signals`, the test platform minimum versions) need a closer look; nothing is merged automatically. Review a
 Renovate PR like any other: CI must pass, and check the title before squash merging. The Dependency Dashboard issue
-lists everything pending. Setup (the Renovate GitHub App, the code security settings):
-[docs/releasing.md](docs/releasing.md#dependency-updates-renovate-and-dependabot-alerts-only).
+lists everything pending.

@@ -84,7 +84,7 @@ public static class CliRun
         foreach (var note in notes) Console.WriteLine(Cli.Dim("  " + note));
         if (app.Projects.Count == 0)
         {
-            Console.Error.WriteLine($"{ErrorLabel} No test projects found (see --help).");
+            await Console.Error.WriteLineAsync($"{ErrorLabel} No test projects found (see --help).");
             return ExitBuildError;
         }
         var explorer = LabcoatApp.CreateExplorer(app, new EventHub());
@@ -109,7 +109,7 @@ public static class CliRun
             Console.WriteLine($"  --filter {string.Join(",", options.Filters)}: {ids.Count} test{(ids.Count == 1 ? "" : "s")}");
             if (ids.Count == 0)
             {
-                Console.Error.WriteLine($"{ErrorLabel} No test matches --filter.");
+                await Console.Error.WriteLineAsync($"{ErrorLabel} No test matches --filter.");
                 return broken.Count > 0 ? ExitBuildError : ExitFailed;
             }
         }
@@ -117,7 +117,7 @@ public static class CliRun
         var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
         if (request.Status != 202)
         {
-            Console.Error.WriteLine($"{ErrorLabel} Nothing to run: {request.Error}");
+            await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
             WriteExports(explorer, options, null);
             return ExitBuildError;
         }

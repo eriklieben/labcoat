@@ -34,23 +34,27 @@ internal static partial class ExportText
         if (string.IsNullOrEmpty(s)) return "";
         s = StripAnsi(s);
         StringBuilder? sb = null;
-        for (var i = 0; i < s.Length; i++)
+        var i = 0;
+        while (i < s.Length)
         {
             var c = s[i];
             if (char.IsHighSurrogate(c) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1]))
             {
                 sb?.Append(c).Append(s[i + 1]);
-                i++;
+                i += 2; // the pair as a whole
                 continue;
             }
             var ok = !char.IsSurrogate(c) && (c >= ' ' ? c is not ('\uFFFE' or '\uFFFF') : c is '\t' or '\n' or '\r');
             if (ok)
             {
                 sb?.Append(c);
-                continue;
             }
-            sb ??= new StringBuilder(s.Length).Append(s, 0, i);
-            sb.Append(Replacement);
+            else
+            {
+                sb ??= new StringBuilder(s.Length).Append(s, 0, i);
+                sb.Append(Replacement);
+            }
+            i++;
         }
         return sb?.ToString() ?? s;
     }

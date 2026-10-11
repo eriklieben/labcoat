@@ -512,12 +512,22 @@ export class Store {
   static readonly historyChunk = 2500;
 
   /** Merge fetched history into `keys`' tests, in steps of `historyChunk` with a macrotask in between (no long task). */
-  private async mergeHistory(keys: string[]) {
+  private mergeHistory(keys: string[]): Promise<void> {
     const n = Store.historyChunk;
-    for (let i = 0; i < keys.length; i += n) {
-      if (i > 0) await new Promise<void>((r) => setTimeout(r, 0));
-      this.patchTests(keys.slice(i, i + n), true);
-    }
+    return new Promise<void>((resolve, reject) => {
+      // one step per macrotask, the first one right away: a chain of timeouts (the steps are sequential by design)
+      const step = (i: number) => {
+        try {
+          if (i >= keys.length) return resolve();
+          this.patchTests(keys.slice(i, i + n), true);
+          if (i + n < keys.length) setTimeout(() => step(i + n), 0);
+          else resolve();
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      };
+      step(0);
+    });
   }
 
   /**

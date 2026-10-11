@@ -577,9 +577,9 @@ public static class LabcoatResourceBuilderExtensions
             }
 
             var accepted = await PostAsync(resource, "/api/run", body, ct);
-            var runId = accepted?["runId"]?.GetValue<string>();
-            if (runId is null) return CommandResults.Success("Test run requested; open Labcoat for details.");
-            var merged = accepted?["merged"]?.GetValue<bool>() == true;
+            if (accepted?["runId"]?.GetValue<string>() is not { } runId)
+                return CommandResults.Success("Test run requested; open Labcoat for details.");
+            var merged = accepted["merged"]?.GetValue<bool>() == true;
             return await WaitForRunAsync(resource, runId, merged, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -606,22 +606,23 @@ public static class LabcoatResourceBuilderExtensions
     /// <summary>The command result for a finished run's status; null while it isn't finished (or was superseded).</summary>
     private static ExecuteCommandResult? RunResult(JsonNode? status, bool merged)
     {
-        var run = status?["run"];
+        if (status is null) return null;
+        var run = status["run"];
         int N(string key) => run?[key]?.GetValue<int>() ?? 0;
         var total = N(TotalKey);
         var counts = $"{total} test{(total == 1 ? "" : "s")}: {N(PassedKey)} passed, {N(FailedKey)} failed, {N(SkippedKey)} skipped" +
                      (N("notRun") > 0 ? $", {N("notRun")} not run" : "") + ".";
-        switch (status?["state"]?.GetValue<string>())
+        switch (status["state"]?.GetValue<string>())
         {
             case "finished":
                 if (N(FailedKey) > 0) return CommandResults.Failure(counts);
                 return CommandResults.Success(counts + (merged ? " (merged with a queued run)" : ""));
             case "aborted":
-                return CommandResults.Failure($"Run aborted: {status?["reason"]?.GetValue<string>()} {counts}");
+                return CommandResults.Failure($"Run aborted: {status["reason"]?.GetValue<string>()} {counts}");
             case "cancelled":
                 return CommandResults.Failure("The run was cancelled." + (run is null ? "" : " " + counts));
             case "skipped":
-                return CommandResults.Failure("Nothing ran: " + (status?["reason"]?.GetValue<string>() ?? "see Labcoat for details."));
+                return CommandResults.Failure("Nothing ran: " + (status["reason"]?.GetValue<string>() ?? "see Labcoat for details."));
             default:
                 return null;
         }

@@ -8,6 +8,12 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=eriklieben_labcoat&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=eriklieben_labcoat)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=eriklieben_labcoat&metric=coverage)](https://sonarcloud.io/summary/new_code?id=eriklieben_labcoat)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=eriklieben_labcoat&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=eriklieben_labcoat)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=eriklieben_labcoat&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=eriklieben_labcoat)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=eriklieben_labcoat&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=eriklieben_labcoat)
+
 **A web UI for Microsoft.Testing.Platform.** Labcoat finds the test projects in your repository, builds them, and lets
 you browse, run and debug their tests in the browser. Run it on its own as a .NET tool, or inside the
 [Aspire](https://aspire.dev) dashboard next to the app you are testing.

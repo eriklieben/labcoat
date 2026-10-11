@@ -5,7 +5,7 @@ run-name: Release${{ inputs.dry_run && ' (dry run)' || '' }}${{ inputs.commit !=
 # CONTRIBUTING.md), then updates CHANGELOG.md, <VersionPrefix> and the package validation baseline, packs and pushes the
 # eight NuGet packages (each with its SBOM), tags v<version> and creates the GitHub release; then attests the build
 # provenance of the released packages and their SBOMs, and each package's SBOM (job sbom-attestation). Configuration:
-# release.config.mjs. Setup and recovery: docs/releasing.md.
+# release.config.mjs. Overview: docs/releasing.md.
 #
 # Runs only as a top-level workflow_dispatch run, never as a reusable workflow:
 # - started by ci.yml (job `release`, `gh workflow run`) after every CI job passed on a push to main, next or beta, with
@@ -25,7 +25,6 @@ run-name: Release${{ inputs.dry_run && ' (dry run)' || '' }}${{ inputs.commit !=
 #   and that policy on nuget.org: repository owner eriklieben, repository labcoat, workflow file `release.yml`,
 #   environment `release`. NuGet/login exchanges the job's OIDC token for an API key valid for one hour. A wrong user
 #   fails with "Token exchange failed (401): No matching trust policy owned by user '<NUGET_USER>' was found."
-#   (docs/releasing.md, "Troubleshooting trusted publishing").
 # - repository or environment secret NUGET_API_KEY: a nuget.org API key that can push the Labcoat* packages.
 #
 # Actions are pinned to a commit SHA (the version in the comment); Renovate updates both (.github/renovate.json5).
@@ -150,12 +149,12 @@ jobs:
           HAS_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY != '' }}
         run: |
           if [ "$HAS_KEY" != "true" ]; then
-            echo "::error::Variable RELEASE_APP_ID is set but the secret RELEASE_APP_PRIVATE_KEY is missing from the release environment. Add it (docs/releasing.md, \"Verified release commits (GitHub App)\") or delete the variable to release with GITHUB_TOKEN (unverified release commit)."
+            echo "::error::Variable RELEASE_APP_ID is set but the secret RELEASE_APP_PRIVATE_KEY is missing from the release environment. Add it or delete the variable to release with GITHUB_TOKEN (unverified release commit)."
             exit 1
           fi
 
       - name: GitHub App token
-        # Optional (docs/releasing.md, "Verified release commits (GitHub App)"): with repository variable RELEASE_APP_ID
+        # Optional: with repository variable RELEASE_APP_ID
         # and environment secret RELEASE_APP_PRIVATE_KEY of the "labcoat-release" GitHub App, the release commit is made
         # through the GitHub API with this token (eng/release-commit.mjs): GitHub signs it ("Verified", author
         # labcoat-release[bot]), and the App is the bypass actor of the branch ruleset on main. The token is limited to
@@ -192,7 +191,7 @@ jobs:
           unset token
           while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
           printf '%s' "$payload" | base64 -d | jq '{repository, repository_owner, workflow_ref, job_workflow_ref, environment, ref, event_name}'
-          echo "::error::NuGet trusted publishing login failed: compare these claims and the user with the policy on nuget.org (docs/releasing.md, \"Troubleshooting trusted publishing\")."
+          echo "::error::NuGet trusted publishing login failed: compare these claims and the user with the policy on nuget.org (the top of release.yml)."
 
       - name: semantic-release
         env:
@@ -257,7 +256,7 @@ jobs:
           fi
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        # The released packages, also when the NuGet push failed: they can be pushed by hand (docs/releasing.md). With
+        # The released packages, also when the NuGet push failed: they can be pushed by hand (dotnet nuget push). With
         # their SBOMs, for the sbom-attestation job.
         if: ${{ !cancelled() && !inputs.dry_run }}
         with:

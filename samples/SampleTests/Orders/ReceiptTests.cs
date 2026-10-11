@@ -38,6 +38,9 @@ public sealed class ReceiptTests
         Assert.AreEqual(new Snapshot(expected), new Snapshot(actual));
     }
 
+    // A deliberate failure: the sample shows Labcoat's character diff (Coffee / Café), which Assert.Fail would lose.
+#pragma warning disable MSTEST0025
     [TestMethod]
     public void Header_MatchesTemplate() => Assert.AreEqual("Order #42 for Contoso Coffee (paid by card)", "Order #42 for Contoso Café (paid by card)");
+#pragma warning restore MSTEST0025
 }

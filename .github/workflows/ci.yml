@@ -28,7 +28,7 @@ env:
 # Runners: ubuntu-24.04 instead of ubuntu-latest in every workflow, because ubuntu-latest moves to Ubuntu 26.04 on
 # 2026-10-19 (a new image under the same label: other preinstalled tools, Playwright system dependencies, etc.).
 # Renovate leaves runner labels alone (.github/renovate.json5); move to the next LTS image by hand, in one PR for all
-# workflows (docs/releasing.md, "Runner images"). windows-latest and macos-latest stay: the matrix is there to catch
+# workflows. windows-latest and macos-latest stay: the matrix is there to catch
 # platform differences early.
 # Actions are pinned to a full commit SHA with the version in a comment; Renovate updates both.
 
@@ -50,10 +50,12 @@ jobs:
           cache-dependency-path: ui/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # No install scripts: none of the dependencies needs one on Linux (fsevents, the only package with one, is
+        # macOS-only); the Playwright browser is installed by its own step.
+        run: npm ci --ignore-scripts
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx --no -- playwright install --with-deps chromium # the locked playwright of npm ci, never a download
 
       - name: Docs links
         working-directory: .
@@ -217,8 +219,8 @@ jobs:
   # ------------------------------------------------------------------------------------------------ code analysis
   sonar:
     name: SonarQube Cloud
-    # Off until the repository variable SONAR_ORGANIZATION is set (and the secret SONAR_TOKEN): docs/releasing.md, "Code
-    # analysis (Snyk / SonarQube Cloud)". Runs for pushes to main and for pull requests from branches of this repository;
+    # Off unless the repository variable SONAR_ORGANIZATION is set (and the secret SONAR_TOKEN); docs/releasing.md, "Code
+    # analysis". Runs for pushes to main and for pull requests from branches of this repository;
     # fork pull requests get no secrets, so it's skipped for them (CodeQL and the other jobs still run).
     # Reuses the coverage of the ui job (lcov) and the ubuntu build leg (Cobertura): no second test run. The build here
     # is the one the scanner observes (begin / build / end), without -warnaserror: Sonar's analyzer reports issues as
@@ -277,7 +279,7 @@ jobs:
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'eriklieben_labcoat' }}
         run: |
           if [ -z "$SONAR_TOKEN" ]; then
-            echo "::error::SONAR_ORGANIZATION is set but the secret SONAR_TOKEN is missing (docs/releasing.md, \"Code analysis (Snyk / SonarQube Cloud)\")."
+            echo "::error::SONAR_ORGANIZATION is set but the secret SONAR_TOKEN is missing."
             exit 1
           fi
           args=(

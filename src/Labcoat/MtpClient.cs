@@ -157,16 +157,15 @@ public sealed class MtpHost : IAsyncDisposable
         using var opCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var op = new PendingOperation(operation, ct);
         var connectWait = connectTimeout ?? TimeSpan.FromSeconds(60);
-        var connectTimeoutCts = new CancellationTokenSource(connectWait);
+        // Stopped (not disposed) by the accept loop at the first connection; disposed when the operation is over.
+        using var connectTimeoutCts = new CancellationTokenSource(connectWait);
         // The loop ends through opCts.Token (passed to it); it is awaited in the finally below.
         var acceptLoop = Task.Run(() => AcceptLoopAsync(op, connectTimeoutCts, opCts.Token), CancellationToken.None);
 
         try
         {
             var exited = _process.WaitForExitAsync(opCts.Token);
-            Task timeout;
-            try { timeout = Task.Delay(Timeout.Infinite, connectTimeoutCts.Token); }
-            catch (ObjectDisposedException) { timeout = Task.Delay(Timeout.Infinite, opCts.Token); }
+            var timeout = Task.Delay(Timeout.Infinite, connectTimeoutCts.Token);
 
             var first = await Task.WhenAny(op.Done.Task, exited, timeout);
             if (first == op.Done.Task) return await op.Done.Task;
@@ -213,7 +212,7 @@ public sealed class MtpHost : IAsyncDisposable
             while (!token.IsCancellationRequested)
             {
                 var tcp = await _listener.AcceptTcpClientAsync(token);
-                connectTimeoutCts.Dispose();
+                connectTimeoutCts.CancelAfter(Timeout.Infinite); // connected: stop the connect timeout (a no-op after the first)
                 tcp.NoDelay = true;
                 var conn = new MtpConnection(tcp, _onNotification, _log, () => TryKill(_process));
                 lock (_connections) _connections.Add(conn);

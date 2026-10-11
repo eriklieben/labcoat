@@ -144,7 +144,7 @@ function exitDialog(d: HTMLDialogElement, done: () => void) {
   d.inert = true;
   const anims = d.getAnimations({ subtree: true });
   if (!anims.length) return done();
-  Promise.allSettled(anims.map((a) => a.finished)).then(done);
+  void Promise.allSettled(anims.map((a) => a.finished)).then(done); // allSettled never rejects
   window.setTimeout(done, 300);
 }
 

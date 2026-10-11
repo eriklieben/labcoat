@@ -45,7 +45,7 @@ public sealed partial class Explorer
         }
         if (p.PlatformBlocks)
         {
-            MarkNotMtp(p, p.Platform!, p.PlatformRestored);
+            MarkNotMtp(p, p.Platform, p.PlatformRestored);
             return false;
         }
         ClearNotMtp(p);

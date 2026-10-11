@@ -229,9 +229,11 @@ public sealed class UiLayer(ConfigLayer layer, string origin)
                 lockedBy[key] = UiSettings.LayerName(locker.Layer);
             }
         }
-        if (locked.Count > 0) result[LockedKey] = locked;
+        // locked and lockedBy are filled together (a locked key always has the layer that locked it)
+        var anyLocked = locked.Count > 0;
+        if (anyLocked) result[LockedKey] = locked;
         if (sources.Count > 0) result["sources"] = sources;
-        if (lockedBy.Count > 0) result["lockedBy"] = lockedBy;
+        if (anyLocked) result["lockedBy"] = lockedBy;
         var files = new JsonObject();
         if (userFile is not null) files["user"] = userFile;
         if (workspaceFile is not null) files["workspace"] = workspaceFile;

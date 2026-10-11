@@ -68,7 +68,7 @@ function apply(pref: ThemePref, family: ThemeFamily) {
     root.classList.add("theme-vt");
     const t = doc.startViewTransition(() => applyNow(mode, family));
     running = t;
-    t.finished.finally(() => {
+    void t.finished.finally(() => {
       if (running !== t) return;
       running = undefined;
       root.classList.remove("theme-vt");

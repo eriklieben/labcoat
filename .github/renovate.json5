@@ -1,5 +1,5 @@
 // Renovate (https://docs.renovatebot.com): dependency update PRs. Needs the Mend Renovate GitHub App installed on the
-// repository (docs/releasing.md, "Dependency updates: Renovate, and Dependabot alerts only"). Validate after a change:
+// repository (docs/releasing.md, "Dependency updates"). Validate after a change:
 //
 //   npx --yes --package renovate@44.115.1 -- renovate-config-validator --strict
 //
@@ -120,7 +120,7 @@
       semanticCommitType: "ci",
     },
     {
-      description: "Runner images (runs-on: ubuntu-24.04) are pinned on purpose and moved to the next LTS by hand, in all workflows at once (docs/releasing.md, \"Runner images\").",
+      description: "Runner images (runs-on: ubuntu-24.04) are pinned on purpose and moved to the next LTS by hand, in all workflows at once (see the comment at the top of .github/workflows/ci.yml).",
       matchManagers: ["github-actions"],
       matchDatasources: ["github-runners"],
       enabled: false,

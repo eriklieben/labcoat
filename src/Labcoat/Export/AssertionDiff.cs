@@ -67,11 +67,7 @@ internal static class AssertionDiff
         var a = expected.Replace("\r\n", "\n").Split('\n');
         var b = actual.Replace("\r\n", "\n").Split('\n');
         if (a.Length > MaxLines || b.Length > MaxLines) return null;
-        // lcs[i, j] = length of the LCS of a[i..] and b[j..]
-        var lcs = new int[a.Length + 1, b.Length + 1];
-        for (var i = a.Length - 1; i >= 0; i--)
-            for (var j = b.Length - 1; j >= 0; j--)
-                lcs[i, j] = a[i] == b[j] ? lcs[i + 1, j + 1] + 1 : Math.Max(lcs[i + 1, j], lcs[i, j + 1]);
+        var lcs = LcsTable(a, b);
         var result = new List<DiffLine>(a.Length + b.Length);
         int x = 0, y = 0;
         while (x < a.Length && y < b.Length)
@@ -87,5 +83,15 @@ internal static class AssertionDiff
         while (x < a.Length) result.Add(new DiffLine('-', a[x++]));
         while (y < b.Length) result.Add(new DiffLine('+', b[y++]));
         return result;
+    }
+
+    /// <summary>lcs[i, j] = length of the longest common subsequence of a[i..] and b[j..].</summary>
+    private static int[,] LcsTable(string[] a, string[] b)
+    {
+        var lcs = new int[a.Length + 1, b.Length + 1];
+        for (var i = a.Length - 1; i >= 0; i--)
+            for (var j = b.Length - 1; j >= 0; j--)
+                lcs[i, j] = a[i] == b[j] ? lcs[i + 1, j + 1] + 1 : Math.Max(lcs[i + 1, j], lcs[i, j + 1]);
+        return lcs;
     }
 }
