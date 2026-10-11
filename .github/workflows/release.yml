@@ -80,13 +80,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # A CI run counts when every job except its own Release job passed. That Release job (the one that started
-          # this run) is still running, or it failed (a manual retry), so it is left out; a run with other jobs still
-          # pending doesn't count. Completed and in-progress runs are both listed.
+          # A CI run counts when the jobs the release depends on (ci.yml's release job: needs ui, build, smoke) all
+          # passed. Its own Release job (the one that started this run) and the SonarQube Cloud job, which runs in
+          # parallel and has its own quality gate, are left out. Completed and in-progress runs are both listed.
           ok=0
           for id in $(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}" --jq '.workflow_runs[].id'); do
             bad=$(gh api "repos/${{ github.repository }}/actions/runs/$id/jobs?per_page=100" \
-              --jq '[.jobs[] | select((.name | startswith("Release")) | not) | select(.conclusion != "success" and .conclusion != "skipped")] | length')
+              --jq '[.jobs[] | select(.name | test("^(UI |Build and test|Smoke test)")) | select(.conclusion != "success" and .conclusion != "skipped")] | length')
             if [ "$bad" = "0" ]; then ok=1; break; fi
           done
           if [ "$ok" = "0" ]; then

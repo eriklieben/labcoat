@@ -212,8 +212,7 @@ public sealed class UiLayer(ConfigLayer layer, string origin)
         if (list.All(l => l.IsEmpty)) return null;
         var result = new JsonObject();
         var sources = new JsonObject();
-        var lockedBy = new JsonObject();
-        var locked = new JsonArray();
+        var locks = new List<(string Key, string Layer)>(); // each locked key with the layer that locked it
         foreach (var key in UiSettings.All.Select(def => def.Key))
         {
             var setter = list.LastOrDefault(l => l.Values.ContainsKey(key));
@@ -223,17 +222,12 @@ public sealed class UiLayer(ConfigLayer layer, string origin)
                 sources[key] = UiSettings.LayerName(setter.Layer);
             }
             var locker = list.LastOrDefault(l => l.Locked.Contains(key));
-            if (locker is not null)
-            {
-                locked.Add(key);
-                lockedBy[key] = UiSettings.LayerName(locker.Layer);
-            }
+            if (locker is not null) locks.Add((key, UiSettings.LayerName(locker.Layer)));
         }
-        // locked and lockedBy are filled together (a locked key always has the layer that locked it)
-        var anyLocked = locked.Count > 0;
-        if (anyLocked) result[LockedKey] = locked;
+        // same key order as always: locked, sources, lockedBy
+        if (locks.Count > 0) result[LockedKey] = new JsonArray([.. locks.Select(l => (JsonNode)l.Key)]);
         if (sources.Count > 0) result["sources"] = sources;
-        if (anyLocked) result["lockedBy"] = lockedBy;
+        if (locks.Count > 0) result["lockedBy"] = new JsonObject(locks.Select(l => KeyValuePair.Create(l.Key, (JsonNode?)l.Layer)));
         var files = new JsonObject();
         if (userFile is not null) files["user"] = userFile;
         if (workspaceFile is not null) files["workspace"] = workspaceFile;

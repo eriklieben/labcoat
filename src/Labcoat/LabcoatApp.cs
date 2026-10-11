@@ -284,8 +284,7 @@ public static partial class LabcoatApp
             Include = options.CoverageInclude, Exclude = options.CoverageExclude,
         });
 
-        var aspireDashboardUrl = Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_URL");
-        if (string.IsNullOrWhiteSpace(aspireDashboardUrl)) aspireDashboardUrl = null;
+        var aspireDashboardUrl = AspireDashboardUrl();
 
         // Host log level and file (LabcoatApp.Diagnostics.cs); --diagnostics prints the report instead of starting.
         var logLevel = ResolveLogLevel(options, config);
@@ -327,12 +326,7 @@ public static partial class LabcoatApp
         if (listen is null) return Fail(portError!, usageHint: false);
         var url = listen.Url;
 
-        // DNS rebinding / cross-site protection (Security.cs, SECURITY.md): the Host names this server answers to.
-        var bindHosts = RequestGuard.HostsOfUrls(url ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")).ToList();
-        var guard = RequestGuard.FromEnvironment(bindHosts);
-        if (guard.AllowsAnyHost) Cli.Warn("LABCOAT_ALLOWED_HOSTS contains '*': the Host header is not checked (DNS rebinding protection is off).");
-
-        var app = Build(AppOptions(url, guard, FindWebRoot()));
+        var app = Build(AppOptions(url, CreateGuard(url), FindWebRoot()));
         var explorer = app.Services.GetRequiredService<Explorer>();
         if (await StartOrFailAsync(app, explorer, listen.Port, ct) is { } exitCode) return exitCode;
 
@@ -344,13 +338,32 @@ public static partial class LabcoatApp
         if (options.Open && aspireDashboardUrl is null) Cli.OpenBrowser(address);
         Console.WriteLine();
         explorer.ReleaseConsole(); // startup log lines (e.g. "Loaded test history…") below the banner, not above it
+        StartExplorer(explorer, watch, coverage);
+
+        await app.WaitForShutdownAsync(ct);
+        return 0;
+    }
+
+    /// <summary>The Aspire dashboard's URL when Labcoat runs as an Aspire resource (Labcoat.Aspire.Hosting sets it).</summary>
+    private static string? AspireDashboardUrl() =>
+        Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_URL") is { } url && !string.IsNullOrWhiteSpace(url) ? url : null;
+
+    /// <summary>DNS rebinding / cross-site protection (Security.cs, SECURITY.md): the Host names this server answers to.</summary>
+    private static RequestGuard CreateGuard(string? url)
+    {
+        var bindHosts = RequestGuard.HostsOfUrls(url ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")).ToList();
+        var guard = RequestGuard.FromEnvironment(bindHosts);
+        if (guard.AllowsAnyHost) Cli.Warn("LABCOAT_ALLOWED_HOSTS contains '*': the Host header is not checked (DNS rebinding protection is off).");
+        return guard;
+    }
+
+    /// <summary>Turns on the startup modes, then discovers the tests and watches for new / removed test projects.</summary>
+    private static void StartExplorer(Explorer explorer, bool watch, bool coverage)
+    {
         if (watch) explorer.SetWatch(true);
         if (coverage) explorer.SetCoverage(true);
         _ = explorer.DiscoverAsync(null);
         explorer.StartProjectWatcher(); // new / removed test projects (Explorer.Projects.cs)
-
-        await app.WaitForShutdownAsync(ct);
-        return 0;
     }
 
     /// <summary>A listen address as a URL to open: wildcard hosts become localhost.</summary>
