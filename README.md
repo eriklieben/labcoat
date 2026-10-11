@@ -3,8 +3,8 @@
 # Labcoat
 
 [![CI](https://github.com/eriklieben/labcoat/actions/workflows/ci.yml/badge.svg)](https://github.com/eriklieben/labcoat/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/Labcoat?label=Labcoat)](https://www.nuget.org/packages/Labcoat)
-[![NuGet](https://img.shields.io/nuget/v/Labcoat.Aspire.Hosting?label=Labcoat.Aspire.Hosting)](https://www.nuget.org/packages/Labcoat.Aspire.Hosting)
+[![NuGet](https://badgen.net/nuget/v/Labcoat?label=Labcoat)](https://www.nuget.org/packages/Labcoat)
+[![NuGet](https://badgen.net/nuget/v/Labcoat.Aspire.Hosting?label=Labcoat.Aspire.Hosting)](https://www.nuget.org/packages/Labcoat.Aspire.Hosting)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
 
