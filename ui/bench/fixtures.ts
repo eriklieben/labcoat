@@ -186,6 +186,6 @@ export function consoleLines(n: number, colored = 0.5, seed = 11): string[] {
   return textLines(n, seed).map((l, i) => {
     if (r() >= colored) return l;
     const c = SGR[i % SGR.length];
-    return `${c}info\u001b[0m: Contoso.Billing[0]\n      ${l} ${c}ok\u001b[39m\u001b[22m`.replace("\n", " ");
+    return `${c}info\u001b[0m: Contoso.Billing[0]\n      ${l} ${c}ok\u001b[39m\u001b[22m`.replaceAll("\n", " ");
   });
 }

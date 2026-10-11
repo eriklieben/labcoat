@@ -19,8 +19,14 @@ function* markdownFiles(dir) {
   }
 }
 
+/** Removes HTML tags, repeatedly, so a tag rebuilt from the pieces of another ("<<b>a>") goes too. */
+const stripTags = (s) => {
+  for (let prev; prev !== s; ) [prev, s] = [s, s.replace(/<[^<>]*>/g, "")];
+  return s;
+};
+
 const slug = (heading) =>
-  heading.trim().toLowerCase().replace(/<[^>]+>/g, "").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-");
+  stripTags(heading.trim().toLowerCase()).replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-");
 
 const anchorCache = new Map();
 function anchors(file) {

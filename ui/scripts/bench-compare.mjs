@@ -59,7 +59,7 @@ function load(path) {
 
 const ms = (v) => (!Number.isFinite(v) ? "–" : v >= 100 ? `${v.toFixed(0)} ms` : v >= 1 ? `${v.toFixed(2)} ms` : v >= 0.001 ? `${(v * 1000).toFixed(2)} µs` : `${(v * 1e6).toFixed(0)} ns`);
 const hz = (v) => (!Number.isFinite(v) ? "–" : v >= 1000 ? Math.round(v).toLocaleString("en") : v.toFixed(v >= 10 ? 1 : 2));
-const esc = (s) => String(s).replace(/\|/g, "\\|");
+const esc = (s) => String(s).replaceAll("\\", "\\\\").replaceAll("|", "\\|");
 
 const out = [];
 if (files.length === 1) {

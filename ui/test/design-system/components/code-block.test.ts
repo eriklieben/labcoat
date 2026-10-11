@@ -11,6 +11,42 @@ describe("escapeHtml", () => {
 });
 
 describe("splitHtmlLines", () => {
+  // the regex the linear scanner replaced (CodeQL js/polynomial-redos): same output on any input
+  const reference = (html: string): string[] => {
+    const lines: string[] = [];
+    const open: string[] = [];
+    let cur = "";
+    for (const m of html.matchAll(/(<\/?[a-zA-Z][^>]*>)|\n|[^<\n]+/g)) {
+      const t = m[0];
+      if (t === "\n") {
+        lines.push(cur + "</span>".repeat(open.length));
+        cur = open.join("");
+      } else if (m[1]) {
+        if (t.startsWith("</")) open.pop();
+        else if (!t.endsWith("/>")) open.push(t);
+        cur += t;
+      } else cur += t;
+    }
+    lines.push(cur);
+    return lines;
+  };
+
+  it("matches the previous regex tokenizer on random and odd inputs", () => {
+    const parts = ["<span class=\"a\">", "</span>", "\n", "x", "y z", "<", ">", "</", "<1", "<b/>", "&lt;", "<i>", "</i>", "<a\nb>"];
+    let seed = 7;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const samples = ["", "<", "<<", "<a", "a<", "<<a>", "<a<b>", "</>", "x\n\ny", "<span>\n</span>"];
+    for (let n = 0; n < 500; n++) samples.push(Array.from({ length: 1 + Math.floor(rand() * 12) }, () => parts[Math.floor(rand() * parts.length)]).join(""));
+    for (const s of samples) expect(splitHtmlLines(s), JSON.stringify(s)).toEqual(reference(s));
+  });
+
+  it("stays linear on pathological input", () => {
+    const evil = "<a".repeat(50_000); // quadratic for the old regex
+    const t0 = performance.now();
+    splitHtmlLines(evil);
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+
   it("closes and reopens spans that cross line breaks", () => {
     expect(splitHtmlLines('a<span class="s">"x\ny"</span>b\nc')).toEqual(['a<span class="s">"x</span>', '<span class="s">y"</span>b', "c"]);
   });

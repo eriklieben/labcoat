@@ -107,7 +107,7 @@ const historyBytes = () => {
 
 /** WebSocket listener (Node's WebSocket, no Origin header = a script): event counts, bytes per type, testsUpdated times. */
 function listen(lean) {
-  const stats = { lean, messages: 0, bytes: 0, byType: {}, updates: [], finished: [], started: [] };
+  const stats = { lean, messages: 0, bytes: 0, byType: Object.create(null), updates: [], finished: [], started: [] };
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws${lean ? "?lean=1" : ""}`);
   ws.onmessage = (e) => {
     const data = typeof e.data === "string" ? e.data : Buffer.from(e.data).toString();
@@ -130,7 +130,7 @@ function listen(lean) {
     if (ev.type === "runStarted") stats.started.push({ t: Date.now(), run: ev.run });
   };
   const opened = new Promise((r) => (ws.onopen = r));
-  return { stats, ws, opened, reset: () => Object.assign(stats, { messages: 0, bytes: 0, byType: {}, updates: [], finished: [], started: [] }) };
+  return { stats, ws, opened, reset: () => Object.assign(stats, { messages: 0, bytes: 0, byType: Object.create(null), updates: [], finished: [], started: [] }) };
 }
 
 let host;

@@ -24,21 +24,43 @@ export function splitHtmlLines(html: string): string[] {
   const lines: string[] = [];
   const open: string[] = []; // open tags, e.g. '<span class="hljs-string">'
   let cur = "";
-  const re = /(<\/?[a-zA-Z][^>]*>)|\n|[^<\n]+/g;
-  for (const m of html.matchAll(re)) {
-    const t = m[0];
-    if (t === "\n") {
+  // A linear scan (no regex backtracking): tags <x…> / </x…>, newlines and text runs. A "<" that doesn't start a
+  // complete tag is dropped, as before; highlighter output escapes literal "<" as &lt;.
+  let gt = -1; // the next ">" at or after i (looked up again only once i has passed it, so the scan stays linear)
+  for (let i = 0; i < html.length; ) {
+    const c = html[i];
+    if (c === "\n") {
       lines.push(cur + "</span>".repeat(open.length));
       cur = open.join("");
-    } else if (m[1]) {
-      if (t.startsWith("</")) open.pop();
-      else if (!t.endsWith("/>")) open.push(t);
-      cur += t;
-    } else cur += t;
+      i++;
+    } else if (c === "<") {
+      if (gt < i) gt = html.indexOf(">", i);
+      if (gt < 0 || !isTagStart(html, i)) {
+        i++;
+        continue;
+      }
+      const tag = html.slice(i, gt + 1);
+      if (tag.startsWith("</")) open.pop();
+      else if (!tag.endsWith("/>")) open.push(tag);
+      cur += tag;
+      i = gt + 1;
+    } else {
+      let end = i;
+      while (end < html.length && html[end] !== "<" && html[end] !== "\n") end++;
+      cur += html.slice(i, end);
+      i = end;
+    }
   }
   lines.push(cur);
   return lines;
 }
+
+/** `<` + optional `/` + an ASCII letter at position `i`. */
+const isTagStart = (html: string, i: number): boolean => {
+  const at = html[i + 1] === "/" ? i + 2 : i + 1;
+  const ch = html.charCodeAt(at);
+  return (ch >= 65 && ch <= 90) || (ch >= 97 && ch <= 122);
+};
 
 export interface CodeBlockOptions {
   code: MaybeReactive<string>;
