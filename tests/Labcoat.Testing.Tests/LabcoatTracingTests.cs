@@ -17,7 +17,7 @@ namespace Labcoat.Testing.Tests;
 public sealed partial class LabcoatTracingTests : IDisposable
 {
     private const string FrameworkSource = "Fake.Framework";
-    private static readonly string[] EnvVars = [LabcoatTracing.EndpointVariable, LabcoatTracing.ProtocolVariable, LabcoatTracing.HeadersVariable];
+    private static readonly string[] EnvVars = [LabcoatTracing.EndpointVariable, LabcoatTracing.ProtocolVariable, LabcoatTracing.HeadersVariable, LabcoatTracing.FilterVariable];
     private static readonly LabcoatTest PlacesOrder = new("PlacesOrder (2 items)")
     {
         Id = "Shop.Tests.OrderTests.PlacesOrder(2)",

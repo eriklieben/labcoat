@@ -44,8 +44,9 @@ public class OrdersApiTests(AspireAppFixture app, ITestOutputHelper output)
     [Fact]
     public async Task Requests_carry_the_tests_own_trace()
     {
-        if (!LabcoatTracing.IsEnabled) return;
         var context = TestContext.Current;
+        // Traced only with tracing on and when the trace filter (if any) includes this test.
+        if (!LabcoatTracing.ShouldTrace(LabcoatTracingAttribute.ToLabcoatTest(context.Test!))) return;
         var root = Activity.Current;
         while (root?.Parent is not null) root = root.Parent;
 

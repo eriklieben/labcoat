@@ -32,6 +32,8 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <!-- build/ (not buildTransitive/): only the project that references the package gets the default trace filter. -->
+    <None Include="build\Labcoat.Testing.MSTest.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 
 </Project>

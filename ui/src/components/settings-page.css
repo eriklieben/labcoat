@@ -199,6 +199,14 @@
     color: var(--lc-accent);
     font-weight: 600;
   }
+  /* The host's trace filter under the tracing switch: running text with an inline code value, not a flex row. */
+  .settings-page .setting-trace-filter {
+    display: block;
+  }
+  .settings-page .setting-trace-filter code {
+    font-family: var(--lc-font-mono);
+    overflow-wrap: anywhere;
+  }
   .settings-page .setting-locked .setting-control {
     cursor: not-allowed;
   }

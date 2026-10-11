@@ -30,6 +30,11 @@
     <InternalsVisibleTo Include="Labcoat.Aspire.Hosting.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The trace filter syntax of Labcoat.Testing (shared source): WithTestTracing(filter:) rejects an invalid filter. -->
+    <Compile Include="..\Labcoat.Testing\TraceFilterSyntax.cs" Link="Shared\TraceFilterSyntax.cs" />
+  </ItemGroup>
+
   <!--
     Build order only: the explorer must be built (by the same project instance the solution and the other references
     use) before it is published into the bundle below, which then reuses that build (NoBuild=true). Publishing with a

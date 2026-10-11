@@ -391,6 +391,8 @@ interface ExplorerState {
   // … everything above, plus:
   tracingEnabled: boolean;      // per-test trace collection (test hosts get the Aspire dashboard's OTLP endpoint). Default false.
   tracingAvailable: boolean;    // an OTLP endpoint is known (Labcoat is hosted by an Aspire AppHost). When false, the toggle has no effect.
+  tracingFilter?: string;       // the host's trace filter (--trace-filter / LABCOAT_TRACE_FILTER / traceFilter): while tracing is on only
+                                // matching tests are traced (test hosts get LABCOAT_OTLP_FILTER). Omitted when every test is traced.
   telemetryAvailable?: boolean; // true when the Aspire dashboard's telemetry API is known (GET /api/tests/telemetry can work
                                 // once tracingEnabled is on). Omitted when not hosted by Aspire.
   workspaceName?: string;       // display name: env LABCOAT_NAME (Labcoat.Aspire.Hosting sets the resource name, e.g. "tests-failing"),
@@ -527,7 +529,7 @@ interface TelemetryLog {
 - **Trace collection is opt-in (off by default).** Sources, last one wins: CLI `--traces` / `WithTestTracing()` (initial
   value) < the runtime choice (`setTracing` / `POST /api/tracing` / the "Toggle test tracing" dashboard command), which is
   persisted per workspace in `settings.json` next to `history.json`. Only while it is on do test hosts get
-  `LABCOAT_OTLP_ENDPOINT/PROTOCOL/HEADERS`; `OTEL_*` is never passed on. Toggling broadcasts `state`; warm hosts are
+  `LABCOAT_OTLP_ENDPOINT/PROTOCOL/HEADERS` (and `LABCOAT_OTLP_FILTER` with a trace filter); `OTEL_*` is never passed on. Toggling broadcasts `state`; warm hosts are
   replaced lazily on their next request (log: "Stopping the warm test host: trace collection was turned on.").
   `traceId` only appears on tests while tracing is on and the tests use Labcoat.Testing.
 - **Run lifecycle changed (P1-8):** `run` now builds (incremental) and rediscovers every selected project FIRST; only

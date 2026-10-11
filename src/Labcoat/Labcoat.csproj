@@ -39,6 +39,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The trace filter syntax of Labcoat.Testing (shared source): an invalid filter is an error when Labcoat starts. -->
+    <Compile Include="..\Labcoat.Testing\TraceFilterSyntax.cs" Link="Shared\TraceFilterSyntax.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Labcoat.Tests" />
     <!-- benchmarks/Labcoat.Benchmarks: MtpConnection.TryParseMessage / Consume, FullCoverageStore.Load / Schedule,
          GitRepo.ParseNameStatus / ParseHunks. -->

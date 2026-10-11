@@ -210,6 +210,86 @@ public sealed class LabcoatTracingAttributeTests
         Assert.That(LabcoatTracingAttribute.ToOutcome(state), Is.EqualTo(expected));
 }
 
+/// <summary>
+/// Categories and properties as NUnit3TestAdapter reports them to Labcoat (of the test and its parents, without NUnit's
+/// own properties), and the trace filter: Labcoat's (LABCOAT_OTLP_FILTER), else the attribute's <c>Filter</c>.
+/// </summary>
+[Category("Integration")]
+[Property("Team", "web")]
+public sealed class TraitsAndFilterTests
+{
+    private static ITest CurrentTest => TestExecutionContext.CurrentContext.CurrentTest;
+
+    [Test]
+    [Category("Smoke")]
+    [Property("Kind", "Slow")]
+    [Property("Retries", 3)]
+    [Description("Places an order")]
+    [Author("someone")]
+    public void Traits_are_the_tests_and_its_parents_categories_and_properties()
+    {
+        var test = LabcoatTracingAttribute.ToLabcoatTest(CurrentTest);
+
+        Assert.That(test.Categories, Is.EquivalentTo(new[] { "Smoke", "Integration" }));
+        Assert.That(test.Traits, Is.EquivalentTo(new KeyValuePair<string, string>[] { new("Kind", "Slow"), new("Retries", "3"), new("Team", "web") }));
+        Assert.That(LabcoatTracingAttribute.SpanOf(CurrentTest)!.Test.Categories, Is.EquivalentTo(test.Categories), "what the span was started with");
+    }
+
+    [Test]
+    public void An_explicit_test_has_the_category_Explicit()
+    {
+        var method = FakeTest(nameof(An_explicit_test_has_the_category_Explicit));
+        method.RunState = RunState.Explicit;
+        Assert.That(LabcoatTracingAttribute.ToLabcoatTest(method).Categories, Does.Contain("Explicit"));
+    }
+
+    [Test]
+    public void A_test_the_attributes_filter_leaves_out_gets_no_span()
+    {
+        var unit = FakeTest(nameof(A_test_the_attributes_filter_leaves_out_gets_no_span));
+        var integration = FakeTest(nameof(A_test_the_attributes_filter_leaves_out_gets_no_span), "Integration");
+        var action = new LabcoatTracingAttribute { Filter = "cat:Integration" };
+
+        action.BeforeTest(unit);
+        action.BeforeTest(integration);
+
+        Assert.That(LabcoatTracingAttribute.SpanOf(unit), Is.Null);
+        var span = LabcoatTracingAttribute.SpanOf(integration);
+        Assert.That(span, Is.Not.Null);
+        action.AfterTest(unit); // nothing to end
+        action.AfterTest(integration);
+        Assert.That(span!.IsEnded, Is.True);
+        Assert.That(span.Test.Categories, Is.EqualTo(new[] { "Integration" }), "the fake's own category; its fixture has none");
+    }
+
+    [Test]
+    public void Labcoats_filter_wins_over_the_attributes()
+    {
+        var integration = FakeTest(nameof(Labcoats_filter_wins_over_the_attributes), "Integration");
+        var action = new LabcoatTracingAttribute { Filter = "cat:Integration" };
+        var saved = Environment.GetEnvironmentVariable(LabcoatTracing.FilterVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, "cat:Unit");
+            action.BeforeTest(integration);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, saved);
+        }
+        Assert.That(LabcoatTracingAttribute.SpanOf(integration), Is.Null);
+    }
+
+    /// <summary>A test of this fixture that NUnit does not run: what NUnit passes to the action attribute.</summary>
+    private static TestMethod FakeTest(string name, string? category = null)
+    {
+        var fixture = new TestFixture(new TypeWrapper(typeof(TraitsAndFilterTests)));
+        var method = new TestMethod(new MethodWrapper(typeof(TraitsAndFilterTests), name), fixture);
+        if (category is not null) method.Properties.Add(PropertyNames.Category, category);
+        return method;
+    }
+}
+
 /// <summary>A parameterized fixture: its tests' class (as Labcoat shows it) includes the fixture arguments.</summary>
 [TestFixture(1)]
 [TestFixture("two")]

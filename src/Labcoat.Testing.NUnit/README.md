@@ -69,7 +69,18 @@ needed for this.
 
 ## Options
 
-- **Only some tests:** set `<LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>` in the test project and put
-  `[LabcoatTracing]` on the fixtures or methods to trace.
+- **Only some tests, by category or trait:** a trace filter in the Labcoat UI's search syntax (`cat:Integration`,
+  `trait:Kind=Slow`, name text). From the AppHost: `.WithTestTracing(filter: "cat:Integration")` (it wins). As this
+  project's default:
+
+  ```xml
+  <LabcoatTracingFilter>cat:Integration</LabcoatTracingFilter>
+  ```
+
+  The adapter passes the test's `[Category]` and `[Property]` of the test, its fixture and the assembly as Labcoat shows them, so `cat:Integration` matches a test marked
+  `[Category("Integration")]` and `trait:Kind=Slow` one marked `[Property("Kind", "Slow")]`. A test that doesn't match gets no span
+  and no trace id. See [Trace only some tests](https://github.com/eriklieben/labcoat/blob/main/docs/aspire.md#trace-only-some-tests).
+- **Only some classes:** set `<LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>` in the test project and put
+  `[LabcoatTracing]` (optionally with `Filter = "..."`) on the fixtures or methods to trace.
 - **`GenerateAssemblyInfo` is false**, or the package is referenced through another project: the attribute is not
   added for you; write `[assembly: LabcoatTracing]` in the test project.

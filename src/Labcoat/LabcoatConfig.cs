@@ -278,8 +278,9 @@ public sealed class LabcoatConfig
     public static readonly JsonDocumentOptions FileJsonOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
     private const string CoverageKey = "coverage";
+    private const string TraceFilterKey = "traceFilter";
 
-    private static readonly string[] FileKeys = ["$schema", "ui", "watch", CoverageKey, "traces", "port", "affectedBase", "impactMap",
+    private static readonly string[] FileKeys = ["$schema", "ui", "watch", CoverageKey, "traces", TraceFilterKey, "port", "affectedBase", "impactMap",
         "maxParallelProjects", "hangThreshold", "testTimeout"];
 
     /// <summary>Everything <see cref="Load"/> reads; tests pass their own home / env so they never see the real ones.</summary>
@@ -325,6 +326,8 @@ public sealed class LabcoatConfig
     public bool Watch { get; private set; }
     public bool Coverage { get; private set; }
     public bool Traces { get; private set; }
+    /// <summary>"traceFilter" of the files (the workspace file wins): only matching tests get a trace (Labcoat.Testing).</summary>
+    public string? TraceFilter { get; private set; }
     /// <summary>"coverage" as an object: settings file and include / exclude globs (the workspace file's settings path wins; lists add up).</summary>
     public CoverageOptions CoverageOptions { get; private set; } = CoverageOptions.None;
     /// <summary>"port" of the files (the workspace file wins); used only when neither --port nor PORT / ASPNETCORE_URLS is set.</summary>
@@ -420,6 +423,9 @@ public sealed class LabcoatConfig
             case "affectedBase":
                 AffectedBase = ReadAffectedBase(value, display) ?? AffectedBase;
                 break;
+            case TraceFilterKey:
+                TraceFilter = ReadTraceFilter(value, display) ?? TraceFilter;
+                break;
             case "maxParallelProjects":
                 MaxParallelProjects = ReadMaxParallel(value, display) ?? MaxParallelProjects;
                 break;
@@ -445,6 +451,18 @@ public sealed class LabcoatConfig
         if (value is JsonValue av && av.TryGetValue<string>(out var baseRef) && GitRepo.IsValidRef(baseRef.Trim())) return baseRef.Trim();
         Warnings.Add($"{display}: 'affectedBase' must be a git ref such as \"origin/main\"; ignored.");
         return null;
+    }
+
+    /// <summary>
+    /// "traceFilter": a string in the UI's search syntax. Unlike other values an invalid filter is an error, not a
+    /// warning: ignoring it would trace every test.
+    /// </summary>
+    private string? ReadTraceFilter(JsonNode? value, string display)
+    {
+        if (value is not JsonValue fv || !fv.TryGetValue<string>(out var filter))
+            throw new ConfigException($"{display}: '{TraceFilterKey}' must be a string such as \"cat:Integration\".");
+        if (Labcoat.Testing.TraceFilterSyntax.Validate(filter) is { } error) throw new ConfigException($"{display}: '{TraceFilterKey}': {error}");
+        return string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
     }
 
     private int? ReadMaxParallel(JsonNode? value, string display)

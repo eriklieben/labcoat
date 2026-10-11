@@ -43,18 +43,22 @@ public static partial class Telemetry
 
     /// <summary>
     /// Sets up the environment of a test host process: without the Aspire run's variables and Labcoat's own settings
-    /// (<see cref="TestHostEnvironment"/>), plus <c>LABCOAT_OTLP_*</c> when <paramref name="tracingEnabled"/>.
-    /// Returns the names that were removed.
+    /// (<see cref="TestHostEnvironment"/>), plus <c>LABCOAT_OTLP_*</c> when <paramref name="tracingEnabled"/>, with
+    /// <c>LABCOAT_OTLP_FILTER</c> when there is a <paramref name="traceFilter"/>. Returns the names that were removed.
     /// </summary>
-    public static List<string> ConfigureTestHost(IDictionary<string, string?> env, bool tracingEnabled)
+    public static List<string> ConfigureTestHost(IDictionary<string, string?> env, bool tracingEnabled, string? traceFilter = null)
     {
         var removed = TestHostEnvironment.Sanitize(env, s_hosted, TestHostEnvironment.PassThrough);
         if (s_endpoint is null || !tracingEnabled) return removed;
         env["LABCOAT_OTLP_ENDPOINT"] = s_endpoint;
         if (s_protocol is not null) env["LABCOAT_OTLP_PROTOCOL"] = s_protocol;
         if (s_headers is not null) env["LABCOAT_OTLP_HEADERS"] = s_headers;
+        if (!string.IsNullOrWhiteSpace(traceFilter)) env[FilterVariable] = traceFilter;
         return removed;
     }
+
+    /// <summary>The trace filter for Labcoat.Testing (<c>LabcoatTracing.FilterVariable</c>).</summary>
+    public const string FilterVariable = "LABCOAT_OTLP_FILTER";
 
     /// <summary>Removes the trace id marker line(s) from a test's stdOut; returns the cleaned output (null if empty).</summary>
     public static string? ExtractTraceId(string? stdOut, out string? traceId)

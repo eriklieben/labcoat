@@ -62,6 +62,7 @@ public static class TestHostEnvironment
         || name.StartsWith("LABCOAT_DASHBOARD_API_", StringComparison.Ordinal)
         || name.StartsWith("LABCOAT_ALLOWED_", StringComparison.Ordinal)
         || name is "LABCOAT_NAME" or "LABCOAT_TOKEN" or "LABCOAT_APPHOST_UI_SETTINGS" or "LABCOAT_AFFECTED_BASE" or "LABCOAT_IMPACT_MAP"
+            or "LABCOAT_TRACE_FILTER"
             or RunLimits.MaxParallelEnv or RunLimits.HangThresholdEnv or RunLimits.TestTimeoutEnv
         || name == PassThroughVariable;
 

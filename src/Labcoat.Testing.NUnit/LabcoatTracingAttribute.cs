@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using NUnit.Framework;
 using NUnit.Framework.Interfaces;
 
@@ -34,8 +35,26 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestAction
     // tests may run in parallel.
     private static readonly ConcurrentDictionary<ITest, LabcoatTestSpan> s_spans = new();
 
+    /// <summary>NUnit's property of a category (<c>PropertyNames.Category</c>); Labcoat shows it as the trait <c>Category</c>.</summary>
+    private const string CategoryProperty = "Category";
+
+    // NUnit's own properties, which NUnit3TestAdapter does not report as traits (nor names starting with "_").
+    private static readonly HashSet<string> s_notTraits = new(StringComparer.Ordinal)
+    {
+        CategoryProperty, "Author", "ApartmentState", "Description", "IgnoreUntilDate", "LevelOfParallelism", "MaxTime", "Order",
+        "ParallelScope", "Repeat", "RequiresThread", "SetCulture", "SetUICulture", "TestOf", "Timeout",
+    };
+
     /// <inheritdoc />
     public ActionTargets Targets => ActionTargets.Test;
+
+    /// <summary>
+    /// The default trace filter of the tests this attribute applies to, in the Labcoat UI's search syntax
+    /// (<c>cat:Integration</c>, <c>trait:Kind=Slow</c>, name text): only matching tests are traced. Used when Labcoat
+    /// passes no filter of its own (the AppHost's wins). Set it from the project file with
+    /// <c>&lt;LabcoatTracingFilter&gt;cat:Integration&lt;/LabcoatTracingFilter&gt;</c>. Null: every test.
+    /// </summary>
+    public string? Filter { get; set; }
 
     /// <inheritdoc />
     public void BeforeTest(ITest test)
@@ -45,7 +64,9 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestAction
         // A retry ([Retry]) runs the test again: end the span of the previous attempt.
         if (s_spans.TryRemove(test, out var stale))
             LabcoatTracing.EndTest(stale, LabcoatTestOutcome.Failed, "Retried");
-        var span = LabcoatTracing.BeginTest(ToLabcoatTest(test), TestContext.Out.WriteLine);
+        var labcoatTest = ToLabcoatTest(test);
+        if (!LabcoatTracing.ShouldTrace(labcoatTest, Filter)) return;
+        var span = LabcoatTracing.BeginTest(labcoatTest, TestContext.Out.WriteLine);
         if (span is not null) s_spans[test] = span;
     }
 
@@ -63,12 +84,33 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestAction
 
     /// <summary>
     /// The test as Labcoat.Testing describes it; <see cref="LabcoatTest.Id"/> is the test node uid NUnit3TestAdapter
-    /// reports to Labcoat (the fully qualified name, data rows included).
+    /// reports to Labcoat (the fully qualified name, data rows included). <see cref="LabcoatTest.Categories"/> and
+    /// <see cref="LabcoatTest.Traits"/> are the categories and properties of the test and its fixture, assembly and
+    /// other parents, as NUnit3TestAdapter reports them (without NUnit's own properties such as <c>Description</c>; an
+    /// explicit test also has the category <c>Explicit</c>).
     /// </summary>
     public static LabcoatTest ToLabcoatTest(ITest test)
     {
         ArgumentNullException.ThrowIfNull(test);
-        return Describe(test.Name, test.FullName, test.ClassName, test.MethodName);
+        var categories = new List<string>();
+        var traits = new List<KeyValuePair<string, string>>();
+        for (var t = test; t is not null; t = t.Parent) AddProperties(t.Properties, categories, traits);
+        if (test.RunState == RunState.Explicit) categories.Add("Explicit");
+        return Describe(test.Name, test.FullName, test.ClassName, test.MethodName) with
+        {
+            Categories = categories.Distinct(StringComparer.Ordinal).ToList(),
+            Traits = traits,
+        };
+    }
+
+    private static void AddProperties(IPropertyBag properties, List<string> categories, List<KeyValuePair<string, string>> traits)
+    {
+        foreach (var key in properties.Keys)
+        {
+            var values = properties[key].Cast<object?>().Select(v => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "");
+            if (key == CategoryProperty) categories.AddRange(values);
+            else if (!key.StartsWith('_') && !s_notTraits.Contains(key)) traits.AddRange(values.Select(v => new KeyValuePair<string, string>(key, v)));
+        }
     }
 
     /// <summary>

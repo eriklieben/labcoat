@@ -25,6 +25,9 @@ public static class LabcoatResourceBuilderExtensions
     /// <summary>Environment variable that carries <see cref="WithImpactMap"/> to the explorer.</summary>
     public const string ImpactMapEnvironmentVariable = "LABCOAT_IMPACT_MAP";
 
+    /// <summary>The environment variable with the trace filter (<see cref="WithTestTracing(IResourceBuilder{LabcoatResource}, string, bool)"/>).</summary>
+    public const string TraceFilterEnvironmentVariable = "LABCOAT_TRACE_FILTER";
+
     /// <summary>Values of <see cref="WithImpactMap"/>.</summary>
     internal static readonly string[] ImpactMapModes = ["class", "test", "auto"];
     /// <summary>
@@ -102,6 +105,7 @@ public static class LabcoatResourceBuilderExtensions
         rb.Resource.WatchOnStart = options.Watch;
         rb.Resource.CoverageOnStart = options.Coverage;
         rb.Resource.TracingOnStart = options.TestTracing;
+        if (!string.IsNullOrWhiteSpace(options.TestTracingFilter)) rb.Resource.TracingFilter = ValidTraceFilter(options.TestTracingFilter, nameof(options.TestTracingFilter));
         if (!string.IsNullOrWhiteSpace(options.AffectedBase)) rb.WithAffectedBase(options.AffectedBase);
         if (!string.IsNullOrWhiteSpace(options.ImpactMap)) rb.WithImpactMap(options.ImpactMap);
         rb.WithRunLimits(options); // LabcoatRunLimitsExtensions.cs
@@ -269,6 +273,7 @@ public static class LabcoatResourceBuilderExtensions
         if (ui.Count > 0) env[UiSettingsEnvironmentVariable] = ui.ToJsonString();
         if (!string.IsNullOrWhiteSpace(resource.AffectedBase)) env[AffectedBaseEnvironmentVariable] = resource.AffectedBase;
         if (!string.IsNullOrWhiteSpace(resource.ImpactMap)) env[ImpactMapEnvironmentVariable] = resource.ImpactMap;
+        if (!string.IsNullOrWhiteSpace(resource.TracingFilter)) env[TraceFilterEnvironmentVariable] = resource.TracingFilter;
     }
 
     /// <summary>The AppHost's dashboard: its URL, and its telemetry API (URL and API key) for the Aspire failure context.</summary>
@@ -397,6 +402,36 @@ public static class LabcoatResourceBuilderExtensions
         builder.Resource.TracingOnStart = enabled;
         return builder;
     }
+
+    /// <summary>
+    /// Per-test trace collection for some tests only: like <see cref="WithTestTracing(IResourceBuilder{LabcoatResource}, bool)"/>,
+    /// and while tracing is on (from the start, or toggled on later) only the tests matching <paramref name="filter"/>
+    /// get a trace, e.g. <c>.WithTestTracing(filter: "cat:Integration")</c>.
+    /// </summary>
+    /// <remarks>
+    /// The filter uses the Labcoat UI's search syntax: <c>cat:&lt;category&gt;</c> (a trait value such as an MSTest
+    /// <c>[TestCategory]</c>, an NUnit / TUnit <c>[Category]</c> or an xUnit <c>Category</c> trait),
+    /// <c>trait:&lt;key&gt;</c> / <c>trait:&lt;key&gt;=&lt;value&gt;</c>, <c>proj:&lt;project&gt;</c> and free text
+    /// (name, class, namespace); every term must match, case-insensitive. It is passed to Labcoat as
+    /// <c>LABCOAT_TRACE_FILTER</c> and by Labcoat to the test hosts as <c>LABCOAT_OTLP_FILTER</c>; it wins over a
+    /// default filter in the tests (<c>[assembly: LabcoatTracing(Filter = ...)]</c>).
+    /// </remarks>
+    /// <param name="builder">The Labcoat resource.</param>
+    /// <param name="filter">The tests to trace; null or blank: every test.</param>
+    /// <param name="enabled">Start with trace collection on (default) or off (toggle it on in the UI or dashboard).</param>
+    /// <exception cref="ArgumentException">The filter is not valid (e.g. <c>is:failed</c>, or an unclosed quote).</exception>
+    public static IResourceBuilder<LabcoatResource> WithTestTracing(this IResourceBuilder<LabcoatResource> builder, string? filter, bool enabled = true)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Resource.TracingOnStart = enabled;
+        builder.Resource.TracingFilter = string.IsNullOrWhiteSpace(filter) ? null : ValidTraceFilter(filter, nameof(filter));
+        return builder;
+    }
+
+    private static string ValidTraceFilter(string filter, string parameter) =>
+        Labcoat.Testing.TraceFilterSyntax.Validate(filter) is { } error
+            ? throw new ArgumentException($"'{filter}' is not a valid trace filter: {error}", parameter)
+            : filter.Trim();
 
     /// <summary>
     /// Shows the test suite result as the resource state in the dashboard ("✓ 12 passed", "✕ 1 failed · 20 tests",

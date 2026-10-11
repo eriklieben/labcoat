@@ -15,6 +15,7 @@ public sealed class DiagnosticsSettings
     public bool Watch { get; init; }
     public bool Coverage { get; init; }
     public bool Traces { get; init; }
+    public string? TraceFilter { get; init; }
     public string? AffectedBase { get; init; }
     public string? ImpactMap { get; init; }
     public CoverageOptions CoverageOptions { get; init; } = CoverageOptions.None;
@@ -36,6 +37,7 @@ public sealed class DiagnosticsSettings
             ["settingsFiles"] = SettingsFiles.Count == 0 ? "(none)" : string.Join(", ", SettingsFiles),
         };
         if (AffectedBase is not null) d["affectedBase"] = AffectedBase;
+        if (TraceFilter is not null) d["traceFilter"] = TraceFilter;
         if (CoverageOptions.Settings is not null) d["coverage.settings"] = CoverageOptions.Settings;
         if (CoverageOptions.Include.Count > 0) d["coverage.include"] = string.Join(", ", CoverageOptions.Include);
         if (CoverageOptions.Exclude.Count > 0) d["coverage.exclude"] = string.Join(", ", CoverageOptions.Exclude);
@@ -491,7 +493,7 @@ public static class Diagnostics
             var state = explorer.Snapshot(lean: true);
             var settings = new DiagnosticsSettings
             {
-                Watch = state.Watch, Coverage = state.CoverageEnabled, Traces = state.TracingEnabled,
+                Watch = state.Watch, Coverage = state.CoverageEnabled, Traces = state.TracingEnabled, TraceFilter = o.TraceFilter,
                 AffectedBase = o.AffectedBase, ImpactMap = o.ImpactMap, CoverageOptions = o.Coverage, UiDefaults = o.UiDefaults,
                 SettingsFiles = o.SettingsFiles, LogLevel = log.Level, LogFile = log.FilePath, Url = o.Url,
             };

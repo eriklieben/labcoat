@@ -40,6 +40,14 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestStartEventReceiver
     /// <inheritdoc />
     public int Order => 0;
 
+    /// <summary>
+    /// The default trace filter of the tests this attribute applies to, in the Labcoat UI's search syntax
+    /// (<c>cat:Integration</c>, <c>trait:Kind=Slow</c>, name text): only matching tests are traced. Used when Labcoat
+    /// passes no filter of its own (the AppHost's wins). Set it from the project file with
+    /// <c>&lt;LabcoatTracingFilter&gt;cat:Integration&lt;/LabcoatTracingFilter&gt;</c>. Null: every test.
+    /// </summary>
+    public string? Filter { get; set; }
+
     /// <inheritdoc />
     public ValueTask OnTestStart(TestContext context)
     {
@@ -47,9 +55,12 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestStartEventReceiver
         if (!LabcoatTracing.IsEnabled) return default;
         var items = context.StateBag.Items;
         // A retry starts the test again: end the span of the previous attempt.
-        if (items.TryGetValue(StateKey, out var previous) && previous is LabcoatTestSpan { IsEnded: false } stale)
+        if (items.TryRemove(StateKey, out var previous) && previous is LabcoatTestSpan { IsEnded: false } stale)
             LabcoatTracing.EndTest(stale, LabcoatTestOutcome.Failed, "Retried");
-        var span = LabcoatTracing.BeginTest(ToLabcoatTest(context), context.Output.WriteLine, context.Activity);
+        var test = ToLabcoatTest(context);
+        // Left out by the trace filter: TUnit's own activity stays as TUnit made it (not adopted, not exported).
+        if (!LabcoatTracing.ShouldTrace(test, Filter)) return default;
+        var span = LabcoatTracing.BeginTest(test, context.Output.WriteLine, context.Activity);
         if (span is not null) items[StateKey] = span;
         return default;
     }
@@ -65,7 +76,11 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestStartEventReceiver
         return default;
     }
 
-    /// <summary>The test as Labcoat.Testing describes it; <see cref="LabcoatTest.Id"/> is the test node uid TUnit reports to Labcoat.</summary>
+    /// <summary>
+    /// The test as Labcoat.Testing describes it; <see cref="LabcoatTest.Id"/> is the test node uid TUnit reports to
+    /// Labcoat. <see cref="LabcoatTest.Categories"/> are TUnit's categories (<c>[Category]</c> on the test, class and
+    /// assembly), <see cref="LabcoatTest.Traits"/> its custom properties (<c>[Property]</c>), as TUnit reports them.
+    /// </summary>
     public static LabcoatTest ToLabcoatTest(TestContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -76,6 +91,8 @@ public sealed class LabcoatTracingAttribute : Attribute, ITestStartEventReceiver
             ClassName = details.ClassType.FullName,
             MethodName = details.MethodName,
             Framework = Framework,
+            Categories = [.. details.Categories],
+            Traits = [.. details.CustomProperties.SelectMany(p => p.Value.Select(v => new KeyValuePair<string, string>(p.Key, v)))],
         };
     }
 

@@ -136,6 +136,53 @@ public sealed class LabcoatTracingAttributeTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
+    [Trait("Category", "Smoke")]
+    [Trait("Kind", "Slow")]
+    public void Traits_are_passed_with_Category_values_as_categories()
+    {
+        var test = LabcoatTracingAttribute.ToLabcoatTest(CurrentTest);
+
+        Assert.Equal(["Integration", "Smoke"], test.Categories.Order());
+        Assert.Equal([new KeyValuePair<string, string>("Kind", "Slow")], test.Traits);
+        Assert.Equal(test.Categories, CurrentSpan().Test.Categories);
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public void A_test_the_attributes_filter_leaves_out_gets_no_span()
+    {
+        var own = CurrentSpan();
+
+        // Started again with a filter this test does not match: the first attempt's span ends, no new one starts.
+        new LabcoatTracingAttribute { Filter = "cat:Unit" }.Before(CurrentMethod, CurrentTest);
+
+        Assert.True(own.IsEnded);
+        Assert.Null(LabcoatTracingAttribute.SpanOf(Context.Test!.UniqueID));
+        Assert.Null(Activity.Current);
+
+        new LabcoatTracingAttribute { Filter = "cat:integ" }.Before(CurrentMethod, CurrentTest);
+        Assert.NotNull(LabcoatTracingAttribute.SpanOf(Context.Test!.UniqueID));
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public void Labcoats_filter_wins_over_the_attributes()
+    {
+        var saved = Environment.GetEnvironmentVariable(LabcoatTracing.FilterVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, "cat:Unit");
+            new LabcoatTracingAttribute { Filter = "cat:Integration" }.Before(CurrentMethod, CurrentTest);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, saved);
+        }
+        Assert.Null(LabcoatTracingAttribute.SpanOf(Context.Test!.UniqueID));
+    }
+
+    [Fact]
     public void Tracing_off_does_nothing()
     {
         var span = CurrentSpan();

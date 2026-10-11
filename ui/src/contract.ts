@@ -350,6 +350,8 @@ export interface ExplorerState {
   tracingEnabled?: boolean;
   /** an OTLP endpoint is known (hosted under Aspire), so tracing can be turned on */
   tracingAvailable?: boolean;
+  /** the host's trace filter (--trace-filter, LABCOAT_TRACE_FILTER, traceFilter, WithTestTracing(filter:)): only matching tests are traced; absent = all */
+  tracingFilter?: string;
   /** directories whose files GET /api/source serves (canonical, absolute) */
   sourceRoots?: string[];
   /** quarantined tests as "projectId|id" keys */

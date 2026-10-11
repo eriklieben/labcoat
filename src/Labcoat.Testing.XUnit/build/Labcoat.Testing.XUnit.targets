@@ -4,10 +4,14 @@
     [assembly: Labcoat.Testing.LabcoatTracing] (an xUnit v3 BeforeAfterTestAttribute) to the generated assembly info.
     A no-op unless the tests run under Labcoat with test tracing on.
 
+    <LabcoatTracingFilter>cat:Integration</LabcoatTracingFilter> sets the attribute's Filter: the default trace filter
+    of the test assembly (only matching tests are traced; a filter the AppHost passes wins).
+
     Opt out with <LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>, e.g. to put [LabcoatTracing] on some
     classes only, or when GenerateAssemblyInfo is false (then write [assembly: LabcoatTracing] yourself).
   -->
   <ItemGroup Condition="'$(LabcoatTracingAutoRegister)' != 'false'">
-    <AssemblyAttribute Include="Labcoat.Testing.LabcoatTracingAttribute" />
+    <AssemblyAttribute Include="Labcoat.Testing.LabcoatTracingAttribute" Condition="'$(LabcoatTracingFilter)' == ''" />
+    <AssemblyAttribute Include="Labcoat.Testing.LabcoatTracingAttribute" Filter="$(LabcoatTracingFilter)" Condition="'$(LabcoatTracingFilter)' != ''" />
   </ItemGroup>
 </Project>

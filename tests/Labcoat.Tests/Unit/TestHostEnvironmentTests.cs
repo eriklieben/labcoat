@@ -33,6 +33,7 @@ public class TestHostEnvironmentTests
         // Labcoat's own settings (LABCOAT_OTLP_* comes back only while tracing is on)
         "LABCOAT_TOKEN", "LABCOAT_NAME", "LABCOAT_ALLOWED_HOSTS", "LABCOAT_DASHBOARD_API_URL", "LABCOAT_DASHBOARD_API_KEY",
         "LABCOAT_APPHOST_UI_SETTINGS", "LABCOAT_AFFECTED_BASE", "LABCOAT_IMPACT_MAP", "LABCOAT_OTLP_ENDPOINT", "LABCOAT_TEST_ENV_PASSTHROUGH",
+        "LABCOAT_TRACE_FILTER", "LABCOAT_OTLP_FILTER",
     ];
 
     /// <summary>Kept: what `dotnet test` in the same terminal would see, and what Labcoat sets on purpose.</summary>

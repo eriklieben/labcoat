@@ -4,8 +4,8 @@ Per-test traces for integration tests, split into a framework-neutral core and o
 
 | Package | Depends on | Contains |
 | --- | --- | --- |
-| `Labcoat.Testing` | `Aspire.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol` | `LabcoatTracing` (OTLP config from `LABCOAT_OTLP_*`, exporter, `BeginTest` / `EndTest`, `ConfigureAspireTesting`), `LabcoatTest`, `LabcoatTestOutcome`, `LabcoatTestSpan`, `LabcoatLiveOutput` |
-| `Labcoat.Testing.MSTest` | core, `MSTest.TestFramework` | `LabcoatMSTest` (hooks), `LabcoatTracedTest` (base class), `LabcoatOutput` (live output with a `TestContext`) |
+| `Labcoat.Testing` | `Aspire.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol` | `LabcoatTracing` (OTLP config from `LABCOAT_OTLP_*`, exporter, `BeginTest` / `EndTest`, `ShouldTrace` (trace filter), `ConfigureAspireTesting`), `LabcoatTest`, `LabcoatTestOutcome`, `LabcoatTestSpan`, `LabcoatLiveOutput` |
+| `Labcoat.Testing.MSTest` | core, `MSTest.TestFramework` | `LabcoatMSTest` (hooks), `LabcoatTracedTest` (base class), `LabcoatTracingAttribute` (default trace filter only), `LabcoatOutput` (live output with a `TestContext`), `build/Labcoat.Testing.MSTest.targets` (`LabcoatTracingFilter`) |
 | `Labcoat.Testing.TUnit` | core, `TUnit.Core` | `LabcoatTracingAttribute` (start / end event receiver), `build/Labcoat.Testing.TUnit.targets` (adds `[assembly: LabcoatTracing]`) |
 | `Labcoat.Testing.NUnit` | core, `NUnit` (4.4+) | `LabcoatTracingAttribute` (`ITestAction` on every test), `LabcoatOutput` (live output for the current test), `build/Labcoat.Testing.NUnit.targets` |
 | `Labcoat.Testing.XUnit` | core, `xunit.v3.extensibility.core` (3.2+) | `LabcoatTracingAttribute` (`BeforeAfterTestAttribute`), `build/Labcoat.Testing.XUnit.targets` |
@@ -57,6 +57,31 @@ references one adapter.
   no other listener. The exporter's `TestTraceFilter` (a `CompositeProcessor`, so the batch processor still gets the
   provider's resource) passes Labcoat's own spans and spans whose trace was registered by `BeginTest`; TUnit's session,
   assembly and class spans are dropped.
+
+### Trace filter
+
+- Labcoat passes the filter as `LABCOAT_OTLP_FILTER`, only while tracing is on and a filter is configured
+  (`--trace-filter`, `LABCOAT_TRACE_FILTER`, `traceFilter`, `WithTestTracing(filter:)`). The syntax is the subset of the
+  UI's search (`ui/src/tree.ts` `parseQuery` / `compileTerms`) known before a test runs: free text, `cat:`, `trait:`,
+  `proj:`; `is:` and `msg:` are rejected. `TraceFilterSyntax.cs` (parsing only) is shared source: Labcoat and
+  Labcoat.Aspire.Hosting link it and reject an invalid filter when they start; `TraceFilter.cs` (matching) is here only.
+- Matching mirrors the UI: `cat:` = any trait value contains the text; `trait:k[=v]` = a trait whose key equals `k`
+  (and whose value contains `v`); free text = the project (the entry assembly name, as `proj:`), `Class.DisplayName`,
+  the method name and the trait values; all case-insensitive. Categories count as `Category` traits, which is how
+  Labcoat shows them.
+- Each adapter fills `LabcoatTest.Categories` / `Traits` with what its framework reports to Labcoat over MTP (checked
+  against Labcoat's `traits` for each framework): MSTest reads the attributes (`TestContext` in MSTest 4.0 has no
+  categories): `[TestCategory]` of method, class (inherited) and assembly; `[TestProperty]` of class and method
+  (`[Owner]`, `[Priority]`, `[Description]` derive from it). NUnit: `Category` and the other properties of the test and
+  all its parents, minus NUnit's own (`Description`, `Author`, `Timeout`, ... and `_`-prefixed), plus `Explicit` for an
+  explicit test, as NUnit3TestAdapter does. xUnit v3: `ITestMetadata.Traits`. TUnit: `TestDetails.Categories` and
+  `CustomProperties`.
+- `ShouldTrace(test, defaultFilter)`: Labcoat's filter, else the adapter's default (`LabcoatTracingAttribute.Filter`;
+  MSTest: the class's or assembly's `[LabcoatTracing(Filter)]`). Filters are cached by text (parsed once); an invalid
+  one writes one line to standard error and matches nothing. `BeginTest` checks Labcoat's filter itself.
+- A test left out gets nothing: no span, no trace id, and Labcoat does not touch `Activity.Current`. TUnit's own
+  per-test activity is left as TUnit made it (not adopted, so not exported). TUnit records it whatever Labcoat does
+  (its HTML report listens to its source), so un-sampling it would only change TUnit's own data.
 
 ## Verified
 

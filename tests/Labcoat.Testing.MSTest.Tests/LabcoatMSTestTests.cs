@@ -12,7 +12,7 @@ namespace Labcoat.Testing.MSTest.Tests;
 [DoNotParallelize]
 public sealed partial class LabcoatMSTestTests : IDisposable
 {
-    private static readonly string[] EnvVars = [LabcoatTracing.EndpointVariable, LabcoatTracing.ProtocolVariable, LabcoatTracing.HeadersVariable];
+    private static readonly string[] EnvVars = [LabcoatTracing.EndpointVariable, LabcoatTracing.ProtocolVariable, LabcoatTracing.HeadersVariable, LabcoatTracing.FilterVariable];
     private readonly Dictionary<string, string?> _savedEnv = EnvVars.ToDictionary(v => v, Environment.GetEnvironmentVariable);
     private readonly List<Activity> _started = [];
     private readonly List<Activity> _stopped = [];
@@ -163,6 +163,102 @@ public sealed partial class LabcoatMSTestTests : IDisposable
 
     private sealed class TracedTest : LabcoatTracedTest;
 
+    // ------------------------------------------------------------------ trace filter
+
+    private static FakeTestContext TraitsTest(string method) => new(method, className: typeof(MSTestTraitsTests).FullName!);
+
+    [TestMethod]
+    public void The_class_default_filter_leaves_out_tests_that_do_not_match()
+    {
+        Enable();
+        var smoke = TraitsTest(nameof(MSTestTraitsTests.Traits_come_from_the_method_class_and_base_class)); // cat:Smoke
+        var other = TraitsTest(nameof(MSTestTraitsTests.A_test_without_attributes_of_its_own_has_the_classes));
+
+        var output = CaptureOut(() => LabcoatMSTest.StartTest(other));
+        Assert.AreEqual("", output, "no trace id");
+        Assert.IsEmpty(_started, "no span");
+        Assert.IsNull(Activity.Current);
+        LabcoatMSTest.EndTest(other);
+        Assert.IsEmpty(_stopped);
+
+        CaptureOut(() => LabcoatMSTest.StartTest(smoke));
+        Assert.HasCount(1, _started);
+        LabcoatMSTest.EndTest(smoke);
+        Assert.HasCount(1, _stopped);
+    }
+
+    [TestMethod]
+    public void Labcoats_filter_wins_over_the_class_default()
+    {
+        Enable();
+        Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, "trait:Team=web cat:Base");
+        var other = TraitsTest(nameof(MSTestTraitsTests.A_test_without_attributes_of_its_own_has_the_classes));
+        CaptureOut(() => LabcoatMSTest.StartTest(other));
+        Assert.HasCount(1, _started, "matches Labcoat's filter, not the class's cat:Smoke");
+        LabcoatMSTest.EndTest(other);
+
+        Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, "cat:Unit");
+        var plain = new FakeTestContext("PlacesOrder");
+        CaptureOut(() => LabcoatMSTest.StartTest(plain));
+        Assert.HasCount(1, _started, "a test of an unknown class has no categories");
+    }
+
     [GeneratedRegex("^" + LabcoatTracing.TraceIdMarker + @"([0-9a-f]{32})\r?\n$")]
     private static partial Regex TraceIdMarkerLine();
+}
+
+/// <summary>Base class of <see cref="MSTestTraitsTests"/>: its category is inherited, as MSTest reports it.</summary>
+[TestCategory("Base")]
+public abstract class TraitsTestsBase;
+
+/// <summary>
+/// The categories and traits LabcoatMSTest reads from the attributes (MSTest's TestContext does not expose them): the
+/// ones MSTest reports to Labcoat, so a trace filter means what it means in the Labcoat UI. The class has a default
+/// trace filter of its own (<see cref="LabcoatTracingAttribute"/>).
+/// </summary>
+[TestClass]
+[TestCategory("Integration")]
+[TestProperty("Team", "web")]
+[LabcoatTracing(Filter = "cat:Smoke")]
+public sealed class MSTestTraitsTests : TraitsTestsBase
+{
+    public TestContext TestContext { get; set; } = null!;
+
+    [TestMethod]
+    [TestCategory("Smoke")]
+    [TestProperty("Kind", "Slow")]
+    [Owner("web-team")]
+    [Priority(2)]
+    [Description("Places an order")]
+    public void Traits_come_from_the_method_class_and_base_class()
+    {
+        var test = LabcoatMSTest.ToLabcoatTest(TestContext);
+
+        CollectionAssert.AreEquivalent(new[] { "Smoke", "Integration", "Base" }, test.Categories.ToArray());
+        CollectionAssert.AreEquivalent(
+            new KeyValuePair<string, string>[] { new("Team", "web"), new("Kind", "Slow"), new("Owner", "web-team"), new("Priority", "2"), new("Description", "Places an order") },
+            test.Traits.ToArray());
+        Assert.AreEqual(test, LabcoatMSTest.ToLabcoatTest(TestContext), "read once, equal every time");
+    }
+
+    [TestMethod]
+    public void A_test_without_attributes_of_its_own_has_the_classes()
+    {
+        var test = LabcoatMSTest.ToLabcoatTest(TestContext);
+        CollectionAssert.AreEquivalent(new[] { "Integration", "Base" }, test.Categories.ToArray());
+        CollectionAssert.AreEqual(new KeyValuePair<string, string>[] { new("Team", "web") }, test.Traits.ToArray());
+    }
+
+    [TestMethod]
+    public void Classes_that_cannot_be_found_have_no_traits()
+    {
+        Assert.IsNull(LabcoatMSTest.FindType("No.Such.Class"));
+        Assert.IsNull(LabcoatMSTest.FindType("Bad[Name,"));
+        Assert.AreSame(typeof(MSTestTraitsTests), LabcoatMSTest.FindType(typeof(MSTestTraitsTests).FullName!));
+        var test = LabcoatMSTest.ToLabcoatTest(new FakeTestContext("PlacesOrder"));
+        Assert.IsEmpty(test.Categories);
+        Assert.IsEmpty(test.Traits);
+        Assert.AreSame(LabcoatMSTest.TestAttributes.None, LabcoatMSTest.TestAttributes.Read(null, "x"));
+        Assert.IsEmpty(LabcoatMSTest.ToLabcoatTest(new FakeTestContext("", className: "")).Categories);
+    }
 }

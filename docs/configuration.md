@@ -21,6 +21,7 @@ labcoat [paths...] [options]
 | `--coverage-include <globs>` | Modules or path globs to count although Labcoat's coverage defaults leave them out, e.g. `Labcoat.*`. Comma-separated, repeatable. |
 | `--coverage-exclude <globs>` | Modules or path globs never to count, e.g. `MyApp.Tools,**/Migrations/**`. Comma-separated, repeatable. |
 | `--traces` | Start with per-test traces on. Only has an effect when hosted by an Aspire AppHost. A choice made in the UI is remembered per workspace and wins. |
+| `--trace-filter <expr>` | While per-test traces are on, trace only the tests that match `<expr>`, in the UI's search syntax: `cat:Integration`, `trait:Kind=Slow`, `proj:Orders.Tests` or name text; every term must match (see [Trace only some tests](aspire.md#trace-only-some-tests)). An invalid filter stops Labcoat with an error. |
 | `--root <dir>` | An extra directory whose source files the UI may show, for example the solution root for stack-trace frames outside the test projects. Repeatable. |
 | `--impact-map <mode>` | Granularity of the [impact map](features.md#the-impact-map): `class`, `test` or `auto` (the default). |
 | `--max-parallel <n>` | Test projects discovered and run at the same time (1-64). Default: the number of processors, at most 4. Builds are one `dotnet build` for all projects that need one either way (see [Parallel projects, slow tests and timeouts](#parallel-projects-slow-tests-and-timeouts)). |
@@ -74,6 +75,7 @@ The value options also accept `--name=value` (`--theme=dracula`). An invalid val
 | `LABCOAT_AFFECTED_BASE` | The base ref of **Run affected → Branch vs …**, like `--affected-base`. `Labcoat.Aspire.Hosting` sets it from `AffectedBase` / `WithAffectedBase("origin/develop")`. |
 | `LABCOAT_MAX_PARALLEL`, `LABCOAT_HANG_THRESHOLD`, `LABCOAT_TEST_TIMEOUT` | Like `--max-parallel`, `--hang-threshold`, `--test-timeout` (the command line wins). `Labcoat.Aspire.Hosting` sets them from `WithMaxParallelProjects` / `WithHangThreshold` / `WithTestTimeout`. |
 | `LABCOAT_IMPACT_MAP` | `class`, `test` or `auto`, like `--impact-map`. `Labcoat.Aspire.Hosting` sets it from `ImpactMap` / `WithImpactMap("test")`. |
+| `LABCOAT_TRACE_FILTER` | The tests to trace, like `--trace-filter` (which wins). `Labcoat.Aspire.Hosting` sets it from `TestTracingFilter` / `WithTestTracing(filter: "cat:Integration")`. An invalid filter stops Labcoat with an error. |
 | `LABCOAT_LIVE_OUTPUT` | `0` (or `false`) turns [live output](features.md#live-console-output) of running tests off: no extra test host options or variables, no `liveOutput` events. On by default. |
 | `LABCOAT_LOG_LEVEL` | The host's log level: `trace`, `debug`, `information`, `warning` (the default), `error`, `critical` or `none`. `--verbose` lowers it to `debug`. |
 | `LABCOAT_LOG_FILE` | Like `--log-file` (which wins). |
@@ -93,6 +95,7 @@ Labcoat sets these on the test processes it starts, so your tests can react to t
 | `LABCOAT_TEST_HOST=1` | Set on every test host Labcoat starts. |
 | `LABCOAT_WARM_HOST=1` | The test host is kept alive between runs. See [aspire.md](aspire.md#integration-tests-and-warm-test-hosts). |
 | `LABCOAT_OTLP_ENDPOINT`, `LABCOAT_OTLP_PROTOCOL`, `LABCOAT_OTLP_HEADERS` | Only while per-test traces are on: where to send them. Used by `Labcoat.Testing`. |
+| `LABCOAT_OTLP_FILTER` | Only while per-test traces are on and a trace filter is set (`--trace-filter`, `LABCOAT_TRACE_FILTER`, `traceFilter`): `Labcoat.Testing` traces only the tests that match it. |
 
 ## Where Labcoat keeps its data
 
@@ -169,6 +172,7 @@ Labcoat reads up to two JSON files. Both have the same shape; every key is optio
     "exclude": ["**/Migrations/**"]
   },
   "traces": false,
+  "traceFilter": "cat:Integration",
   "port": 4300,
   "affectedBase": "origin/develop",
   "impactMap": "auto",
@@ -188,6 +192,9 @@ Labcoat reads up to two JSON files. Both have the same shape; every key is optio
 - `ui` holds the [UI settings](#ui-settings) and `locked`: a list of setting names, `"all"`, or `true` (all).
 - `watch`, `coverage`, `traces`: `true` starts with that mode on, like the command-line flags (a flag or a file can
   only turn it on).
+- `traceFilter`: while per-test traces are on, only the tests matching it are traced, like `--trace-filter`. The
+  workspace file wins over the user file; `LABCOAT_TRACE_FILTER` and `--trace-filter` win over both. Unlike other
+  values, an invalid filter is an error that stops Labcoat (skipping it would trace every test).
 - `coverage` is `true` / `false`, or an object:
   - `enabled`: like `coverage: true`.
   - `settings`: the coverage settings file for every test project, like `--coverage-settings`. Relative: next to each

@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    Labcoat.Testing.MSTest: <LabcoatTracingFilter>cat:Integration</LabcoatTracingFilter> adds
+    [assembly: Labcoat.Testing.LabcoatTracing(Filter = "cat:Integration")] to the generated assembly info: the default
+    trace filter of the test assembly (only matching tests are traced; a filter the AppHost passes wins). MSTest still
+    needs the hooks (LabcoatMSTest.StartTest / EndTest, or LabcoatTracedTest) for the tracing itself.
+  -->
+  <ItemGroup Condition="'$(LabcoatTracingFilter)' != ''">
+    <AssemblyAttribute Include="Labcoat.Testing.LabcoatTracingAttribute" Filter="$(LabcoatTracingFilter)" />
+  </ItemGroup>
+</Project>

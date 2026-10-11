@@ -27,6 +27,40 @@ public sealed record LabcoatTest(string DisplayName)
 
     /// <summary>The test framework, lower case (<c>mstest</c>, <c>tunit</c>, ...): the <c>test.framework</c> span tag.</summary>
     public string? Framework { get; init; }
+
+    /// <summary>
+    /// The test's categories (<c>[TestCategory]</c>, NUnit / TUnit <c>[Category]</c>, the values of an xUnit
+    /// <c>Category</c> trait). Labcoat shows a category as the trait <c>Category=&lt;name&gt;</c>, and a trace filter
+    /// matches it that way too (<c>cat:Integration</c>, <c>trait:Category=Integration</c>).
+    /// </summary>
+    public IReadOnlyList<string> Categories
+    {
+        get => _categories;
+        init => _categories = value ?? [];
+    }
+
+    /// <summary>
+    /// The test's other traits as key / value pairs, as Labcoat shows them (MSTest <c>[TestProperty]</c>, <c>[Owner]</c>,
+    /// ...; NUnit and TUnit properties; xUnit traits). Matched by a trace filter (<c>trait:Kind=Slow</c>, <c>cat:</c>).
+    /// </summary>
+    public IReadOnlyList<KeyValuePair<string, string>> Traits
+    {
+        get => _traits;
+        init => _traits = value ?? [];
+    }
+
+    private readonly IReadOnlyList<string> _categories = [];
+    private readonly IReadOnlyList<KeyValuePair<string, string>> _traits = [];
+
+    /// <summary>Equal when every property is (the categories and traits in the same order).</summary>
+    public bool Equals(LabcoatTest? other) =>
+        ReferenceEquals(this, other)
+        || (other is not null
+            && DisplayName == other.DisplayName && Id == other.Id && ClassName == other.ClassName && MethodName == other.MethodName
+            && Framework == other.Framework && Categories.SequenceEqual(other.Categories) && Traits.SequenceEqual(other.Traits));
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(DisplayName, Id, ClassName, MethodName, Framework, Categories.Count, Traits.Count);
 }
 
 /// <summary>The outcome of a test, as far as its span is concerned (<see cref="LabcoatTracing.EndTest"/>).</summary>

@@ -116,6 +116,20 @@ describe("<lc-settings-page>", () => {
     store.apply(stateEvent({ tracingAvailable: true, tracingEnabled: true }));
     await flushFrame();
     expect(sw(page, "Traces in the Aspire dashboard").checked).toBe(true);
+    expect(page.querySelector(".setting-trace-filter")).toBeNull();
+  });
+
+  it("shows the host's trace filter under the tracing switch (read-only)", async () => {
+    const { page, store } = setup({ tracingAvailable: true, tracingEnabled: true, tracingFilter: "cat:Integration" });
+    await flushFrame();
+    const hint = page.querySelector(".setting-trace-filter")!;
+    expect(text(hint)).toBe("Only tests matching cat:Integration are traced (set by the Labcoat host).");
+    expect(hint.querySelector("code")!.textContent).toBe("cat:Integration");
+    expect(rowOf(sw(page, "Traces in the Aspire dashboard")).contains(hint)).toBe(true);
+    // the host restarts without a filter: the hint goes away
+    store.apply(stateEvent({ tracingAvailable: true, tracingEnabled: true, tracingFilter: undefined }));
+    await flushFrame();
+    expect(page.querySelector(".setting-trace-filter")).toBeNull();
   });
 
   it("More themes: radio cards with roving focus", () => {

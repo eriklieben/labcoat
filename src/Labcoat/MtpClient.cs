@@ -66,14 +66,14 @@ public sealed class MtpHost : IAsyncDisposable
     /// parses, run in English.
     /// </summary>
     internal static List<string> ConfigureTestHostEnvironment(IDictionary<string, string?> env, IReadOnlyDictionary<string, string>? environment,
-        bool tracingEnabled)
+        bool tracingEnabled, string? traceFilter = null)
     {
         // Marks the process as started by Labcoat, so in-process helpers (e.g. Labcoat.TestingPlatform's --labcoat
         // launcher) stay inert and never start another Labcoat.
         env["LABCOAT_TEST_HOST"] = "1";
         VerifySnapshots.ConfigureTestHost(env); // DiffEngine_Disabled: Verify never opens a diff tool (the UI diffs)
         // Without the Aspire run's variables (TestHostEnvironment.cs); the dashboard's OTLP endpoint for Labcoat.Testing.
-        var removed = Telemetry.ConfigureTestHost(env, tracingEnabled);
+        var removed = Telemetry.ConfigureTestHost(env, tracingEnabled, traceFilter);
         if (environment is not null)
             foreach (var (k, v) in environment) env[k] = v;
         return removed;
@@ -83,8 +83,9 @@ public sealed class MtpHost : IAsyncDisposable
     /// <param name="log">(level, message) sink for diagnostics.</param>
     /// <param name="environment">Extra environment variables for the test host process.</param>
     /// <param name="tracingEnabled">Pass the Aspire dashboard's OTLP endpoint as LABCOAT_OTLP_* (see <see cref="Telemetry"/>).</param>
+    /// <param name="traceFilter">With tracing on: only the tests matching it are traced (LABCOAT_OTLP_FILTER).</param>
     public static MtpHost Start(string targetPath, IEnumerable<string> extraArgs, Action<string, JsonNode?> onNotification, Action<string, string> log,
-        IReadOnlyDictionary<string, string>? environment = null, bool tracingEnabled = false)
+        IReadOnlyDictionary<string, string>? environment = null, bool tracingEnabled = false, string? traceFilter = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -104,7 +105,7 @@ public sealed class MtpHost : IAsyncDisposable
         psi.ArgumentList.Add("--client-port");
         psi.ArgumentList.Add(port.ToString());
         foreach (var a in extraArgs) psi.ArgumentList.Add(a);
-        var removed = ConfigureTestHostEnvironment(psi.Environment, environment, tracingEnabled);
+        var removed = ConfigureTestHostEnvironment(psi.Environment, environment, tracingEnabled, traceFilter);
         if (TestHostEnvironment.DescribeOnce(removed) is { } removedInfo) log("info", removedInfo);
 
         var output = new StringBuilder();

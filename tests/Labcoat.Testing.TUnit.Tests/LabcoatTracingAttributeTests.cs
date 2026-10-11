@@ -28,7 +28,42 @@ public sealed class LabcoatTracingAttributeTests
     {
         var attributes = typeof(LabcoatTracingAttributeTests).Assembly.GetCustomAttributes(typeof(LabcoatTracingAttribute), false);
         await Assert.That(attributes.Length).IsEqualTo(1);
+        await Assert.That(((LabcoatTracingAttribute)attributes[0]).Filter).IsEqualTo("LabcoatTracingAttributeTests"); // <LabcoatTracingFilter>
         await Assert.That(LabcoatTracing.FrameworkSources).Contains(LabcoatTracingAttribute.TUnitActivitySourceName);
+    }
+
+    [Test]
+    [Category("Integration")]
+    [Property("Kind", "Slow")]
+    [Property("Kind", "Fast")]
+    public async Task Categories_and_properties_are_passed()
+    {
+        var test = LabcoatTracingAttribute.ToLabcoatTest(TestContext.Current!);
+
+        await Assert.That(test.Categories).Contains("Integration");
+        await Assert.That(test.Traits).Contains(new KeyValuePair<string, string>("Kind", "Slow"));
+        await Assert.That(test.Traits).Contains(new KeyValuePair<string, string>("Kind", "Fast"));
+        await Assert.That(CurrentSpan().Test.Categories).Contains("Integration");
+    }
+
+    [Test]
+    public async Task Labcoats_filter_wins_over_the_attributes()
+    {
+        var context = TestContext.Current!;
+        var own = CurrentSpan();
+        var saved = Environment.GetEnvironmentVariable(LabcoatTracing.FilterVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, "cat:Unit");
+            await new LabcoatTracingAttribute { Filter = "LabcoatTracingAttributeTests" }.OnTestStart(context); // started again
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, saved);
+        }
+        await Assert.That(own.IsEnded).IsTrue();
+        await Assert.That(context.StateBag.Items.ContainsKey(LabcoatTracingAttribute.StateKey)).IsFalse();
+        await Assert.That(LabcoatTracing.IsTestTrace(context.Activity!.TraceId)).IsTrue(); // registered by this test's own start
     }
 
     [Test]
@@ -192,6 +227,26 @@ public sealed class LabcoatTracingAttributeTests
     [Arguments(TestState.Running, LabcoatTestOutcome.Unknown)]
     public async Task States_map_to_the_span_outcome(TestState state, LabcoatTestOutcome expected) =>
         await Assert.That(LabcoatTracingAttribute.ToOutcome(state)).IsEqualTo(expected);
+}
+
+/// <summary>
+/// Tests the assembly's default trace filter (<c>&lt;LabcoatTracingFilter&gt;</c>, free text that these tests'
+/// names don't contain) leaves out: no span and no trace id; TUnit's own per-test activity is left as TUnit made it
+/// (not adopted, so not exported).
+/// </summary>
+[NotInParallel]
+public sealed class FilteredOutTests
+{
+    [Test]
+    public async Task A_test_the_filter_leaves_out_gets_no_span_and_no_trace_id()
+    {
+        var context = TestContext.Current!;
+        await Assert.That(context.StateBag.Items.ContainsKey(LabcoatTracingAttribute.StateKey)).IsFalse();
+        await Assert.That(context.GetStandardOutput()).DoesNotContain(LabcoatTracing.TraceIdMarker);
+        await Assert.That(context.Activity).IsNotNull();
+        await Assert.That(context.Activity!.DisplayName).IsNotEqualTo(context.Metadata.DisplayName); // not renamed: not adopted
+        await Assert.That(LabcoatTracing.IsTestTrace(context.Activity.TraceId)).IsFalse(); // not exported
+    }
 }
 
 /// <summary>Turns tracing on before TUnit discovers the tests (exporting to a port nothing listens on).</summary>

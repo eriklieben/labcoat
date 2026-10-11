@@ -50,6 +50,22 @@ that line and links the test to `/traces/detail/<traceId>`. HTTP calls made duri
 `traceparent` header, so the service spans join the test's trace. `EndTest` tags the outcome (`test.outcome`; failed,
 error, timeout and aborted tests get an error status).
 
+## Trace only some tests
+
+A trace filter in the Labcoat UI's search syntax (`cat:Integration`, `trait:Kind=Slow`, name text) limits tracing to
+the matching tests. From the AppHost: `.WithTestTracing(filter: "cat:Integration")` (it wins). As the test project's
+default:
+
+```csharp
+[assembly: LabcoatTracing(Filter = "cat:Integration")]   // or on a test class; or <LabcoatTracingFilter> in the .csproj
+```
+
+The adapter reads the test's `[TestCategory]` (method, class, base classes, assembly), `[TestProperty]`, `[Owner]`,
+`[Priority]` and `[Description]`, the traits MSTest reports to Labcoat, so `cat:Integration` matches
+`[TestCategory("Integration")]` and `trait:Kind=Slow` matches `[TestProperty("Kind", "Slow")]`. A test that doesn't
+match gets no span and no trace id. The hooks still do the tracing; the attribute only narrows it. See
+[Trace only some tests](https://github.com/eriklieben/labcoat/blob/main/docs/aspire.md#trace-only-some-tests).
+
 ## Live console output
 
 MSTest attaches console output to a test's result only when the test ends. `LabcoatOutput` makes lines appear in

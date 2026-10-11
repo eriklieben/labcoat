@@ -46,6 +46,15 @@ public static class LabcoatTracing
     /// <summary>Environment variable with OTLP headers (<c>key=value,key2=value2</c>), e.g. the dashboard's <c>x-otlp-api-key</c>.</summary>
     public const string HeadersVariable = "LABCOAT_OTLP_HEADERS";
 
+    /// <summary>
+    /// Environment variable with the trace filter (<c>cat:Integration</c>, <c>trait:Kind=Slow</c>, name text; the Labcoat
+    /// UI's search syntax): only matching tests are traced. Set by Labcoat next to the other <c>LABCOAT_OTLP_*</c>
+    /// variables when a filter is configured (<c>WithTestTracing(filter: ...)</c>, <c>--trace-filter</c>,
+    /// <c>traceFilter</c>, <c>LABCOAT_TRACE_FILTER</c>); it wins over an adapter's default filter
+    /// (<c>[assembly: LabcoatTracing(Filter = ...)]</c>).
+    /// </summary>
+    public const string FilterVariable = "LABCOAT_OTLP_FILTER";
+
     private const string ApiKeyHeader = "x-otlp-api-key";
 
     private static readonly ActivitySource s_source = new(ActivitySourceName, typeof(LabcoatTracing).Assembly.GetName().Version?.ToString());
@@ -53,6 +62,8 @@ public static class LabcoatTracing
     private static readonly HashSet<string> s_frameworkSources = new(StringComparer.Ordinal);
     // Traces of tests (BeginTest): the only traces of the framework sources that are exported.
     private static readonly ConcurrentDictionary<ActivityTraceId, byte> s_testTraces = new();
+    // Trace filters by their text: each is parsed (and an invalid one reported) once per process.
+    private static readonly ConcurrentDictionary<string, TraceFilter> s_filters = new(StringComparer.Ordinal);
     private static TracerProvider? s_provider;
     private static bool s_exitHook;
 
@@ -63,6 +74,47 @@ public static class LabcoatTracing
 
     private static bool IsHttp =>
         Environment.GetEnvironmentVariable(ProtocolVariable) is { } p && p.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The test project a trace filter's <c>proj:</c> and free text match (the test app's assembly name); settable for tests.</summary>
+    internal static string? ProjectName { get; set; } = Assembly.GetEntryAssembly()?.GetName().Name;
+
+    /// <summary>Where an invalid trace filter is reported (once per filter); settable for tests.</summary>
+    internal static TextWriter ErrorOutput { get; set; } = Console.Error;
+
+    /// <summary>
+    /// True when tracing is on (<see cref="IsEnabled"/>) and <paramref name="test"/> passes the trace filter: the one
+    /// Labcoat passes (<see cref="FilterVariable"/>), else <paramref name="defaultFilter"/>; no filter: every test.
+    /// <see cref="BeginTest"/> checks Labcoat's filter itself; adapters with a default filter of their own
+    /// (<c>[assembly: LabcoatTracing(Filter = ...)]</c>) call this first.
+    /// </summary>
+    /// <remarks>
+    /// The filter uses the Labcoat UI's search syntax: free text (project, namespace, class, method or display name, trait
+    /// values), <c>cat:&lt;text&gt;</c> (a trait value, e.g. a category), <c>trait:&lt;key&gt;</c> /
+    /// <c>trait:&lt;key&gt;=&lt;text&gt;</c> and <c>proj:&lt;text&gt;</c>; every term must match, case-insensitive, by
+    /// substring. Each filter is parsed once per process; an invalid one is reported once on standard error and no test
+    /// is traced.
+    /// </remarks>
+    /// <param name="test">The test, with its <see cref="LabcoatTest.Categories"/> and <see cref="LabcoatTest.Traits"/>.</param>
+    /// <param name="defaultFilter">The filter to use when Labcoat passes none; null or blank: none.</param>
+    public static bool ShouldTrace(LabcoatTest test, string? defaultFilter = null)
+    {
+        ArgumentNullException.ThrowIfNull(test);
+        if (!IsEnabled) return false;
+        var labcoatFilter = Environment.GetEnvironmentVariable(FilterVariable);
+        var fromLabcoat = !string.IsNullOrWhiteSpace(labcoatFilter);
+        var text = fromLabcoat ? labcoatFilter : defaultFilter;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        var source = fromLabcoat ? FilterVariable : "LabcoatTracing(Filter)";
+        return s_filters.GetOrAdd(text, t => CompileFilter(t, source)).Matches(test, ProjectName);
+    }
+
+    private static TraceFilter CompileFilter(string text, string source)
+    {
+        var filter = TraceFilter.Compile(text);
+        if (filter.Error is { } error)
+            ErrorOutput.WriteLine($"Labcoat.Testing: {source} '{text}' is not a valid trace filter: {error} No test is traced.");
+        return filter;
+    }
 
     /// <summary>
     /// Makes the resources of an Aspire app started by <c>DistributedApplicationTestingBuilder</c> export their
@@ -122,7 +174,9 @@ public static class LabcoatTracing
     /// <summary>
     /// Starts the span of a test and writes its trace id to the test's output. Call from the framework's "test starts"
     /// hook, in the test's execution context (the activity becomes <see cref="Activity.Current"/>), and pair with
-    /// <see cref="EndTest"/>. A no-op returning null when <see cref="IsEnabled"/> is false.
+    /// <see cref="EndTest"/>. A no-op returning null when <see cref="IsEnabled"/> is false, or when the test does not
+    /// match the trace filter Labcoat passes (<see cref="FilterVariable"/>, see <see cref="ShouldTrace"/>): such a test
+    /// gets no span, no <c>traceparent</c> and no trace id in its output, exactly as without tracing.
     /// </summary>
     /// <param name="test">The test.</param>
     /// <param name="writeOutput">Writes a line to the test's own output (captured per test; default <see cref="Console.WriteLine(string)"/>).</param>
@@ -131,11 +185,11 @@ public static class LabcoatTracing
     /// <see cref="Activity.Current"/> in the test body: Labcoat then adopts it (tags it, uses its trace, never stops it)
     /// instead of starting a span the test body would not see. It must be a root (a trace per test).
     /// </param>
-    /// <returns>The span, for <see cref="EndTest"/>; null when tracing is off.</returns>
+    /// <returns>The span, for <see cref="EndTest"/>; null when tracing is off or the test is filtered out.</returns>
     public static LabcoatTestSpan? BeginTest(LabcoatTest test, Action<string>? writeOutput = null, Activity? frameworkActivity = null)
     {
         ArgumentNullException.ThrowIfNull(test);
-        if (!IsEnabled) return null;
+        if (!ShouldTrace(test)) return null;
         lock (s_gate) EnsureProviderLocked();
 
         Activity? activity;

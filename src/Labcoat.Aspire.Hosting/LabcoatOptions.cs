@@ -43,8 +43,16 @@ public sealed class LabcoatOptions
     /// </summary>
     public IList<string> CoverageExclude { get; } = new List<string>();
 
-    /// <summary>Start with per-test trace collection on (<see cref="LabcoatResourceBuilderExtensions.WithTestTracing"/>).</summary>
+    /// <summary>Start with per-test trace collection on (<see cref="LabcoatResourceBuilderExtensions.WithTestTracing(ApplicationModel.IResourceBuilder{ApplicationModel.LabcoatResource}, bool)"/>).</summary>
     public bool TestTracing { get; set; }
+
+    /// <summary>
+    /// While trace collection is on, trace only the tests matching this filter, e.g. <c>cat:Integration</c> or
+    /// <c>trait:Kind=Slow</c> (the Labcoat UI's search syntax; see
+    /// <see cref="LabcoatResourceBuilderExtensions.WithTestTracing(ApplicationModel.IResourceBuilder{ApplicationModel.LabcoatResource}, string, bool)"/>).
+    /// Null = every test.
+    /// </summary>
+    public string? TestTracingFilter { get; set; }
 
     /// <summary>
     /// Base git ref of the UI's "Run affected: branch vs …", e.g. <c>origin/develop</c>
@@ -106,6 +114,7 @@ public sealed class LabcoatOptions
         Watch = ReadBool(section, nameof(Watch)) ?? Watch;
         Coverage = ReadBool(section, nameof(Coverage)) ?? Coverage;
         TestTracing = ReadBool(section, nameof(TestTracing)) ?? TestTracing;
+        TestTracingFilter = ReadTraceFilter(section) ?? TestTracingFilter;
         SuiteResultState = ReadBool(section, nameof(SuiteResultState)) ?? SuiteResultState;
         if (section[nameof(AffectedBase)] is { Length: > 0 } affectedBase) AffectedBase = affectedBase.Trim();
         ImpactMap = ReadImpactMap(section) ?? ImpactMap;
@@ -131,6 +140,14 @@ public sealed class LabcoatOptions
         return LabcoatResourceBuilderExtensions.ImpactMapModes.Contains(impactMap.Trim().ToLowerInvariant())
             ? impactMap.Trim().ToLowerInvariant()
             : throw Invalid(section, nameof(ImpactMap), impactMap, "class, test or auto");
+    }
+
+    private static string? ReadTraceFilter(IConfiguration section)
+    {
+        if (section[nameof(TestTracingFilter)] is not { } raw || string.IsNullOrWhiteSpace(raw)) return null;
+        return Labcoat.Testing.TraceFilterSyntax.Validate(raw) is { } error
+            ? throw Invalid(section, nameof(TestTracingFilter), raw, $"a trace filter ({error})")
+            : raw.Trim();
     }
 
     private static int? ReadMaxParallel(IConfiguration section)

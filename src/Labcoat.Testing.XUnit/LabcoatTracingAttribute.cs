@@ -35,6 +35,17 @@ public sealed class LabcoatTracingAttribute : BeforeAfterTestAttribute
     // The span of each running test (by xUnit's test unique id; tests may run in parallel).
     private static readonly ConcurrentDictionary<string, LabcoatTestSpan> s_spans = new(StringComparer.Ordinal);
 
+    /// <summary>The trait key of categories (<c>[Trait("Category", "Integration")]</c>), as Labcoat shows them.</summary>
+    private const string CategoryTrait = "Category";
+
+    /// <summary>
+    /// The default trace filter of the tests this attribute applies to, in the Labcoat UI's search syntax
+    /// (<c>cat:Integration</c>, <c>trait:Kind=Slow</c>, name text): only matching tests are traced. Used when Labcoat
+    /// passes no filter of its own (the AppHost's wins). Set it from the project file with
+    /// <c>&lt;LabcoatTracingFilter&gt;cat:Integration&lt;/LabcoatTracingFilter&gt;</c>. Null: every test.
+    /// </summary>
+    public string? Filter { get; set; }
+
     /// <inheritdoc />
     public override void Before(MethodInfo methodUnderTest, IXunitTest test)
     {
@@ -45,8 +56,10 @@ public sealed class LabcoatTracingAttribute : BeforeAfterTestAttribute
         if (s_spans.TryRemove(id, out var stale))
             LabcoatTracing.EndTest(stale, LabcoatTestOutcome.Failed, "Retried");
         // xUnit does not capture Console: the trace id goes to the test's output helper (the result's standard output).
+        var labcoatTest = ToLabcoatTest(test);
+        if (!LabcoatTracing.ShouldTrace(labcoatTest, Filter)) return;
         var output = TestContext.Current.TestOutputHelper;
-        var span = LabcoatTracing.BeginTest(ToLabcoatTest(test), line => output?.WriteLine(line));
+        var span = LabcoatTracing.BeginTest(labcoatTest, line => output?.WriteLine(line));
         if (span is not null) s_spans[id] = span;
     }
 
@@ -64,7 +77,9 @@ public sealed class LabcoatTracingAttribute : BeforeAfterTestAttribute
 
     /// <summary>
     /// The test as Labcoat.Testing describes it; <see cref="LabcoatTest.Id"/> is the test node uid xUnit reports to
-    /// Labcoat (the test case's unique id).
+    /// Labcoat (the test case's unique id). <see cref="LabcoatTest.Categories"/> are the values of the <c>Category</c>
+    /// trait, <see cref="LabcoatTest.Traits"/> the other traits (of the test, its class and assembly), as xUnit reports
+    /// them to Labcoat.
     /// </summary>
     /// <remarks>
     /// Reads only the <c>Xunit.Sdk.ITest</c> / <c>ITestCaseMetadata</c> contract of xunit.v3.common, which is the same in
@@ -74,14 +89,21 @@ public sealed class LabcoatTracingAttribute : BeforeAfterTestAttribute
     {
         ArgumentNullException.ThrowIfNull(test);
         ITestCaseMetadata testCase = test.TestCase;
+        var traits = ((ITestMetadata)test).Traits
+            .SelectMany(t => t.Value.Select(v => new KeyValuePair<string, string>(t.Key, v)))
+            .ToList();
         return new LabcoatTest(test.TestDisplayName)
         {
             Id = testCase.UniqueID,
             ClassName = testCase.TestClassName,
             MethodName = testCase.TestMethodName,
             Framework = Framework,
+            Categories = traits.Where(IsCategory).Select(t => t.Value).ToList(),
+            Traits = traits.Where(t => !IsCategory(t)).ToList(),
         };
     }
+
+    private static bool IsCategory(KeyValuePair<string, string> trait) => trait.Key == CategoryTrait;
 
     /// <summary>Maps xUnit's test result state to the span outcome.</summary>
     public static LabcoatTestOutcome ToOutcome(TestResultState? state) => state?.Result switch

@@ -44,7 +44,8 @@ public class OrdersApiTests
     [Test]
     public async Task Requests_carry_the_tests_own_trace()
     {
-        if (!LabcoatTracing.IsEnabled) return;
+        // Traced only with tracing on and when the trace filter (if any) includes this test.
+        if (!LabcoatTracing.ShouldTrace(LabcoatTracingAttribute.ToLabcoatTest(NUnit.Framework.Internal.TestExecutionContext.CurrentContext.CurrentTest))) return;
         var root = Activity.Current;
         while (root?.Parent is not null) root = root.Parent;
 

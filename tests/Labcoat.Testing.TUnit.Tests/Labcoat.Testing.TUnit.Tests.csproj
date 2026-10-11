@@ -8,6 +8,9 @@
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
+    <!-- A default trace filter for this assembly (the targets put it on [assembly: LabcoatTracing]): free text that
+         every test of LabcoatTracingAttributeTests matches, and FilteredOutTests does not. -->
+    <LabcoatTracingFilter>LabcoatTracingAttributeTests</LabcoatTracingFilter>
   </PropertyGroup>
 
   <ItemGroup>

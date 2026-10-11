@@ -1016,8 +1016,10 @@ function detailStateFields(st: import("./contract").ExplorerState): Partial<AppS
 export interface AppState {
   /** an OTLP endpoint is known (hosted by an Aspire AppHost): Settings shows the "Traces in the Aspire dashboard" switch */
   tracingAvailable?: boolean;
+  /** the host's trace filter (search syntax): Settings shows it under the switch; undefined = every test is traced */
+  tracingFilter?: string;
 }
 
 function runsStateFields(st: import("./contract").ExplorerState): Partial<AppState> {
-  return { tracingAvailable: !!st.tracingAvailable };
+  return { tracingAvailable: !!st.tracingAvailable, tracingFilter: st.tracingFilter || undefined };
 }

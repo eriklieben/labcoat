@@ -13,6 +13,8 @@ public sealed partial class StartOptions
     public bool Watch { get; set; }
     public bool Coverage { get; set; }
     public bool Traces { get; set; }
+    /// <summary>--trace-filter: only the tests matching it get a trace (Labcoat.Testing; the UI's search syntax).</summary>
+    public string? TraceFilter { get; set; }
     public List<string> ExtraRoots { get; } = [];
     /// <summary>--affected-base: base ref of "Run affected: branch vs …".</summary>
     public string? AffectedBase { get; set; }
@@ -69,7 +71,7 @@ public sealed partial class StartOptions
         private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
-            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file",
+            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
             "--export", "--filter", "--export-paths", // --run (CliRun.cs)
         };
 
@@ -129,6 +131,7 @@ public sealed partial class StartOptions
             case "--watch" or "-w": Watch = true; return null;
             case "--coverage": Coverage = true; return null;
             case "--traces": Traces = true; return null;
+            case "--trace-filter": return SetTraceFilter(args.Value());
             case "--root": return AddRoot(args.Value());
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
@@ -143,6 +146,15 @@ public sealed partial class StartOptions
     }
 
     private static string? ErrorUnless(bool valid, string error) => valid ? null : error;
+
+    /// <summary>--trace-filter: checked now, so an invalid filter stops Labcoat instead of reaching every test.</summary>
+    private string? SetTraceFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return $"--trace-filter needs a filter: {Labcoat.Testing.TraceFilterSyntax.Expected}.";
+        if (Labcoat.Testing.TraceFilterSyntax.Validate(value) is { } error) return $"--trace-filter: {error}";
+        TraceFilter = value.Trim();
+        return null;
+    }
 
     /// <summary>--hang-threshold / --test-timeout: seconds or a duration ("90s", "5m"); 0 or "off" turns it off.</summary>
     private string? SetDuration(string option, string? value)
@@ -220,6 +232,8 @@ public sealed class LabcoatAppOptions
     /// <summary>LABCOAT_NAME (set by Labcoat.Aspire.Hosting to the resource name).</summary>
     public string? WorkspaceName { get; init; }
     public bool Traces { get; init; }
+    /// <summary>The trace filter passed to test hosts while tracing is on (--trace-filter > LABCOAT_TRACE_FILTER > settings files).</summary>
+    public string? TraceFilter { get; init; }
     /// <summary>Server option affectedBase (CLI > LABCOAT_AFFECTED_BASE > settings files).</summary>
     public string? AffectedBase { get; init; }
     /// <summary>Server option impactMap (CLI > LABCOAT_IMPACT_MAP > settings files; default "auto").</summary>
@@ -246,6 +260,8 @@ public static partial class LabcoatApp
     public const string AffectedBaseEnv = "LABCOAT_AFFECTED_BASE";
     /// <summary>Server option impactMap from the environment (Labcoat.Aspire.Hosting's WithImpactMap sets it).</summary>
     public const string ImpactMapEnv = "LABCOAT_IMPACT_MAP";
+    /// <summary>The trace filter from the environment (Labcoat.Aspire.Hosting's WithTestTracing(filter:) sets it).</summary>
+    public const string TraceFilterEnv = "LABCOAT_TRACE_FILTER";
 
     /// <summary>Runs Labcoat until shutdown (Ctrl+C / SIGTERM, or <paramref name="ct"/>); returns the exit code.</summary>
     public static async Task<int> RunAsync(string[] args, CancellationToken ct = default)
@@ -277,6 +293,8 @@ public static partial class LabcoatApp
         traces |= config.Traces;
         var affectedBase = ResolveAffectedBase(options, config);
         var impactMap = ResolveImpactMap(options, config);
+        var traceFilter = ResolveTraceFilter(options, config, out var traceFilterError);
+        if (traceFilterError is not null) return Fail(traceFilterError, usageHint: false, ErrorExitCode(options));
         // coverage settings: the command line's file wins over the settings files'; include / exclude lists add up.
         var coverageOptions = config.CoverageOptions.Merge(new CoverageOptions
         {
@@ -292,7 +310,7 @@ public static partial class LabcoatApp
         if (options.Diagnostics)
             return await Diagnostics.PrintAsync(projects, new DiagnosticsSettings
             {
-                Watch = watch, Coverage = coverage, Traces = traces, AffectedBase = affectedBase, ImpactMap = impactMap,
+                Watch = watch, Coverage = coverage, Traces = traces, TraceFilter = traceFilter, AffectedBase = affectedBase, ImpactMap = impactMap,
                 CoverageOptions = coverageOptions, UiDefaults = config.UiDefaults, SettingsFiles = config.FilesForDisplay,
                 LogLevel = logLevel, LogFile = logFile,
             }, ct);
@@ -310,6 +328,7 @@ public static partial class LabcoatApp
             AspireDashboardUrl = aspireDashboardUrl,
             WorkspaceName = Environment.GetEnvironmentVariable("LABCOAT_NAME"), // set by Labcoat.Aspire.Hosting to the resource name
             Traces = traces,
+            TraceFilter = traceFilter,
             AffectedBase = affectedBase,
             ImpactMap = impactMap,
             Coverage = coverageOptions,
@@ -409,6 +428,22 @@ public static partial class LabcoatApp
             else config.Warnings.Add($"{AffectedBaseEnv}: '{envBase}' is not a git ref; ignored.");
         }
         return affectedBase ?? config.AffectedBase;
+    }
+
+    /// <summary>
+    /// The trace filter: --trace-filter > LABCOAT_TRACE_FILTER (Aspire WithTestTracing(filter:)) > workspace file > user
+    /// file. An invalid one from the environment is an error (<paramref name="error"/>): Labcoat does not start.
+    /// </summary>
+    internal static string? ResolveTraceFilter(StartOptions options, LabcoatConfig config, out string? error)
+    {
+        error = null;
+        if (options.TraceFilter is not null) return options.TraceFilter;
+        if (Environment.GetEnvironmentVariable(TraceFilterEnv) is { } env && !string.IsNullOrWhiteSpace(env))
+        {
+            error = Labcoat.Testing.TraceFilterSyntax.Validate(env) is { } invalid ? $"{TraceFilterEnv}: {invalid}" : null;
+            return error is null ? env.Trim() : null;
+        }
+        return config.TraceFilter;
     }
 
     /// <summary>impactMap: --impact-map > LABCOAT_IMPACT_MAP (Aspire WithImpactMap) > workspace file > user file > "auto".</summary>
@@ -558,6 +593,7 @@ public static partial class LabcoatApp
         var uiDefaultsJson = o.UiDefaults is null ? (JsonElement?)null : JsonSerializer.SerializeToElement(o.UiDefaults);
         return new Explorer(hub, o.Projects, o.AspireDashboardUrl, sourceRoots,
             o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
+              TraceFilter = o.TraceFilter,
               ImpactMapMode = o.ImpactMap ?? ImpactMapModes.Default,
               MaxParallelProjects = o.Limits.EffectiveMaxParallel, HangThreshold = o.Limits.EffectiveHangThreshold, TestTimeout = o.Limits.EffectiveTestTimeout,
               ProjectFinder = warn => ProjectDiscovery.FindProjects(o.Paths, warn), WorkspaceRoots = WorkspaceRootsOf(o.Paths) };

@@ -45,6 +45,12 @@ public class LabcoatResource(string name, string command, string workingDirector
     /// <summary>Start with per-test trace collection on (test hosts get the dashboard's OTLP endpoint). Off by default.</summary>
     public bool TracingOnStart { get; internal set; }
 
+    /// <summary>
+    /// While trace collection is on, only the tests matching this filter get a trace (the Labcoat UI's search syntax,
+    /// e.g. <c>cat:Integration</c>; passed as <c>LABCOAT_TRACE_FILTER</c>). Null = every test.
+    /// </summary>
+    public string? TracingFilter { get; internal set; }
+
     /// <summary>Base git ref of "Run affected: branch vs …" (passed as <c>LABCOAT_AFFECTED_BASE</c>); null = Labcoat's default.</summary>
     public string? AffectedBase { get; internal set; }
 

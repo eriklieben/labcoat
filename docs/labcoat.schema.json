@@ -105,6 +105,11 @@
       "type": "boolean",
       "description": "Start with per-test trace collection on (like --traces; only has an effect under an Aspire AppHost)."
     },
+    "traceFilter": {
+      "type": "string",
+      "examples": ["cat:Integration", "trait:Kind=Slow", "cat:Integration proj:Orders.Tests"],
+      "description": "While per-test trace collection is on, trace only the tests that match this filter (like --trace-filter), in the UI's search syntax: cat:<category>, trait:<key>[=<value>], proj:<project> or name text; every term must match, case-insensitive. is: and msg: are not allowed (they depend on the result). An invalid filter stops Labcoat with an error."
+    },
     "affectedBase": {
       "type": "string",
       "pattern": "^(?!-)[A-Za-z0-9._/@{}~^:+\\-]+$",

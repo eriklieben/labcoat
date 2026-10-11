@@ -148,6 +148,7 @@ public sealed partial class Explorer : IAsyncDisposable
                 Runs = _history.Runs(),
                 TracingEnabled = _tracingEnabled,
                 TracingAvailable = Telemetry.Available,
+                TracingFilter = TraceFilter,
                 WorkspaceName = _workspaceName,
                 SourceRoots = SourceRootsLocked(),
                 Quarantined = _settings.Quarantined(),
@@ -1441,7 +1442,7 @@ public sealed partial class Explorer : IAsyncDisposable
                     onUpdate(method, prm);
                     break;
             }
-        }, (level, msg) => Log(p.Project.Id, level, msg), environment, tracingEnabled);
+        }, (level, msg) => Log(p.Project.Id, level, msg), environment, tracingEnabled, TraceFilter);
         AttachLiveOutput(p, host);
         lock (Sync) p.ActiveSession = host;
         return host;
@@ -1633,6 +1634,12 @@ public sealed partial class Explorer : IAsyncDisposable
     }
 
     public bool TracingEnabled { get { lock (Sync) return _tracingEnabled; } }
+
+    /// <summary>
+    /// The trace filter (<c>--trace-filter</c>, <c>LABCOAT_TRACE_FILTER</c>, <c>traceFilter</c>): while tracing is on,
+    /// only the tests matching it get a trace (passed to test hosts as <c>LABCOAT_OTLP_FILTER</c>). Null: every test.
+    /// </summary>
+    public string? TraceFilter { get; init; }
 
     /// <summary>setQuarantine: quarantined tests still run but are counted separately (RunSummary.quarantined). Persisted.</summary>
     public void SetQuarantine(string projectId, string id, bool quarantined)

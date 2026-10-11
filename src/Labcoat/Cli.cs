@@ -68,6 +68,9 @@ public static class Cli
           --coverage-exclude <globs>  Modules or path globs never to count. Comma-separated; repeatable.
           --traces         Start with per-test trace collection enabled (only has an effect when hosted by an
                            Aspire AppHost). Off by default; a choice made in the UI is remembered per workspace.
+          --trace-filter <expr>  While trace collection is on, trace only the tests that match <expr>, in the
+                           UI's search syntax: cat:<category>, trait:<key>[=<value>], proj:<project> or name
+                           text; every term must match (e.g. "cat:Integration trait:Kind=Slow").
           --root <dir>     Extra directory whose source files the UI may show (e.g. the solution root, for
                            stack-trace frames outside the test projects). Repeatable.
           --affected-base <ref>  Base of "Run affected: branch vs …" (default: origin/HEAD, else
@@ -133,6 +136,7 @@ public static class Cli
           LABCOAT_NO_USER_CONFIG  1 = ignore the user settings file (like --no-user-config)
           LABCOAT_AFFECTED_BASE   base ref of "Run affected: branch vs …" (like --affected-base)
           LABCOAT_IMPACT_MAP      class, test or auto (like --impact-map)
+          LABCOAT_TRACE_FILTER    the tests to trace (like --trace-filter)
           LABCOAT_MAX_PARALLEL, LABCOAT_HANG_THRESHOLD, LABCOAT_TEST_TIMEOUT
                                   like --max-parallel, --hang-threshold, --test-timeout
           LABCOAT_LIVE_OUTPUT     0 = no live output of running tests (no extra test host options or

@@ -205,6 +205,8 @@ public sealed record ExplorerState
     public bool TracingEnabled { get; init; }
     /// <summary>An OTLP endpoint is known (hosted under Aspire), so tracing can be turned on.</summary>
     public bool TracingAvailable { get; init; }
+    /// <summary>Trace filter of the host (--trace-filter / LABCOAT_TRACE_FILTER / traceFilter): only matching tests are traced; null = all.</summary>
+    public string? TracingFilter { get; init; }
     /// <summary>Display name of the workspace: LABCOAT_NAME (Aspire resource name), else the solution / project name.</summary>
     public string? WorkspaceName { get; init; }
     /// <summary>Directories whose files GET /api/source serves (canonical, absolute).</summary>

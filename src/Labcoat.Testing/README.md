@@ -64,6 +64,13 @@ LabcoatTracing.EndTest(span, LabcoatTestOutcome.Failed, frameworkOutcome: "Faile
   (TUnit) pass it here. Labcoat then tags and renames it instead of starting a span the test body would not see, and
   `LabcoatTracing.Initialize("<framework source>")` (called before the first test) makes the exporter listen to that
   source. Only spans of test traces are exported from it, not the framework's session or class spans.
+- **Trace filter:** `LabcoatTest.Categories` and `LabcoatTest.Traits` (key / value pairs, as Labcoat shows them) are
+  what a trace filter matches (`cat:Integration`, `trait:Kind=Slow`, name text; the Labcoat UI's search syntax).
+  `BeginTest` applies the filter Labcoat passes (`LABCOAT_OTLP_FILTER`) and returns null for a test that doesn't match:
+  no span, no `traceparent`, no trace id. An adapter with a default filter of its own (`[assembly: LabcoatTracing(Filter
+  = "...")]`) calls `LabcoatTracing.ShouldTrace(test, defaultFilter)` first; Labcoat's filter wins. Each filter is parsed
+  once per process; an invalid one is reported once on standard error and traces nothing. See
+  [Trace only some tests](https://github.com/eriklieben/labcoat/blob/main/docs/aspire.md#trace-only-some-tests).
 - `LabcoatLiveOutput.Send(test, text)` sends a line live to Labcoat's detail pane while the test runs (a
   `labcoat:live:` marker on the raw stdout; nothing outside Labcoat).
 

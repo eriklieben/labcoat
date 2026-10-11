@@ -80,6 +80,10 @@ package for their test framework for that:
 [`Labcoat.Testing.MSTest`](https://www.nuget.org/packages/Labcoat.Testing.MSTest) or
 [`Labcoat.Testing.TUnit`](https://www.nuget.org/packages/Labcoat.Testing.TUnit).
 
+To trace only some tests, pass a filter in the UI's search syntax: `.WithTestTracing(filter: "cat:Integration")` (or
+`o.TestTracingFilter`, `"Labcoat": { "TestTracingFilter": "cat:Integration" }` in appsettings.json). See
+[Trace only some tests](https://github.com/eriklieben/labcoat/blob/main/docs/aspire.md#trace-only-some-tests).
+
 ## More
 
 The full guide, including how to keep an Aspire app warm between test runs:

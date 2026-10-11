@@ -159,7 +159,10 @@ export class SettingsPage extends LabcoatElement {
             "Aspire",
             row(
               "Traces in the Aspire dashboard",
-              "Jump from a failing integration test to the traces and logs it caused in the Aspire dashboard. Applies from the next run. Stored for this workspace by the Labcoat host.",
+              [
+                "Jump from a failing integration test to the traces and logs it caused in the Aspire dashboard. Applies from the next run. Stored for this workspace by the Labcoat host.",
+                tracingFilterHint($.tracingFilter),
+              ],
               switchControl({ checked: tracingOn, onChange: setTracing, label: "Traces in the Aspire dashboard" }),
             ),
           ),
@@ -314,6 +317,24 @@ function row(label: string, description: Child, control: Child, key?: UiSettingK
     ),
     h("div", { class: "setting-control" }, control),
   );
+}
+
+/**
+ * The host's trace filter under the tracing switch (read-only: set with --trace-filter, LABCOAT_TRACE_FILTER, the
+ * traceFilter setting or WithTestTracing(filter:) in the AppHost); nothing when every test is traced.
+ */
+function tracingFilterHint(filter: () => string | undefined): Child {
+  return () => {
+    const f = filter();
+    if (!f) return null;
+    return h(
+      "div",
+      { class: "setting-origin setting-trace-filter", title: "Set by the Labcoat host's configuration, so it can't be changed here." },
+      "Only tests matching ",
+      h("code", {}, f),
+      " are traced (set by the Labcoat host).",
+    );
+  };
 }
 
 /**

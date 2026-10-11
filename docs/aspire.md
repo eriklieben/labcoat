@@ -54,6 +54,7 @@ builder.AddLabcoat("tests", labcoat =>
     labcoat.Coverage = true;
     labcoat.CoverageExclude.Add("MyApp.Tools");      // coverage filters; also CoverageInclude, CoverageSettings
     labcoat.TestTracing = true;
+    labcoat.TestTracingFilter = "cat:Integration";  // trace only these tests; appsettings.json: "TestTracingFilter": "cat:Integration"
     labcoat.HostPort = 4300;
     labcoat.AffectedBase = "origin/develop";        // appsettings.json: "Labcoat": { "AffectedBase": "origin/develop" }
     labcoat.ImpactMap = "auto";                     // "class", "test" or "auto" (features.md "The impact map")
@@ -96,7 +97,7 @@ Labcoat resource itself inherits the variables of the Aspire run, and test proce
 | `DCP_*`, `DEBUG_SESSION_*`, `DOTNET_WATCH*`, `DOTNET_HOTRELOAD_*`, `DOTNET_MODIFIABLE_ASSEMBLIES`, dotnet watch's hot reload `DOTNET_STARTUP_HOOKS` entry | The orchestrator's, the IDE's debug session's and `dotnet watch`'s. |
 | `OTEL_*` | `WithOtlpExporter()` on the Labcoat resource: they describe Labcoat, not your tests. Per-test traces use `LABCOAT_OTLP_*` instead (below). |
 | `PORT`, `ASPNETCORE_URLS`, `ASPNETCORE_HTTP(S)_PORTS`, `DOTNET_URLS`, `DOTNET_LAUNCH_PROFILE` | Labcoat's own listen address; a test that starts Kestrel from configuration would try to bind it. |
-| `LABCOAT_TOKEN`, `LABCOAT_NAME`, `LABCOAT_ALLOWED_*`, `LABCOAT_DASHBOARD_API_*`, `LABCOAT_APPHOST_UI_SETTINGS`, `LABCOAT_AFFECTED_BASE`, `LABCOAT_IMPACT_MAP`, `LABCOAT_MAX_PARALLEL`, `LABCOAT_HANG_THRESHOLD`, `LABCOAT_TEST_TIMEOUT` | Labcoat's own settings. |
+| `LABCOAT_TOKEN`, `LABCOAT_NAME`, `LABCOAT_ALLOWED_*`, `LABCOAT_DASHBOARD_API_*`, `LABCOAT_APPHOST_UI_SETTINGS`, `LABCOAT_AFFECTED_BASE`, `LABCOAT_IMPACT_MAP`, `LABCOAT_TRACE_FILTER`, `LABCOAT_MAX_PARALLEL`, `LABCOAT_HANG_THRESHOLD`, `LABCOAT_TEST_TIMEOUT` | Labcoat's own settings. |
 
 Everything else is passed on: variables you add with `WithEnvironment` (`DOCKER_HOST`, ...), connection strings and
 `services__*` from `WithReference`, `ASPNETCORE_ENVIRONMENT` / `DOTNET_ENVIRONMENT`, `SSL_CERT_DIR`, and Aspire settings
@@ -280,8 +281,9 @@ dotnet add MyApp.Tests package Labcoat.Testing.TUnit
 ```
 
 No code besides step 2: the adapter adopts the `Activity` TUnit starts for each test (current in the test body) and tags
-it with `test.id`, the test's id in Labcoat. To trace only some tests, set
-`<LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>` and put `[LabcoatTracing]` on those classes.
+it with `test.id`, the test's id in Labcoat. To trace only some tests, use a
+[trace filter](#trace-only-some-tests), or set `<LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>` and put
+`[LabcoatTracing]` on those classes.
 
 **NUnit** (on Microsoft.Testing.Platform: NUnit3TestAdapter 6 or later with `<EnableNUnitRunner>true</EnableNUnitRunner>`)
 
@@ -309,7 +311,7 @@ gets its own trace; the row links to the last one). Live output needs nothing ex
 output.
 
 For NUnit and xUnit, set `<LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>` and put `[LabcoatTracing]` on
-some classes to trace only those, as with TUnit.
+some classes to trace only those, as with TUnit; or use a [trace filter](#trace-only-some-tests) by category or trait.
 
 **Migrating from `Labcoat.Testing` before 1.0 (MSTest):** reference `Labcoat.Testing.MSTest` instead of
 `Labcoat.Testing` and change `LabcoatTracing.StartTest` / `EndTest` in the hooks to `LabcoatMSTest.StartTest` /
@@ -318,6 +320,65 @@ unchanged.
 
 The sample (`samples/AspireSample`) has all four: `AspireSample.Tests` / `AspireSample.PassingTests` on MSTest,
 `AspireSample.TUnitTests` on TUnit, `AspireSample.NUnitTests` on NUnit and `AspireSample.XUnitTests` on xUnit v3.
+
+### Trace only some tests
+
+Tracing is per Labcoat resource, so by default every test of every project that uses an adapter gets a trace. A
+**trace filter** narrows that to some tests, in the same syntax as the search box of the Labcoat UI, so the text you
+type there to find the tests is the text that traces them:
+
+| Term | Matches |
+| --- | --- |
+| `cat:Integration` | a trait value: a category (MSTest `[TestCategory]`, NUnit / TUnit `[Category]`, an xUnit `Category` trait) or the value of any other trait |
+| `trait:Kind=Slow`, `trait:Owner` | a trait with exactly that key (and a value containing the text); a category is the trait `Category=<name>` |
+| `proj:Orders` | the test project (its assembly name) |
+| `OrdersApi` | free text: the project, namespace, class, method or display name, or a trait value |
+
+Every term must match (`cat:Integration trait:Kind=Slow`), case-insensitive, by substring; quote values with spaces
+(`cat:"slow tests"`). `is:` and `msg:` can't be used: they depend on the test's result. In the AppHost:
+
+```csharp
+builder.AddLabcoat("tests")
+       .WithTestTracing(filter: "cat:Integration");     // or o.TestTracingFilter / "Labcoat": { "TestTracingFilter": ... }
+```
+
+Standalone: `labcoat --traces --trace-filter "cat:Integration"`, `"traceFilter": "cat:Integration"` in
+`.labcoat.json` or `LABCOAT_TRACE_FILTER` (see [configuration.md](configuration.md)). An invalid filter stops the
+AppHost (`ArgumentException`) or Labcoat with an error when it starts, not each test. Settings → Aspire in the UI shows
+the active filter under the tracing switch. While tracing is on, Labcoat passes the filter to the test hosts as
+`LABCOAT_OTLP_FILTER`; a test that doesn't match gets no span and no trace id, as if it had no adapter. (The services
+the app runs still send their own telemetry to the dashboard: `ConfigureAspireTesting` is per app, not per test.)
+
+A test project can also set a **default filter**, used when Labcoat passes none (the AppHost's filter wins):
+
+| Framework | Default filter |
+| --- | --- |
+| MSTest | `[assembly: LabcoatTracing(Filter = "cat:Integration")]`, or on a test class (wins over the assembly's); the hooks still do the tracing |
+| TUnit, NUnit, xUnit v3 | `<LabcoatTracingFilter>cat:Integration</LabcoatTracingFilter>` in the test project: the package's `[assembly: LabcoatTracing]` gets that `Filter` |
+
+The property works for MSTest too. With `<LabcoatTracingAutoRegister>false</LabcoatTracingAutoRegister>` (TUnit, NUnit,
+xUnit), set `Filter` on your own `[LabcoatTracing(Filter = "...")]` attributes instead. The same text means the same
+thing in every framework, because each adapter passes the categories and traits its framework reports to Labcoat:
+
+```csharp
+// MSTest
+[TestClass, TestCategory("Integration")]
+public class OrdersApiTests { [TestMethod, TestProperty("Kind", "Slow")] public async Task PlacesOrder() { /* ... */ } }
+
+// NUnit
+[Category("Integration")]
+public class OrdersApiTests { [Test, Property("Kind", "Slow")] public async Task PlacesOrder() { /* ... */ } }
+
+// xUnit v3
+[Trait("Category", "Integration")]
+public class OrdersApiTests { [Fact, Trait("Kind", "Slow")] public async Task PlacesOrder() { /* ... */ } }
+
+// TUnit
+[Category("Integration")]
+public class OrdersApiTests { [Test, Property("Kind", "Slow")] public async Task PlacesOrder() { /* ... */ } }
+```
+
+`cat:Integration` traces each `PlacesOrder` above; `trait:Kind=Slow` too; `cat:Unit` none of them.
 
 ## Integration tests and warm test hosts
 
