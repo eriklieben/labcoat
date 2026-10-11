@@ -30,10 +30,10 @@ public class TestHostEnvironmentBenchmarks
 
         _aspire = new Dictionary<string, string?>(user, StringComparer.OrdinalIgnoreCase)
         {
-            ["ASPIRE_BACKCHANNEL_PATH"] = "/tmp/aspire/cli.sock", ["ASPIRE_CLI_PID"] = "4242",
+            ["ASPIRE_BACKCHANNEL_PATH"] = "/home/dev/.aspire/cli/backchannels/cli.sock", ["ASPIRE_CLI_PID"] = "4242",
             ["ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL"] = "https://localhost:21000", ["ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL"] = "https://localhost:22000",
             ["ASPIRE_DASHBOARD_URL"] = "https://localhost:17000", ["ASPIRE_ALLOW_UNSECURED_TRANSPORT"] = "true",
-            ["DCP_SESSION_FOLDER"] = "/tmp/dcp", ["DCP_INSTANCE_ID_PREFIX"] = "labcoat-", ["DEBUG_SESSION_PORT"] = "9999",
+            ["DCP_SESSION_FOLDER"] = "/home/dev/.aspire/dcp/session", ["DCP_INSTANCE_ID_PREFIX"] = "labcoat-", ["DEBUG_SESSION_PORT"] = "9999",
             ["DOTNET_WATCH"] = "1", ["DOTNET_WATCH_ITERATION"] = "3", ["DOTNET_HOTRELOAD_NAMEDPIPE_NAME"] = "pipe",
             ["DOTNET_MODIFIABLE_ASSEMBLIES"] = "debug", ["DOTNET_LAUNCH_PROFILE"] = "http",
             ["DOTNET_STARTUP_HOOKS"] = "/home/dev/.dotnet/sdk/10.0.100/DotnetTools/dotnet-watch/Microsoft.Extensions.DotNetDeltaApplier.dll",

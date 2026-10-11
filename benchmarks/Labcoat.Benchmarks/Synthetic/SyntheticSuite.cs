@@ -37,96 +37,193 @@ public sealed class SyntheticSuite
     /// <param name="historyRuns">History entries per test (the mock's previous session has 12, the store keeps 20).</param>
     public static SyntheticSuite Create(int count, string root, int historyRuns = 12)
     {
-        var projectCount = Math.Clamp(count / 2500, 2, 40);
-        var perProject = (count + projectCount - 1) / projectCount;
-        long seed = 7;
-        double Rnd() => (seed = seed * 16807 % 2147483647) / 2147483647.0;
+        var generator = new Generator(count, root, historyRuns);
+        generator.Run();
+        return new SyntheticSuite { Root = root, Projects = generator.Projects, Tests = generator.Tests, Classes = generator.Classes };
+    }
 
-        var projects = new List<TestProject>();
-        var tests = new List<TestNode>(count);
-        var classes = new List<TestClass>();
-        var n = 0;
-        for (var p = 0; p < projectCount && n < count; p++)
+    /// <summary>The mock's Park-Miller generator (ui/src/mock/scale.ts): the same sequence for the same seed.</summary>
+    private sealed class Lcg(long seed)
+    {
+        private long _seed = seed;
+
+        public double Next()
+        {
+            _seed = _seed * 16807 % 2147483647;
+            return _seed / 2147483647.0;
+        }
+    }
+
+    /// <summary>
+    /// Fills projects with classes, classes with methods and methods with rows until <c>count</c> tests exist. The
+    /// order of the draws from the generator is part of the output: one per data-driven method (its row count), then
+    /// three per test (outcome, duration bucket, duration).
+    /// </summary>
+    private sealed class Generator(int count, string root, int historyRuns)
+    {
+        private const int MethodsPerClass = 8;
+
+        private readonly int _projectCount = Math.Clamp(count / 2500, 2, 40);
+        private readonly Lcg _random = new(7);
+        private int _n;
+        private int _inProject;
+        private int _perProject;
+
+        public List<TestProject> Projects { get; } = [];
+        public List<TestNode> Tests { get; } = new(count);
+        public List<TestClass> Classes { get; } = [];
+
+        /// <summary>Room for another test in the current project (and in the suite).</summary>
+        private bool ProjectHasRoom => _inProject < _perProject && _n < count;
+
+        public void Run()
+        {
+            _perProject = (count + _projectCount - 1) / _projectCount;
+            for (var p = 0; p < _projectCount && _n < count; p++) AddProject(p);
+        }
+
+        private void AddProject(int p)
         {
             var product = Products[p % Products.Length] + (p >= Products.Length ? (p / Products.Length + 1).ToString(CultureInfo.InvariantCulture) : "");
             var pid = $"Contoso.{product}.Tests";
-            projects.Add(new TestProject { Id = pid, Name = pid, Path = $"{root}/tests/{pid}/{pid}.csproj" });
-            var inProject = 0;
-            for (var c = 0; inProject < perProject && n < count; c++)
+            Projects.Add(new TestProject { Id = pid, Name = pid, Path = $"{root}/tests/{pid}/{pid}.csproj" });
+            _inProject = 0;
+            var c = 0;
+            while (ProjectHasRoom)
             {
-                var area = Areas[c % Areas.Length];
-                var sub = Subs[c / Areas.Length % Subs.Length];
-                var deep = c % 3 != 0;
-                var feature = Features[c / (Areas.Length * Subs.Length) % Features.Length];
-                var ns = $"{pid}.{area}.{sub}{(deep ? "." + feature : "")}";
-                var singular = sub.EndsWith("ies", StringComparison.Ordinal) ? sub[..^3] + "y" : sub.TrimEnd('s');
-                var cls = $"{Subjects[c % Subjects.Length]}{singular}Tests{(c >= 30 ? c.ToString(CultureInfo.InvariantCulture) : "")}";
-                var file = $"{root}/tests/{pid}/{area}/{sub}/{cls}.cs";
-                var productModule = $"Contoso.{product}";
-                var productFile = $"{root}/src/{productModule}/{area}/{sub}/{Subjects[c % Subjects.Length]}{singular}{c}.cs";
-                var klass = new TestClass(pid, ns, cls, file, productFile, productModule, []);
-                classes.Add(klass);
-                for (var m = 0; m < 8 && inProject < perProject && n < count; m++)
-                {
-                    var method = $"{Verbs[(m + c) % Verbs.Length]}_{Subjects[(m * 3 + c) % Subjects.Length]}_{Endings[(m + p) % Endings.Length]}";
-                    var rows = m % 3 == 0 ? 3 + (int)(Rnd() * 6) : 1;
-                    for (var r = 0; r < rows && inProject < perProject && n < count; r++)
-                    {
-                        n++;
-                        inProject++;
-                        var x = Rnd();
-                        var outcome = x < 0.01 ? Outcome.Failed : x < 0.015 ? Outcome.Skipped : x < 0.018 ? Outcome.Failed : x < 0.0185 ? Outcome.TimedOut : Outcome.Passed;
-                        var flaky = x is >= 0.015 and < 0.018;
-                        var tail = Rnd();
-                        var (lo, hi) = tail < 0.03 ? (100, 2000) : tail < 0.15 ? (20, 90) : (1, 30);
-                        var ms = Math.Round(lo + Rnd() * (hi - lo), 2);
-                        var args = rows > 1 ? $"({r},\"{Subjects[r % Subjects.Length].ToLowerInvariant()}-{r * 7}\",{(r * 1.25).ToString("0.00", CultureInfo.InvariantCulture)})" : "";
-                        var id = $"{ns}.{cls}.{method}{args}";
-                        var failing = outcome is Outcome.Failed or Outcome.TimedOut;
-                        var line = 14 + m * 11;
-                        var node = new TestNode
-                        {
-                            Id = id,
-                            ProjectId = pid,
-                            DisplayName = method + args,
-                            Namespace = ns,
-                            ClassName = cls,
-                            MethodName = method,
-                            FilePath = file,
-                            Line = line,
-                            LineEnd = line + 8,
-                            Traits = n % 5 == 0 ? [new Trait("TestCategory", n % 10 == 0 ? "Integration" : "Unit")] : [],
-                            Outcome = outcome,
-                            DurationMs = ms,
-                            ErrorType = outcome == Outcome.TimedOut ? "Timeout" : failing ? "AssertFailedException" : null,
-                            ErrorMessage = outcome == Outcome.TimedOut ? "Test exceeded the 5000 ms timeout."
-                                : failing ? $"Assert.AreEqual failed. Expected:<{n}>. Actual:<{n + 1}>."
-                                : outcome == Outcome.Skipped ? "Ignored: pending upstream fix" : null,
-                            StackTrace = failing ? $"   at {ns}.{cls}.{method}() in {file}:line {line + 3}" : null,
-                            StdOut = n % 50 == 0 ? $"Arrange {cls}.{method}\nAct\nAssert ok\n" : null,
-                            LastRunAt = "2026-09-01T10:00:00.0000000+00:00",
-                            Flaky = flaky ? true : null,
-                        };
-                        if (historyRuns > 0) node.History = History(historyRuns, outcome, ms, flaky);
-                        tests.Add(node);
-                        klass.TestIds.Add(id);
-                    }
-                }
+                var klass = NewClass(pid, product, c);
+                Classes.Add(klass);
+                for (var m = 0; m < MethodsPerClass && ProjectHasRoom; m++) AddMethod(klass, p, c, m);
+                c++;
             }
         }
-        return new SyntheticSuite { Root = root, Projects = projects, Tests = tests, Classes = classes };
-    }
 
-    private static List<HistoryEntry> History(int runs, Outcome last, double ms, bool flaky)
-    {
-        var list = new List<HistoryEntry>(runs);
-        for (var i = 0; i < runs; i++)
+        private TestClass NewClass(string pid, string product, int c)
         {
-            var outcome = i == runs - 1 ? last : flaky && i % 3 == 0 ? Outcome.Failed : last == Outcome.Skipped ? Outcome.Skipped : Outcome.Passed;
-            list.Add(new HistoryEntry(outcome, Math.Round(ms * (0.8 + i % 5 * 0.1), 2),
-                $"2026-08-{1 + i % 28:00}T10:00:00.0000000+00:00", $"run-{i:0000}"));
+            var area = Areas[c % Areas.Length];
+            var sub = Subs[c / Areas.Length % Subs.Length];
+            var deep = c % 3 != 0;
+            var feature = Features[c / (Areas.Length * Subs.Length) % Features.Length];
+            var ns = $"{pid}.{area}.{sub}{(deep ? "." + feature : "")}";
+            var singular = sub.EndsWith("ies", StringComparison.Ordinal) ? sub[..^3] + "y" : sub.TrimEnd('s');
+            var cls = $"{Subjects[c % Subjects.Length]}{singular}Tests{(c >= 30 ? c.ToString(CultureInfo.InvariantCulture) : "")}";
+            var file = $"{root}/tests/{pid}/{area}/{sub}/{cls}.cs";
+            var productModule = $"Contoso.{product}";
+            var productFile = $"{root}/src/{productModule}/{area}/{sub}/{Subjects[c % Subjects.Length]}{singular}{c}.cs";
+            return new TestClass(pid, ns, cls, file, productFile, productModule, []);
         }
-        return list;
+
+        private void AddMethod(TestClass klass, int p, int c, int m)
+        {
+            var method = $"{Verbs[(m + c) % Verbs.Length]}_{Subjects[(m * 3 + c) % Subjects.Length]}_{Endings[(m + p) % Endings.Length]}";
+            var rows = m % 3 == 0 ? 3 + (int)(_random.Next() * 6) : 1;
+            for (var r = 0; r < rows && ProjectHasRoom; r++)
+            {
+                _n++;
+                _inProject++;
+                var args = rows > 1 ? Arguments(r) : "";
+                var node = NewTest(klass, method, args, line: 14 + m * 11);
+                Tests.Add(node);
+                klass.TestIds.Add(node.Id);
+            }
+        }
+
+        private TestNode NewTest(TestClass klass, string method, string args, int line)
+        {
+            var x = _random.Next();
+            var outcome = OutcomeFor(x);
+            var flaky = x is >= 0.015 and < 0.018;
+            var (lo, hi) = DurationRange(_random.Next());
+            var ms = Math.Round(lo + _random.Next() * (hi - lo), 2);
+            var failing = outcome is Outcome.Failed or Outcome.TimedOut;
+            var node = new TestNode
+            {
+                Id = $"{klass.Namespace}.{klass.Name}.{method}{args}",
+                ProjectId = klass.ProjectId,
+                DisplayName = method + args,
+                Namespace = klass.Namespace,
+                ClassName = klass.Name,
+                MethodName = method,
+                FilePath = klass.TestFile,
+                Line = line,
+                LineEnd = line + 8,
+                Traits = TraitsFor(_n),
+                Outcome = outcome,
+                DurationMs = ms,
+                ErrorType = ErrorType(outcome),
+                ErrorMessage = ErrorMessage(outcome, _n),
+                StackTrace = failing ? $"   at {klass.Namespace}.{klass.Name}.{method}() in {klass.TestFile}:line {line + 3}" : null,
+                StdOut = _n % 50 == 0 ? $"Arrange {klass.Name}.{method}\nAct\nAssert ok\n" : null,
+                LastRunAt = "2026-09-01T10:00:00.0000000+00:00",
+                Flaky = flaky ? true : null,
+            };
+            if (historyRuns > 0) node.History = History(historyRuns, outcome, ms, flaky);
+            return node;
+        }
+
+        /// <summary>~1% failed, ~0.5% skipped, ~0.3% failed and flaky, ~0.05% timed out.</summary>
+        private static Outcome OutcomeFor(double x) => x switch
+        {
+            < 0.01 => Outcome.Failed,
+            < 0.015 => Outcome.Skipped,
+            < 0.018 => Outcome.Failed,
+            < 0.0185 => Outcome.TimedOut,
+            _ => Outcome.Passed,
+        };
+
+        /// <summary>Durations: 3% 100-2000 ms, 12% 20-90 ms, the rest 1-30 ms.</summary>
+        private static (int Lo, int Hi) DurationRange(double tail) => tail switch
+        {
+            < 0.03 => (100, 2000),
+            < 0.15 => (20, 90),
+            _ => (1, 30),
+        };
+
+        private static string Arguments(int r) =>
+            $"({r},\"{Subjects[r % Subjects.Length].ToLowerInvariant()}-{r * 7}\",{(r * 1.25).ToString("0.00", CultureInfo.InvariantCulture)})";
+
+        /// <summary>Every fifth test has a category: every tenth is an integration test, the others unit tests.</summary>
+        private static List<Trait> TraitsFor(int n)
+        {
+            if (n % 5 != 0) return [];
+            var category = n % 10 == 0 ? "Integration" : "Unit";
+            return [new Trait("TestCategory", category)];
+        }
+
+        private static string? ErrorType(Outcome outcome) => outcome switch
+        {
+            Outcome.TimedOut => "Timeout",
+            Outcome.Failed => "AssertFailedException",
+            _ => null,
+        };
+
+        private static string? ErrorMessage(Outcome outcome, int n) => outcome switch
+        {
+            Outcome.TimedOut => "Test exceeded the 5000 ms timeout.",
+            Outcome.Failed => $"Assert.AreEqual failed. Expected:<{n}>. Actual:<{n + 1}>.",
+            Outcome.Skipped => "Ignored: pending upstream fix",
+            _ => null,
+        };
+
+        private static List<HistoryEntry> History(int runs, Outcome last, double ms, bool flaky)
+        {
+            var list = new List<HistoryEntry>(runs);
+            for (var i = 0; i < runs; i++)
+            {
+                list.Add(new HistoryEntry(HistoryOutcome(i, runs, last, flaky), Math.Round(ms * (0.8 + i % 5 * 0.1), 2),
+                    $"2026-08-{1 + i % 28:00}T10:00:00.0000000+00:00", $"run-{i:0000}"));
+            }
+            return list;
+        }
+
+        /// <summary>The last run is the current outcome; a flaky test failed every third run before; the rest passed
+        /// (or were skipped, for a skipped test).</summary>
+        private static Outcome HistoryOutcome(int i, int runs, Outcome last, bool flaky)
+        {
+            if (i == runs - 1) return last;
+            if (flaky && i % 3 == 0) return Outcome.Failed;
+            return last == Outcome.Skipped ? Outcome.Skipped : Outcome.Passed;
+        }
     }
 
     /// <summary>The method spans of a generated product file (what a test of its class executes: every other method).</summary>
@@ -142,10 +239,10 @@ public sealed class SyntheticSuite
     /// <summary>Writes every product file (<see cref="ProductFileLines"/> lines of plausible C#) under <see cref="Root"/>.</summary>
     public void WriteProductFiles()
     {
-        foreach (var c in Classes)
+        foreach (var file in ProductFiles)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(c.ProductFile)!);
-            File.WriteAllText(c.ProductFile, ProductSource(Path.GetFileNameWithoutExtension(c.ProductFile)));
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, ProductSource(Path.GetFileNameWithoutExtension(file)));
         }
     }
 
@@ -155,11 +252,13 @@ public sealed class SyntheticSuite
         sb.Append("namespace Contoso;\n\n");
         sb.Append("public sealed class ").Append(className).Append('\n').Append("{\n");
         while (CountLines(sb) < 9) sb.Append("    // ...\n");
-        for (var i = 0; CountLines(sb) < ProductFileLines - 1; i++)
+        var method = 0;
+        while (CountLines(sb) < ProductFileLines - 1)
         {
-            sb.Append("    public int Method").Append(i).Append("(int value)\n    {\n");
+            sb.Append("    public int Method").Append(method).Append("(int value)\n    {\n");
             for (var k = 0; k < MethodLines - 5; k++) sb.Append("        value = value * 31 + ").Append(k).Append(";\n");
             sb.Append("        return value;\n    }\n\n");
+            method++;
         }
         sb.Append("}\n");
         return sb.ToString();
@@ -183,7 +282,7 @@ public sealed class SyntheticSuite
     public static void DeleteTempDir(string? dir)
     {
         try { if (dir is not null && Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        catch (IOException) { /* Best effort: a file still in use leaves the directory for the OS's temp cleanup. */ }
+        catch (UnauthorizedAccessException) { /* Best effort, as above. */ }
     }
 }

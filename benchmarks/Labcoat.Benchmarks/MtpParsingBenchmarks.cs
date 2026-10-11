@@ -93,21 +93,27 @@ public class MtpParsingBenchmarks
                 if (parse)
                 {
                     var msg = JsonNode.Parse(data.GetBuffer().AsSpan(consumed + bodyStart, bodyLength));
-                    if (map && msg?["params"]?["changes"] is JsonArray changes)
-                    {
-                        foreach (var c in changes)
-                        {
-                            if (c?["node"] is not JsonObject node) continue;
-                            _ = MtpMapping.MapState(node["execution-state"]?.GetValue<string>());
-                            _ = MtpMapping.ToTestNode(_projectId, node);
-                            nodes++;
-                        }
-                    }
+                    if (map) nodes += MapChanges(msg);
                 }
                 nodes++;
                 consumed += bodyStart + bodyLength;
             }
             data = MtpConnection.Consume(data, consumed);
+        }
+        return nodes;
+    }
+
+    /// <summary>Maps every node of a <c>testing/testUpdates/tests</c> notification, like the host does per change.</summary>
+    private int MapChanges(JsonNode? msg)
+    {
+        if (msg?["params"]?["changes"] is not JsonArray changes) return 0;
+        var nodes = 0;
+        foreach (var c in changes)
+        {
+            if (c?["node"] is not JsonObject node) continue;
+            _ = MtpMapping.MapState(node["execution-state"]?.GetValue<string>());
+            _ = MtpMapping.ToTestNode(_projectId, node);
+            nodes++;
         }
         return nodes;
     }
