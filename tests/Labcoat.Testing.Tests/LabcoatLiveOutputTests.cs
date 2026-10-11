@@ -81,6 +81,45 @@ public sealed class LabcoatLiveOutputTests
         Assert.AreEqual("T", json.GetProperty("n").GetString());
     }
 
+    /// <summary>The marker JSON as Labcoat.Testing 1.1.0 wrote it (JsonSerializer over a dictionary): the reference.</summary>
+    private static byte[] PreviousJson(LabcoatTest test, string text, bool error)
+    {
+        var fields = new Dictionary<string, string?>
+        {
+            ["s"] = error ? "err" : "out",
+            ["t"] = text,
+            ["c"] = test.ClassName,
+            ["m"] = test.MethodName,
+            ["n"] = test.DisplayName,
+        };
+        if (test.Id is not null) fields["i"] = test.Id;
+        return JsonSerializer.SerializeToUtf8Bytes(fields);
+    }
+
+    public static IEnumerable<object?[]> MarkerCases =>
+    [
+        [Rows, "Starting the app…\n", false],
+        [Rows, "warning!\n", true],
+        [new LabcoatTest("T"), "x", false],
+        [new LabcoatTest("T") { ClassName = "Ns.C" }, "", true],
+        // Escaping: quotes, backslash, control characters, HTML-sensitive characters, non-ASCII, a surrogate pair.
+        [Rows, "say \"hi\" \\ path\\to\tfile\r\n\u0001\u001f\u007f", false],
+        [Rows, "<b>a & b</b> 'x' + `y` = 1", false],
+        [new LabcoatTest("Café \"d\" <n>") { Id = "id/\"1\"&", ClassName = "Ns.Ü<T>", MethodName = "M\u2028" }, "日本語 é 😀 \u00a0", true],
+    ];
+
+    [TestMethod]
+    [DynamicData(nameof(MarkerCases))]
+    public void FormatMarker_writes_the_same_bytes_as_before(LabcoatTest test, string text, bool error)
+    {
+        var marker = LabcoatLiveOutput.FormatMarker(test, text, error);
+        Assert.StartsWith(LabcoatLiveOutput.Marker, marker);
+        var expected = PreviousJson(test, text, error);
+        var actual = Convert.FromBase64String(marker[LabcoatLiveOutput.Marker.Length..]);
+        CollectionAssert.AreEqual(expected, actual, Encoding.UTF8.GetString(actual));
+        Assert.AreEqual(LabcoatLiveOutput.Marker + Convert.ToBase64String(expected), marker);
+    }
+
     [TestMethod]
     public void A_closed_stdout_is_ignored()
     {

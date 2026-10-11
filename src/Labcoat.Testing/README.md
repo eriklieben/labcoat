@@ -2,7 +2,8 @@
 
 The framework-neutral core of [Labcoat](https://github.com/eriklieben/labcoat)'s test-side helpers: per-test
 OpenTelemetry traces for Aspire integration tests, so Labcoat can show a **View trace** / **Structured logs** link that
-jumps straight to what the services did during that test in the Aspire dashboard.
+jumps straight to what the services did during that test in the Aspire dashboard. AOT-compatible: works in trimmed
+and Native AOT test apps (TUnit, MSTest), live output included.
 
 ## Setup: two steps
 

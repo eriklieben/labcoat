@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A Native AOT test app that uses the Labcoat packages, published with every trim / AOT warning as an error and run
+    under Labcoat's test host environment (LABCOAT_TEST_HOST=1): the CI job "Smoke test (AOT)" in .github/workflows/ci.yml.
+    It restores the packages the build job packed (not project references: the package build files are part of what
+    users get), so it isn't in Labcoat.slnx and the normal build, tests and coverage never see it.
+    Locally (Linux: clang or gcc and zlib; the version is <VersionPrefix> of src/Directory.Build.props plus the suffix):
+      dotnet pack Labcoat.slnx -c Release -o artifacts/aot-pkgs -p:VersionSuffix=local.1
+      dotnet publish tests/AotSmoke -c Release -o artifacts/aot-smoke -p:LabcoatPackages=$PWD/artifacts/aot-pkgs -p:LabcoatVersion=1.1.0-local.1
+      LABCOAT_TEST_HOST=1 artifacts/aot-smoke/AotSmoke
+    A new suffix for every pack: NuGet caches a package version once (~/.nuget/packages).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <!-- Trim and AOT analysis warnings (IL2xxx, IL3xxx) fail the publish, also those of the Labcoat assemblies. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- The folder with the Labcoat packages to test, and their version (CI: the build job's nupkgs, 1.x.y-ci.<run>). -->
+    <RestoreAdditionalProjectSources>$(LabcoatPackages)</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Labcoat.Testing.TUnit" VersionOverride="$(LabcoatVersion)" />
+    <!-- The MSTest adapter in a Native AOT app (its test class lookup by reflection); an alias, because both adapters
+         have a Labcoat.Testing.LabcoatTracingAttribute. -->
+    <PackageReference Include="Labcoat.Testing.MSTest" VersionOverride="$(LabcoatVersion)" Aliases="MSTestAdapter" />
+    <PackageReference Include="Labcoat.TestingPlatform" VersionOverride="$(LabcoatVersion)" />
+  </ItemGroup>
+
+  <Target Name="_AotSmokeRequireVersion" BeforeTargets="CollectPackageReferences" Condition="'$(LabcoatVersion)' == '' or '$(LabcoatPackages)' == ''">
+    <Error Text="Pass -p:LabcoatPackages=&lt;folder with the packed Labcoat packages&gt; -p:LabcoatVersion=&lt;their version&gt; (see AotSmoke.csproj)." />
+  </Target>
+
+</Project>

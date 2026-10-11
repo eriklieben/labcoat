@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -89,6 +90,18 @@ public static class LabcoatMSTest
             : TestAttributes.None;
 
     /// <summary>The test class: in the test application's assembly, else any loaded assembly; null when not found.</summary>
+    /// <remarks>
+    /// In a trimmed or Native AOT test app the class (or its methods' metadata) may be gone: then it is not found, or found
+    /// without the attributes, and the test simply has no categories or traits (so a trace filter on them doesn't match).
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code",
+        Justification = "The test class is looked up by the name MSTest reports (its TestContext has no categories or traits). "
+            + "A class the trimmer removed is not found: no categories or traits, never an exception.")]
+    // IL2073 is reported by the trimmer and the AOT compiler (tests/AotSmoke), not by the build's analyzer.
+    [UnconditionalSuppressMessage("Trimming", "IL2073:Target method return value does not satisfy 'DynamicallyAccessedMembersAttribute' requirements",
+        Justification = "Only the public methods' attributes are read (TestAttributes.Read); methods the trimmer removed are not "
+            + "tests MSTest runs, and missing metadata means no categories or traits, never an exception.")]
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)]
     internal static Type? FindType(string className)
     {
         var entry = Assembly.GetEntryAssembly();
@@ -113,7 +126,7 @@ public static class LabcoatMSTest
         public static readonly TestAttributes None = new([], [], null);
 
         /// <summary>Reads the attributes of the methods named <paramref name="methodName"/> of <paramref name="type"/>.</summary>
-        public static TestAttributes Read(Type? type, string methodName)
+        public static TestAttributes Read([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] Type? type, string methodName)
         {
             if (type is null) return None;
             // Public instance methods only: MSTest doesn't run a static or non-public [TestMethod] (UTA007).

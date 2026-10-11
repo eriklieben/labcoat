@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Testing.Platform.Builder;
 using Microsoft.Testing.Platform.CommandLine;
@@ -224,7 +225,17 @@ internal sealed class LabcoatLauncher(ICommandLineOptions options) : ITestHostAp
         return exec;
     }
 
-    internal static string DotnetPath() => DotnetPath(Environment.ProcessPath, Path.GetDirectoryName(typeof(object).Assembly.Location));
+    internal static string DotnetPath() => DotnetPath(Environment.ProcessPath, RuntimeDirectory(CoreLibLocation()));
+
+    /// <summary>Where System.Private.CoreLib was loaded from; empty in a single-file or Native AOT app.</summary>
+    [UnconditionalSuppressMessage("SingleFile", "IL3000:Avoid accessing Assembly file path when publishing as a single file",
+        Justification = "Only a hint for finding dotnet: an empty location (single-file, Native AOT) gives no runtime directory "
+            + "(RuntimeDirectory), and DotnetPath falls back to DOTNET_HOST_PATH, DOTNET_ROOT or dotnet on the PATH.")]
+    private static string CoreLibLocation() => typeof(object).Assembly.Location;
+
+    /// <summary>The directory of the runtime at <paramref name="coreLibLocation"/>; null when the location is unknown (empty).</summary>
+    internal static string? RuntimeDirectory(string? coreLibLocation) =>
+        string.IsNullOrEmpty(coreLibLocation) ? null : Path.GetDirectoryName(coreLibLocation);
 
     /// <param name="processPath">This process's executable.</param>
     /// <param name="runtimeDir">Directory of the runtime running us (System.Private.CoreLib).</param>

@@ -22,5 +22,8 @@ to install. It needs the .NET 10 runtime, whatever your test project targets.
 - **Which runner:** `$LABCOAT_PATH` (a `Labcoat.dll` or `labcoat` executable) > the bundled runner (MSBuild property
   `LabcoatPath`) > `dotnet tool exec Labcoat@<version>`.
 
+AOT-compatible: the extension works in Native AOT test apps (it finds `dotnet` for the runner without the runtime's
+install path there).
+
 Requires Microsoft.Testing.Platform 2.x (MSTest 4, xUnit v3 3.x, NUnit 4.4+, TUnit). See
 [docs/standalone.md](https://github.com/eriklieben/labcoat/blob/main/docs/standalone.md) for the design and its limits.

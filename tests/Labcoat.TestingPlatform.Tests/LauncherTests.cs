@@ -159,6 +159,20 @@ public class LauncherTests
         Assert.IsFalse(string.IsNullOrEmpty(LabcoatLauncher.DotnetPath()));
     }
 
+    [TestMethod]
+    public void An_unknown_runtime_location_falls_back_to_dotnet_on_the_path()
+    {
+        // Single-file and Native AOT apps: Assembly.Location is empty, so there is no runtime directory to look in.
+        var exe = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+        // (Init cleared DOTNET_HOST_PATH and DOTNET_ROOT.)
+        Assert.IsNull(LabcoatLauncher.RuntimeDirectory(""));
+        Assert.IsNull(LabcoatLauncher.RuntimeDirectory(null));
+        Assert.AreEqual(exe, LabcoatLauncher.DotnetPath("/x/MyTests", LabcoatLauncher.RuntimeDirectory("")));
+
+        var coreLib = Path.Combine(_dir.FullName, "install", "shared", "Microsoft.NETCore.App", "10.0.0", "System.Private.CoreLib.dll");
+        Assert.AreEqual(Path.GetDirectoryName(coreLib), LabcoatLauncher.RuntimeDirectory(coreLib));
+    }
+
     // ------------------------------------------------------------------ running it
 
     [TestMethod]

@@ -256,6 +256,10 @@ calls join the test's trace.
 | xUnit v3 (3.2+) | [`Labcoat.Testing.XUnit`](../src/Labcoat.Testing.XUnit/README.md) | None: the package adds `[assembly: LabcoatTracing]`. | an assembly fixture's `InitializeAsync` |
 | Other | [`Labcoat.Testing`](../src/Labcoat.Testing/README.md) | Call `LabcoatTracing.BeginTest` / `EndTest` from your own hooks ([ARCHITECTURE.md](../src/Labcoat.Testing/ARCHITECTURE.md)). | the fixture that starts the app |
 
+All of these packages are AOT-compatible: they work in Native AOT test apps (TUnit, MSTest). With MSTest, categories
+and traits are read from the test class by reflection; when trimming removed that metadata, a `cat:` / `trait:` filter
+doesn't match the test.
+
 The sections below are step 1 per framework; the fixtures of `samples/AspireSample` (listed at the end of this section)
 show step 2 in context.
 

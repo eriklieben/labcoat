@@ -4,7 +4,8 @@ xUnit v3 support for [Labcoat](https://github.com/eriklieben/labcoat): give each
 OpenTelemetry trace, so Labcoat can show a **View trace** / **Structured logs** link that jumps straight to what the
 services did during that test in the Aspire dashboard. Built on
 [`Labcoat.Testing`](https://www.nuget.org/packages/Labcoat.Testing) (the framework-neutral core, brought in by this
-package). For xUnit v3 3.2 or later on Microsoft.Testing.Platform (`xunit.v3.mtp-v2`).
+package). For xUnit v3 3.2 or later on Microsoft.Testing.Platform (`xunit.v3.mtp-v2`). The library is trim- and
+AOT-compatible (`IsAotCompatible`).
 
 ## Setup: two steps
 

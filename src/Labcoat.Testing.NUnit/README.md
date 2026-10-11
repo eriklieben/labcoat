@@ -5,7 +5,7 @@ OpenTelemetry trace, so Labcoat can show a **View trace** / **Structured logs** 
 services did during that test in the Aspire dashboard, and stream output live while a test runs. Built on
 [`Labcoat.Testing`](https://www.nuget.org/packages/Labcoat.Testing) (the framework-neutral core, brought in by this
 package). For NUnit 4.4 or later (NUnit 5 included) on Microsoft.Testing.Platform (NUnit3TestAdapter 6 or later,
-`<EnableNUnitRunner>true</EnableNUnitRunner>`).
+`<EnableNUnitRunner>true</EnableNUnitRunner>`). The library is trim- and AOT-compatible (`IsAotCompatible`).
 
 ## Setup: two steps
 

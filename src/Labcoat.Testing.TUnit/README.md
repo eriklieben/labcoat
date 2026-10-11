@@ -4,7 +4,7 @@ TUnit support for [Labcoat](https://github.com/eriklieben/labcoat): give each TU
 OpenTelemetry trace, so Labcoat can show a **View trace** / **Structured logs** link that jumps straight to what the
 services did during that test in the Aspire dashboard. Built on
 [`Labcoat.Testing`](https://www.nuget.org/packages/Labcoat.Testing) (the framework-neutral core, brought in by this
-package). Requires TUnit 1.68 or later.
+package). Requires TUnit 1.68 or later. AOT-compatible: works in Native AOT TUnit test apps.
 
 ## Setup: two steps
 

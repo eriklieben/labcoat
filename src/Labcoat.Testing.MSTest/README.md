@@ -4,7 +4,8 @@ MSTest helpers for [Labcoat](https://github.com/eriklieben/labcoat): give each M
 OpenTelemetry trace, so Labcoat can show a **View trace** / **Structured logs** link that jumps straight to what the
 services did during that test in the Aspire dashboard, and stream console output live while a test runs. Built on
 [`Labcoat.Testing`](https://www.nuget.org/packages/Labcoat.Testing) (the framework-neutral core, brought in by this
-package).
+package). AOT-compatible: works in trimmed and Native AOT test apps (see the note under
+[Trace only some tests](#trace-only-some-tests)).
 
 ## Setup: two steps
 
@@ -65,6 +66,10 @@ The adapter reads the test's `[TestCategory]` (method, class, base classes, asse
 `[TestCategory("Integration")]` and `trait:Kind=Slow` matches `[TestProperty("Kind", "Slow")]`. A test that doesn't
 match gets no span and no trace id. The hooks still do the tracing; the attribute only narrows it. See
 [Trace only some tests](https://github.com/eriklieben/labcoat/blob/main/docs/aspire.md#trace-only-some-tests).
+
+MSTest's `TestContext` doesn't expose these attributes, so the adapter reads them from the test class by reflection.
+In a trimmed or Native AOT test app whose test class (or method) metadata was removed, the test has no categories or
+traits: a `cat:` / `trait:` filter then doesn't match it (no span), and nothing throws.
 
 ## Live console output
 

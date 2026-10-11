@@ -203,6 +203,23 @@ public sealed partial class LabcoatMSTestTests : IDisposable
         Assert.HasCount(1, _started, "a test of an unknown class has no categories");
     }
 
+    [TestMethod]
+    public void A_trimmed_test_class_or_method_degrades_to_fewer_categories()
+    {
+        // In a trimmed or Native AOT test app the class (or the method) the attributes are read from may be gone.
+        Enable();
+        Environment.SetEnvironmentVariable(LabcoatTracing.FilterVariable, "cat:Integration");
+        var gone = new FakeTestContext("PlacesOrder", className: "Trimmed.Away.OrderTests");
+        Assert.IsEmpty(LabcoatMSTest.ToLabcoatTest(gone).Categories);
+        Assert.IsEmpty(LabcoatMSTest.ToLabcoatTest(gone).Traits);
+        CaptureOut(() => LabcoatMSTest.StartTest(gone));
+        Assert.IsEmpty(_started, "no categories: the category filter does not match, and nothing throws");
+        LabcoatMSTest.EndTest(gone);
+
+        var methodGone = LabcoatMSTest.ToLabcoatTest(TraitsTest("TrimmedAway"));
+        CollectionAssert.AreEquivalent(new[] { "Integration", "Base" }, methodGone.Categories.ToArray(), "only the class's");
+    }
+
     [GeneratedRegex("^" + LabcoatTracing.TraceIdMarker + @"([0-9a-f]{32})\r?\n$")]
     private static partial Regex TraceIdMarkerLine();
 }

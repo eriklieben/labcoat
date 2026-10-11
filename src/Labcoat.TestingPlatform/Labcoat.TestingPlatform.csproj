@@ -57,7 +57,8 @@
   <!-- NuGet package: ship a clean publish of the runner (framework-dependent, launched as `dotnet Labcoat.dll`). -->
   <Target Name="_LabcoatPackBundle">
     <PropertyGroup>
-      <_LabcoatPackDir>$(MSBuildThisFileDirectory)$(BaseIntermediateOutputPath)labcoat-pack\$(Configuration)\</_LabcoatPackDir>
+      <!-- NormalizeDirectory: with dotnet's artifacts layout (the artifacts-path option) BaseIntermediateOutputPath is absolute. -->
+      <_LabcoatPackDir>$([MSBuild]::NormalizeDirectory($(MSBuildThisFileDirectory), $(BaseIntermediateOutputPath), labcoat-pack, $(Configuration)))</_LabcoatPackDir>
     </PropertyGroup>
     <RemoveDir Directories="$(_LabcoatPackDir)" />
     <!-- RemoveProperties: this target runs in the net8.0 inner build; the runner is net10.0. NoBuild: pack built this

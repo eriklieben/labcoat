@@ -216,6 +216,50 @@ jobs:
           --port 4500 --total 35 --failed 10 --skipped 4
           -- samples/Samples.slnx
 
+  aot-smoke:
+    name: Smoke test (AOT)
+    # The libraries in a Native AOT test app (tests/AotSmoke: TUnit with Labcoat.Testing.TUnit, Labcoat.Testing.MSTest and
+    # Labcoat.TestingPlatform, restored from the packages of the build job). The publish fails on any trim / AOT warning
+    # (TreatWarningsAsErrors in the project, also for the Labcoat assemblies); the app then runs as Labcoat starts a test
+    # host (LABCOAT_TEST_HOST=1: live output on) and its tests must pass and write live output markers.
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nupkgs
+          path: artifacts/nupkgs
+
+      - name: Publish the Native AOT test app
+        # clang and zlib1g-dev, which the AOT compiler needs on Linux, are preinstalled on the runner image.
+        run: |
+          pkg=$(ls artifacts/nupkgs/Labcoat.Testing.TUnit.[0-9]*.nupkg)
+          version=$(basename "$pkg" .nupkg); version=${version#Labcoat.Testing.TUnit.}
+          echo "Labcoat packages $version"
+          dotnet publish tests/AotSmoke -c Release -o artifacts/aot-smoke \
+            -p:LabcoatPackages="$PWD/artifacts/nupkgs" -p:LabcoatVersion="$version"
+
+      - name: Run it under the Labcoat test host environment
+        env:
+          LABCOAT_TEST_HOST: 1
+        run: |
+          artifacts/aot-smoke/AotSmoke | tee artifacts/aot-smoke.log
+          # The live output markers on stdout (labcoat:live:<base64 json>), decoded.
+          decoded=$(sed -n 's/^labcoat:live://p' artifacts/aot-smoke.log | while read -r m; do echo "$m" | base64 -d; echo; done)
+          echo "$decoded"
+          for expected in 'labcoat-aot-smoke: live output works' 'labcoat-aot-smoke: MSTest live output works'; do
+            if [[ "$decoded" != *"$expected"* ]]; then
+              echo "::error::No live output marker with '$expected' on stdout."
+              exit 1
+            fi
+          done
+
   # ------------------------------------------------------------------------------------------------ code analysis
   sonar:
     name: SonarQube Cloud
@@ -340,7 +384,7 @@ jobs:
     # Not `uses: ./.github/workflows/release.yml`: NuGet trusted publishing fails inside a reusable workflow
     # (https://github.com/NuGet/login/issues/6), and a top-level run of release.yml matches the nuget.org policy. A
     # GITHUB_TOKEN may start workflow_dispatch runs (unlike pushes and most other events it causes).
-    needs: [ui, build, smoke]
+    needs: [ui, build, smoke, aot-smoke]
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/next' || github.ref == 'refs/heads/beta')

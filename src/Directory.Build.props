@@ -67,6 +67,15 @@
     <ApiCompatPermitUnnecessarySuppressions>true</ApiCompatPermitUnnecessarySuppressions>
   </PropertyGroup>
 
+  <PropertyGroup Label="Native AOT" Condition="'$(MSBuildProjectName)' != 'Labcoat'">
+    <!-- The libraries are loaded into the user's test app, which may be trimmed or published with Native AOT: this turns
+         on the trim, AOT and single-file analyzers (IL2xxx / IL3xxx), so the warnings-as-errors build fails on code that
+         would break there. Not the Labcoat tool (PackAsTool, src/Labcoat): a framework-dependent web app, never trimmed.
+         The condition is on the project name because PackAsTool is set in the project file, after this file. The CI job
+         "Smoke test (AOT)" publishes and runs a Native AOT test app with them (tests/AotSmoke). -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Sbom.Targets" PrivateAssets="all" />

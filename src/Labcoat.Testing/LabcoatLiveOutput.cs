@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 
@@ -53,15 +54,21 @@ public static class LabcoatLiveOutput
     public static string FormatMarker(LabcoatTest test, string text, bool error = false)
     {
         ArgumentNullException.ThrowIfNull(test);
-        var fields = new Dictionary<string, string?>
+        // Utf8JsonWriter, not JsonSerializer: reflection-based serialization is disabled in trimmed and Native AOT test
+        // apps. The bytes are the ones JsonSerializer wrote for a Dictionary<string, string?> of the same fields (same
+        // order, same escaping with the default encoder, null for a missing class / method name).
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var json = new Utf8JsonWriter(buffer))
         {
-            ["s"] = error ? "err" : "out",
-            ["t"] = text,
-            ["c"] = test.ClassName,
-            ["m"] = test.MethodName,
-            ["n"] = test.DisplayName,
-        };
-        if (test.Id is not null) fields["i"] = test.Id;
-        return Marker + Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(fields));
+            json.WriteStartObject();
+            json.WriteString("s", error ? "err" : "out");
+            json.WriteString("t", text);
+            json.WriteString("c", test.ClassName);
+            json.WriteString("m", test.MethodName);
+            json.WriteString("n", test.DisplayName);
+            if (test.Id is not null) json.WriteString("i", test.Id);
+            json.WriteEndObject();
+        }
+        return Marker + Convert.ToBase64String(buffer.WrittenSpan);
     }
 }
