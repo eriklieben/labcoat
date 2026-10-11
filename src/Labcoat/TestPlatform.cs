@@ -52,6 +52,8 @@ public static class TestPlatform
     private const string EnableNUnitRunner = "EnableNUnitRunner";
 
     /// <summary>Where the docs explain the switch (linked from the project's message).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarAnalyzer.CSharp", "S1075:URIs should not be hardcoded",
+        Justification = "The link to Labcoat's own troubleshooting docs: one fixed public page, the same in every environment.")]
     public const string DocsUrl = "https://github.com/eriklieben/labcoat/blob/main/docs/troubleshooting.md#my-project-uses-vstest";
 
     /// <summary>The MSBuild properties <see cref="Classify"/> reads (evaluations ask for these).</summary>

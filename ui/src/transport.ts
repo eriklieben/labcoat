@@ -57,7 +57,9 @@ export class WsTransport implements Transport {
     this.h?.onStatus(this.attempt === 0 ? "connecting" : "reconnecting", { attempt: this.attempt });
     let ws: WebSocket;
     try {
-      ws = new WebSocket(this.url());
+      // Same-origin by construction: url() resolves ./ws against the page's own URL with a fixed scheme and path, so
+      // nothing from the page URL can point it at another host; the server also checks Origin and Host (Security.cs).
+      ws = new WebSocket(this.url()); // NOSONAR: same-origin WebSocket URL (see above), not a connection-hijacking path
     } catch {
       this.scheduleReconnect();
       return;
