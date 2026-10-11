@@ -5,7 +5,7 @@
     <!-- The version of local and CI builds. Don't change it by hand: semantic-release sets it to the released version
          and commits it with CHANGELOG.md (release.config.mjs, eng/release.mjs); release builds pass
          -p:Version=<released version>, CI builds add a suffix (VersionSuffix=ci.<run>). -->
-    <VersionPrefix>1.1.0</VersionPrefix>
+    <VersionPrefix>1.1.1</VersionPrefix>
   </PropertyGroup>
 
   <PropertyGroup Label="Package metadata">
@@ -61,7 +61,7 @@
          <DisablePackageBaselineValidation>true</DisablePackageBaselineValidation> in its project file until it is.
          The Labcoat tool package opts out (Labcoat.csproj): it has no public API. -->
     <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.0.0</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>1.1.0</PackageValidationBaselineVersion>
     <!-- A suppression for a break that is released stays harmless once the baseline has moved past it (delete it after
          the next release); without this, a suppression that no longer matches anything would fail the pack. -->
     <ApiCompatPermitUnnecessarySuppressions>true</ApiCompatPermitUnnecessarySuppressions>
