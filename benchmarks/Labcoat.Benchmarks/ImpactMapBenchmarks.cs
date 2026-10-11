@@ -18,7 +18,6 @@ public class ImpactMapBenchmarks
     public int Tests { get; set; }
 
     private string _dir = "";
-    private SyntheticSuite _suite = null!;
     private ImpactMap _map = null!;
     private string _projectId = "";
     private string _file = "";
@@ -33,10 +32,10 @@ public class ImpactMapBenchmarks
     public void Setup()
     {
         _dir = SyntheticSuite.NewTempDir("impact");
-        _suite = SyntheticSuite.Create(Tests, PathUtil.CanonicalizeOrSelf(Path.Combine(_dir, "repo")), historyRuns: 0);
-        _suite.WriteProductFiles();
+        var suite = SyntheticSuite.Create(Tests, PathUtil.CanonicalizeOrSelf(Path.Combine(_dir, "repo")), historyRuns: 0);
+        suite.WriteProductFiles();
         _map = new ImpactMap();
-        foreach (var group in _suite.Classes.Select((c, i) => (Class: c, Index: i)).GroupBy(x => x.Class.ProjectId))
+        foreach (var group in suite.Classes.Select((c, i) => (Class: c, Index: i)).GroupBy(x => x.Class.ProjectId))
         {
             var classes = group.ToList();
             for (var k = 0; k < classes.Count; k++)
@@ -54,24 +53,24 @@ public class ImpactMapBenchmarks
                     _map.Record(c.ProjectId, c.TestIds, coverage);
             }
         }
-        var target = _suite.Classes[_suite.Classes.Count / 2];
+        var target = suite.Classes[suite.Classes.Count / 2];
         _projectId = target.ProjectId;
         _file = target.ProductFile;
-        var spans = SyntheticSuite.MethodSpans(_suite.Classes.Count / 2);
+        var spans = SyntheticSuite.MethodSpans(suite.Classes.Count / 2);
         _changedInMethod = [new LineSpan(spans[1].Start + 2, spans[1].Start + 4)];
         _changedOutside = [new LineSpan(1, 2)];
 
         // smart watch: a file edited after its coverage was recorded (one line in the middle of a method changed)
-        var edited = _suite.Classes[_suite.Classes.Count / 3];
+        var edited = suite.Classes[suite.Classes.Count / 3];
         _editedFile = edited.ProductFile;
         _editedProjectId = edited.ProjectId;
         var lines = File.ReadAllLines(_editedFile);
-        var at = SyntheticSuite.MethodSpans(_suite.Classes.Count / 3)[2].Start + 3;
+        var at = SyntheticSuite.MethodSpans(suite.Classes.Count / 3)[2].Start + 3;
         lines[at - 1] += " // edited";
         File.WriteAllLines(_editedFile, lines);
 
         _xml = Path.Combine(_dir, "project.cobertura.xml");
-        Cobertura.Write(_xml, _suite.Root, _suite.Classes.Where(c => c.ProjectId == _projectId));
+        Cobertura.Write(_xml, suite.Root, suite.Classes.Where(c => c.ProjectId == _projectId));
 
         // every lookup must find something, or the benchmark would measure an early return
         if (AffectedByLines_InMethod() == 0 || AffectedByLines_OutsideMethods() == 0 || Affected_EditedFile() == 0

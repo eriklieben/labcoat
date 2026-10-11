@@ -10,6 +10,9 @@ namespace Labcoat.Benchmarks.Synthetic;
 /// </summary>
 public static class Cobertura
 {
+    private const string LineRate = "line-rate";
+    private const string BranchRate = "branch-rate";
+
     /// <summary>
     /// A report of <paramref name="classes"/>' product files. <paramref name="hitFactor"/> varies the hit counts;
     /// with <paramref name="coverAll"/> every method is hit (a subset run that adds coverage), otherwise every other one.
@@ -21,8 +24,8 @@ public static class Cobertura
         using var w = XmlWriter.Create(xmlPath, settings);
         w.WriteStartDocument(standalone: true);
         w.WriteStartElement("coverage");
-        w.WriteAttributeString("line-rate", "0.5");
-        w.WriteAttributeString("branch-rate", "0.5");
+        w.WriteAttributeString(LineRate, "0.5");
+        w.WriteAttributeString(BranchRate, "0.5");
         w.WriteAttributeString("version", "1.9");
         w.WriteAttributeString("timestamp", "1791531265");
         w.WriteStartElement("sources");
@@ -47,8 +50,8 @@ public static class Cobertura
     {
         w.WriteStartElement("package");
         w.WriteAttributeString("name", module);
-        w.WriteAttributeString("line-rate", "0.5");
-        w.WriteAttributeString("branch-rate", "0.5");
+        w.WriteAttributeString(LineRate, "0.5");
+        w.WriteAttributeString(BranchRate, "0.5");
         w.WriteAttributeString("complexity", "1");
         w.WriteStartElement("classes");
         foreach (var (c, index) in classes)
@@ -57,8 +60,8 @@ public static class Cobertura
             w.WriteStartElement("class");
             w.WriteAttributeString("name", "Contoso." + Path.GetFileNameWithoutExtension(c.ProductFile));
             w.WriteAttributeString("filename", relative);
-            w.WriteAttributeString("line-rate", "0.5");
-            w.WriteAttributeString("branch-rate", "0.5");
+            w.WriteAttributeString(LineRate, "0.5");
+            w.WriteAttributeString(BranchRate, "0.5");
             w.WriteAttributeString("complexity", "1");
             var methods = SyntheticSuite.ProductFileLines / SyntheticSuite.MethodLines - 2;
             var lines = new List<(int Number, int Hits, bool Branch)>();
@@ -69,8 +72,8 @@ public static class Cobertura
                 w.WriteStartElement("method");
                 w.WriteAttributeString("name", "Method" + m.ToString(CultureInfo.InvariantCulture));
                 w.WriteAttributeString("signature", "(int)");
-                w.WriteAttributeString("line-rate", hit ? "1" : "0");
-                w.WriteAttributeString("branch-rate", "1");
+                w.WriteAttributeString(LineRate, hit ? "1" : "0");
+                w.WriteAttributeString(BranchRate, "1");
                 w.WriteAttributeString("complexity", "1");
                 w.WriteStartElement("lines");
                 var start = 10 + m * SyntheticSuite.MethodLines;

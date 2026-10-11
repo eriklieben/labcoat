@@ -46,7 +46,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Labcoat.Tests" />
     <!-- benchmarks/Labcoat.Benchmarks: MtpConnection.TryParseMessage / Consume, FullCoverageStore.Load / Schedule,
-         GitRepo.ParseNameStatus / ParseHunks. -->
+         HistoryStore.MarkChanged / CancelScheduledSave, GitRepo.ParseNameStatus / ParseHunks. -->
     <InternalsVisibleTo Include="Labcoat.Benchmarks" />
   </ItemGroup>
 
@@ -70,6 +70,19 @@
   <ItemGroup Condition="'$(LabcoatUiSbom)' != ''">
     <None Include="$(LabcoatUiSbom)" Link="sbom\ui.cdx.json" CopyToPublishDirectory="PreserveNewest" Pack="false" Visible="false" />
   </ItemGroup>
+
+  <!-- The package SBOM (src/Directory.Build.props, "SBOM"): this tool package has no NuGet dependencies (it bundles
+       only its own build output and the UI), so sbom-tool finds no packages and prints "##[warning]There were no
+       packages detected during the generation workflow." to the console, which GitHub Actions turns into a warning
+       annotation. The in-process task of Microsoft.Sbom.Targets 4.1.x ignores SbomGenerationVerbosity (its Serilog
+       console logger is always created at Information), so no property silences it. Instead the task runs in an MSBuild
+       task host (a separate process): it generates the same SBOM, its results and errors still reach MSBuild through
+       the task's own logging (a failed generation fails the pack), but sbom-tool's console output stays in that
+       process. Registered here, before the package's own UsingTask, so this one wins for this project only (not during
+       restore, which evaluates the project without the package's targets). -->
+  <UsingTask TaskName="Microsoft.Sbom.Targets.GenerateSbom" AssemblyFile="$(GenerateSbomTaskAssemblyFilePath)"
+             TaskFactory="TaskHostFactory"
+             Condition="'$(GenerateSBOM)' == 'true' and '$(GenerateSbomTaskAssemblyFilePath)' != ''" />
 
   <!-- The tool package globs the whole publish directory, and publish only removes files it wrote itself: start a
        pack from an empty publish directory so UI assets of older builds (hashed file names) never end up in it. -->

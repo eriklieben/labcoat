@@ -457,7 +457,7 @@ public sealed class LabcoatConfig
     /// "traceFilter": a string in the UI's search syntax. Unlike other values an invalid filter is an error, not a
     /// warning: ignoring it would trace every test.
     /// </summary>
-    private string? ReadTraceFilter(JsonNode? value, string display)
+    private static string? ReadTraceFilter(JsonNode? value, string display)
     {
         if (value is not JsonValue fv || !fv.TryGetValue<string>(out var filter))
             throw new ConfigException($"{display}: '{TraceFilterKey}' must be a string such as \"cat:Integration\".");

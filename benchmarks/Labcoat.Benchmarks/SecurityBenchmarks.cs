@@ -12,6 +12,8 @@ namespace Labcoat.Benchmarks;
 [MemoryDiagnoser]
 public class SecurityBenchmarks
 {
+    private const string LocalHost = "localhost:4670";
+
     private RequestGuard _guard = null!;
     private HttpContext _staticGet = null!;
     private HttpContext _apiPostSameOrigin = null!;
@@ -24,12 +26,12 @@ public class SecurityBenchmarks
     public void Setup()
     {
         _guard = new RequestGuard(["devbox.local"], ["https://dashboard.localhost:17000"], token: "0123456789abcdef0123456789abcdef"); // gitleaks:allow (a fake token for the benchmark)
-        _staticGet = Request("GET", "/assets/index-abc123.js", "localhost:4670");
-        _apiPostSameOrigin = Request("POST", "/api/run", "localhost:4670", origin: "http://localhost:4670", json: true);
+        _staticGet = Request("GET", "/assets/index-abc123.js", LocalHost);
+        _apiPostSameOrigin = Request("POST", "/api/run", LocalHost, origin: "http://localhost:4670", json: true);
         _wsHandshake = Request("GET", "/ws", "127.0.0.1:4670", origin: "http://127.0.0.1:4670");
-        _apiPostToken = Request("POST", "/api/run", "localhost:4670", json: true, token: "0123456789abcdef0123456789abcdef"); // gitleaks:allow (a fake token for the benchmark)
+        _apiPostToken = Request("POST", "/api/run", LocalHost, json: true, token: "0123456789abcdef0123456789abcdef"); // gitleaks:allow (a fake token for the benchmark)
         _rebindingHost = Request("GET", "/api/state", "attacker.example:4670");
-        _crossOrigin = Request("POST", "/api/run", "localhost:4670", origin: "https://evil.example", json: true);
+        _crossOrigin = Request("POST", "/api/run", LocalHost, origin: "https://evil.example", json: true);
     }
 
     [Benchmark(Baseline = true)]

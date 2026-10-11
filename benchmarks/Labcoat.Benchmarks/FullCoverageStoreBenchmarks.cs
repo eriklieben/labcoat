@@ -16,7 +16,6 @@ public class FullCoverageStoreBenchmarks
 
     private string _dir = "";
     private FullCoverageStore _store = null!;
-    private FullCoverage _full = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -26,14 +25,14 @@ public class FullCoverageStoreBenchmarks
         suite.WriteProductFiles();
         var testAssemblies = suite.Projects.Select(p => p.Id).ToHashSet();
         _store = new FullCoverageStore(Path.Combine(_dir, "state"));
-        _full = new FullCoverage(_store);
-        foreach (var project in suite.Projects)
+        var full = new FullCoverage(_store);
+        foreach (var projectId in suite.Projects.Select(p => p.Id))
         {
-            var xml = Path.Combine(_dir, project.Id + ".cobertura.xml");
-            Cobertura.Write(xml, suite.Root, suite.Classes.Where(c => c.ProjectId == project.Id));
+            var xml = Path.Combine(_dir, projectId + ".cobertura.xml");
+            Cobertura.Write(xml, suite.Root, suite.Classes.Where(c => c.ProjectId == projectId));
             var acc = new CoverageAccumulator();
             acc.AddCobertura(xml, testAssemblies);
-            _full.SetFull(project.Id, acc, "run-full", null);
+            full.SetFull(projectId, acc, "run-full", null);
         }
         _store.Save();
         Console.WriteLine($"// coverage.json for {Tests} tests: {new FileInfo(_store.FilePath).Length / 1024.0:0} KB");

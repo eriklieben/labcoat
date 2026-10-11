@@ -19,11 +19,10 @@ public class CoverageBenchmarks
 
     private string _dir = "";
     private SyntheticSuite _suite = null!;
-    private List<(string ProjectId, string Xml)> _reports = [];
-    private string _subsetXml = "";
+    private readonly List<(string ProjectId, string Xml)> _reports = [];
     private HashSet<string> _testAssemblies = [];
     private CoverageAccumulator _all = null!;
-    private Dictionary<string, CoverageAccumulator> _perProject = [];
+    private readonly Dictionary<string, CoverageAccumulator> _perProject = [];
     private CoverageAccumulator _subset = null!;
     private FullCoverage _full = null!;
 
@@ -34,17 +33,17 @@ public class CoverageBenchmarks
         _suite = SyntheticSuite.Create(Tests, Path.Combine(_dir, "repo"), historyRuns: 0);
         _suite.WriteProductFiles();
         _testAssemblies = [.. _suite.Projects.Select(p => p.Id)];
-        foreach (var project in _suite.Projects)
+        foreach (var projectId in _suite.Projects.Select(p => p.Id))
         {
-            var xml = Path.Combine(_dir, project.Id + ".cobertura.xml");
-            Cobertura.Write(xml, _suite.Root, _suite.Classes.Where(c => c.ProjectId == project.Id));
-            _reports.Add((project.Id, xml));
+            var xml = Path.Combine(_dir, projectId + ".cobertura.xml");
+            Cobertura.Write(xml, _suite.Root, _suite.Classes.Where(c => c.ProjectId == projectId));
+            _reports.Add((projectId, xml));
         }
         // a run of selected tests of the first project: 10% of its classes, every method hit
         var first = _suite.Projects[0].Id;
         var subsetClasses = _suite.Classes.Where(c => c.ProjectId == first).Where((_, i) => i % 10 == 0).ToList();
-        _subsetXml = Path.Combine(_dir, "subset.cobertura.xml");
-        Cobertura.Write(_subsetXml, _suite.Root, subsetClasses, hitFactor: 3, coverAll: true);
+        var subsetXml = Path.Combine(_dir, "subset.cobertura.xml");
+        Cobertura.Write(subsetXml, _suite.Root, subsetClasses, hitFactor: 3, coverAll: true);
 
         _all = new CoverageAccumulator();
         foreach (var (projectId, xml) in _reports)
@@ -55,7 +54,7 @@ public class CoverageBenchmarks
             _all.AddCobertura(xml, _testAssemblies);
         }
         _subset = new CoverageAccumulator();
-        _subset.AddCobertura(_subsetXml, _testAssemblies);
+        _subset.AddCobertura(subsetXml, _testAssemblies);
 
         _full = NewFull();
         var merged = _full.MergeSubset(first, _subset, "run-subset", subsetClasses.Sum(c => c.TestIds.Count)); // steady state: merged once

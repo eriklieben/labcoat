@@ -154,6 +154,22 @@ public sealed partial class HistoryStore
         catch (ObjectDisposedException) { /* disposed: Dispose saved already; a change after it is not saved */ }
     }
 
+    /// <summary>
+    /// Marks the data changed without scheduling a save, so the next <see cref="Save"/> writes the file
+    /// (benchmarks/Labcoat.Benchmarks: a save benchmark writes the same store again and again).
+    /// </summary>
+    internal void MarkChanged()
+    {
+        lock (_gate) _dirty = true;
+    }
+
+    /// <summary>
+    /// Cancels a scheduled save; the data stays changed until the next <see cref="Save"/> (benchmarks/Labcoat.Benchmarks:
+    /// no background save runs during a measurement). After <see cref="Dispose"/> it does nothing (a disposed timer
+    /// ignores the change).
+    /// </summary>
+    internal void CancelScheduledSave() => _saveTimer.Change(Timeout.Infinite, Timeout.Infinite);
+
     private WorkspaceLock.Lease AcquireWorkspace()
     {
         var lease = WorkspaceLock.Acquire(DataDirectory);

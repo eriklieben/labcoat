@@ -551,4 +551,28 @@ public class WorkspaceDataTests
         Assert.IsFalse(second.ReadOnly);
         Assert.AreEqual(Environment.ProcessId, WorkspaceLock.ReadOwnerPid(first.DataDirectory));
     }
+
+    // ------------------------------------------------------------------ saving (the seams of benchmarks/Labcoat.Benchmarks)
+
+    [TestMethod]
+    public void A_cancelled_save_keeps_the_change_and_a_marked_store_saves_again()
+    {
+        using var repo = new Repo();
+        var a = repo.Project("A");
+        var store = new HistoryStore([a]);
+        store.Record(Run("r1"), [Node("A", "t", Outcome.Passed)]);
+        store.CancelScheduledSave();
+        store.Save();
+        Assert.IsTrue(File.Exists(store.FilePath), "the change was kept for the next save");
+
+        File.Delete(store.FilePath);
+        store.Save();
+        Assert.IsFalse(File.Exists(store.FilePath), "nothing changed: nothing written");
+        store.MarkChanged();
+        store.Save();
+        Assert.IsTrue(File.Exists(store.FilePath));
+
+        store.Dispose();
+        store.CancelScheduledSave(); // after Dispose: nothing scheduled, no exception
+    }
 }

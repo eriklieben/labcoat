@@ -116,7 +116,8 @@ public static class LabcoatMSTest
         public static TestAttributes Read(Type? type, string methodName)
         {
             if (type is null) return None;
-            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
+            // Public instance methods only: MSTest doesn't run a static or non-public [TestMethod] (UTA007).
+            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
                 .Where(m => m.Name == methodName).ToList();
             var categories = methods.SelectMany(m => m.GetCustomAttributes<TestCategoryBaseAttribute>(inherit: true))
                 .Concat(type.GetCustomAttributes<TestCategoryBaseAttribute>(inherit: true))

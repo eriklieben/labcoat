@@ -1,4 +1,3 @@
-using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using Labcoat.Benchmarks.Synthetic;
 
@@ -13,13 +12,6 @@ namespace Labcoat.Benchmarks;
 [MemoryDiagnoser]
 public class HistoryStoreBenchmarks
 {
-    // The store saves only when something changed; a save benchmark marks it changed again. The debounce timer is
-    // stopped so a background save never runs during a measurement. (Private fields: no product seam needed.)
-    private static readonly FieldInfo DirtyField = typeof(HistoryStore).GetField("_dirty", BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException("HistoryStore._dirty not found: update HistoryStoreBenchmarks.");
-    private static readonly FieldInfo TimerField = typeof(HistoryStore).GetField("_saveTimer", BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException("HistoryStore._saveTimer not found: update HistoryStoreBenchmarks.");
-
     [Params(1_000, 20_000)]
     public int Tests { get; set; }
 
@@ -44,7 +36,7 @@ public class HistoryStoreBenchmarks
         _store = new HistoryStore(_projectPaths);
         // A full store: MaxStoredRuns runs of every test (the per-test history keeps the last MaxRuns of them).
         for (var r = 0; r < HistoryStore.MaxStoredRuns; r++) RecordRun(r);
-        StopTimer(_store);
+        _store.CancelScheduledSave();
         _store.Save();
         FileBytes = new FileInfo(_store.FilePath).Length;
         Console.WriteLine($"// history.json for {Tests} tests: {FileBytes / 1024.0 / 1024.0:0.0} MB");
@@ -53,7 +45,7 @@ public class HistoryStoreBenchmarks
     [GlobalCleanup]
     public void Cleanup()
     {
-        StopTimer(_store);
+        _store.CancelScheduledSave();
         Environment.SetEnvironmentVariable("LABCOAT_HISTORY_DIR", _previousDir);
         SyntheticSuite.DeleteTempDir(_dir);
     }
@@ -61,7 +53,7 @@ public class HistoryStoreBenchmarks
     [Benchmark]
     public void Save()
     {
-        DirtyField.SetValue(_store, true);
+        _store.MarkChanged(); // the store saves only when something changed: mark it changed again
         _store.Save();
     }
 
@@ -77,7 +69,7 @@ public class HistoryStoreBenchmarks
     public int Record()
     {
         var changed = RecordRun(_run++ + HistoryStore.MaxStoredRuns);
-        StopTimer(_store);
+        _store.CancelScheduledSave(); // no background save during a measurement
         return changed;
     }
 
@@ -91,6 +83,4 @@ public class HistoryStoreBenchmarks
         }
         return _store.Record(new RunSummary { RunId = $"run-{r:00000}", StartedAt = at, FinishedAt = at, Total = _tests.Count }, _tests).Count;
     }
-
-    private static void StopTimer(HistoryStore store) => ((Timer)TimerField.GetValue(store)!).Change(Timeout.Infinite, Timeout.Infinite);
 }
