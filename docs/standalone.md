@@ -196,6 +196,8 @@ failing. Labcoat does this itself, with ordinary runs of just those tests (they 
 - Quarantined tests are not retried. Nothing is retried when the run was cancelled, aborted or a project did not build.
 - The retries start the test hosts again; coverage comes from the first run only.
 
+![HTML report with a flaky test](images/flaky-report.png)
+
 `--quarantine-file <file>` (or `"quarantineFile"` in [.labcoat.json](configuration.md#settings-files); a relative path
 there is relative to that file) names a text file you keep in the repository, so the whole team and CI quarantine the
 same tests:
