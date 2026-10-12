@@ -26,8 +26,8 @@ public static class CoverageGate
 
     public static double Percent(int covered, int valid) => valid == 0 ? 0 : 100.0 * covered / valid;
 
-    /// <summary>Whether <paramref name="covered"/> of <paramref name="valid"/> lines reach <paramref name="min"/> percent (exact: no rounding up).</summary>
-    public static bool Meets(int covered, int valid, double min) => 100.0 * covered >= min * valid;
+    /// <summary>Whether <paramref name="covered"/> of <paramref name="valid"/> lines reach <paramref name="min"/> percent (exact: no rounding up); no lines at all only meets 0.</summary>
+    public static bool Meets(int covered, int valid, double min) => valid == 0 ? min == 0 : 100.0 * covered >= min * valid;
 
     /// <summary>One decimal, rounded down: a number that misses the threshold never prints as the threshold.</summary>
     internal static string Format(double percent) => (Math.Floor(percent * 10) / 10).ToString("0.0", CultureInfo.InvariantCulture) + "%";
