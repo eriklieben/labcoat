@@ -18,6 +18,16 @@ public sealed record ExportTest
     public string? StdErr { get; init; }
     /// <summary>The test is quarantined: a failure does not fail the run (RunSummary.quarantined).</summary>
     public bool Quarantined { get; init; }
+    /// <summary>How often the test ran in the run: more than 1 when <c>--retry-failed</c> reran it.</summary>
+    public int Attempts { get; init; } = 1;
+    /// <summary>
+    /// The failed attempts of a retried test: all of them for a test that passed on a retry (<see cref="IsFlaky"/>), the
+    /// reruns after the first failure (which stays in the error fields) for one that never passed.
+    /// </summary>
+    public List<ExportAttempt>? FailedAttempts { get; init; }
+
+    /// <summary>The test failed and passed on a retry (<c>--retry-failed</c>): it passed, but not at the first attempt.</summary>
+    public bool IsFlaky => Outcome == Outcome.Passed && Attempts > 1;
 
     /// <summary>"Namespace.Class", the class alone, or "" when the framework reported neither.</summary>
     public string ClassFullName
@@ -31,6 +41,15 @@ public sealed record ExportTest
 
     /// <summary>How the test counts in a report (JUnit's failure vs error, quarantined failures as skipped).</summary>
     public ExportKind Kind => ExportKinds.Of(this);
+}
+
+/// <summary>One failed attempt of a retried test (<see cref="ExportTest.FailedAttempts"/>).</summary>
+public sealed record ExportAttempt(Outcome Outcome, string? ErrorMessage, string? ErrorType, string? StackTrace)
+{
+    public static ExportAttempt Of(ExportTest t) => new(t.Outcome, t.ErrorMessage, t.ErrorType, t.StackTrace);
+
+    /// <summary>An assertion failure rather than an unexpected exception or a timeout (JUnit failure vs error).</summary>
+    public bool IsAssertion => Outcome != Outcome.TimedOut && ExportKinds.IsAssertion(ErrorType);
 }
 
 /// <summary>A test project of an exported run.</summary>
@@ -49,6 +68,9 @@ public sealed record RunExport
     public required List<ExportProject> Projects { get; init; }
     public required List<ExportTest> Tests { get; init; }
     public required string GeneratedAt { get; init; }
+
+    /// <summary>Tests that failed and passed on a retry (<c>--retry-failed</c>); they count as passed.</summary>
+    public int Flaky => Tests.Count(t => t.IsFlaky);
 }
 
 /// <summary>How a result counts in a report.</summary>

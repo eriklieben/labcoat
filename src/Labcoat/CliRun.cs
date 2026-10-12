@@ -14,6 +14,8 @@ public sealed partial class StartOptions
     public List<ExportTarget> Exports { get; } = [];
     /// <summary>--filter: only the tests whose name, class or namespace matches one of these patterns.</summary>
     public List<string> Filters { get; } = [];
+    /// <summary>--retry-failed: how often a failed test is rerun after the run (0 = never); a pass on a retry makes it flaky, not failed.</summary>
+    public int RetryFailed { get; private set; }
     /// <summary>--export-paths absolute: absolute source paths in lcov / Cobertura (default: relative to the workspace root).</summary>
     public bool ExportAbsolutePaths { get; private set; }
 
@@ -32,6 +34,12 @@ public sealed partial class StartOptions
                 var filter = args.Value();
                 if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
                 Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
+                return null;
+            case "--retry-failed":
+                var retries = args.Value();
+                if (!int.TryParse(retries?.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n) || n is < 1 or > CliRun.MaxRetries)
+                    return $"--retry-failed needs a number from 1 to {CliRun.MaxRetries}.";
+                RetryFailed = n;
                 return null;
             default: // --export-paths
                 var mode = args.Value();
@@ -52,10 +60,10 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--export / --filter / --export-paths only make sense with --run.</summary>
+    /// <summary>--export / --filter / --export-paths / --retry-failed only make sense with --run.</summary>
     private string? ValidateRunOptions() =>
-        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths)
-            ? "--export, --filter and --export-paths need --run."
+        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || RetryFailed > 0)
+            ? "--export, --filter, --export-paths and --retry-failed need --run."
             : null;
 }
 
@@ -63,10 +71,10 @@ public sealed partial class StartOptions
 /// <c>labcoat --run</c>: the non-interactive mode for CI. Builds and discovers the test projects, runs every test (or
 /// the <c>--filter</c>ed ones; with <c>--coverage</c>, which an lcov / Cobertura export implies), writes the
 /// <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed, <see cref="ExitFailed"/> when a test
-/// failed (or the run was aborted / cancelled), <see cref="ExitBuildError"/> when a project did not build or discover
+/// failed (or the run was aborted / cancelled; a failure that passed on a <c>--retry-failed</c> retry does not count), <see cref="ExitBuildError"/> when a project did not build or discover
 /// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
-public static class CliRun
+public static partial class CliRun
 {
     public const int ExitPassed = 0;
     public const int ExitFailed = 1;
@@ -126,8 +134,15 @@ public static class CliRun
         var last = status?.Run ?? explorer.Summary().LastRun;
         var run = last?.RunId == request.RunId ? last : null; // null: nothing ran (e.g. every build failed)
         broken = BrokenProjects(explorer);
-        PrintResult(run, status, broken, sw.Elapsed);
-        var exportsOk = WriteExports(explorer, options, run?.RunId);
+        RunExport? retried = null; // the first run with its retries applied (--retry-failed)
+        if (options.RetryFailed > 0 && run is { Failed: > 0, Aborted: not true, Cancelled: not true } && broken.Count == 0 && explorer.ExportRun(run.RunId) is { } first)
+        {
+            retried = await RetryFailedAsync(explorer, first, options.RetryFailed, ct);
+            run = retried.Run;
+            broken = BrokenProjects(explorer);
+        }
+        PrintResult(run, status, broken, sw.Elapsed, retried);
+        var exportsOk = WriteExports(explorer, options, run?.RunId, retried);
         return ExitCode(run, broken, exportsOk);
     }
 
@@ -142,7 +157,7 @@ public static class CliRun
         return ExitPassed;
     }
 
-    private static void PrintResult(RunSummary? run, Explorer.RunRequestStatus? status, List<TestProject> broken, TimeSpan elapsed)
+    private static void PrintResult(RunSummary? run, Explorer.RunRequestStatus? status, List<TestProject> broken, TimeSpan elapsed, RunExport? retried = null)
     {
         Console.WriteLine();
         foreach (var p in broken)
@@ -153,19 +168,20 @@ public static class CliRun
             return;
         }
         var verdict = run.Failed > 0 ? Cli.Red($"{run.Failed} failed") : Cli.Bold("no failures");
-        var extra = (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
+        var extra = (retried is { Flaky: > 0 } ? $", {retried.Flaky} flaky" : "") + (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
         Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {HtmlReport.Duration(elapsed.TotalMilliseconds)}");
+        if (retried is not null) PrintRetried(retried);
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
         if (run.Cancelled == true) Console.Error.WriteLine($"{WarningLabel} Run cancelled.");
     }
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>
-    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId)
+    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId, RunExport? retried = null)
     {
         var ok = true;
         foreach (var target in options.Exports)
         {
-            try { ok &= WriteExport(explorer, options, target, runId); }
+            try { ok &= WriteExport(explorer, options, target, runId, retried); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
                 Console.Error.WriteLine($"{ErrorLabel} Could not write {target.Path}: {ex.Message}");
@@ -175,7 +191,7 @@ public static class CliRun
         return ok;
     }
 
-    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId)
+    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId, RunExport? retried)
     {
         var path = Path.GetFullPath(target.Path);
         if (ExportFormats.CoverageFormats.Contains(target.Format))
@@ -192,7 +208,7 @@ public static class CliRun
             Console.WriteLine(Cli.Dim("    " + CoverageExport.Note(report, coverageOptions)));
             return true;
         }
-        var export = (runId is null ? null : explorer.ExportRun(runId)) ?? EmptyExport(explorer);
+        var export = retried ?? (runId is null ? null : explorer.ExportRun(runId)) ?? EmptyExport(explorer);
         Write(path, s => LabcoatApp.WriteRunExport(export, target.Format, s));
         Console.WriteLine($"  Wrote {target.Format}: {target.Path} ({export.Tests.Count} tests)");
         return true;

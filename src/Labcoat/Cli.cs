@@ -105,6 +105,9 @@ public static class Cli
                            cobertura collect coverage (like --coverage) and hold this run's coverage.
           --filter <pattern>  Only the tests whose name, Namespace.Class(.Method) or project contains it
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
+          --retry-failed <n>  After the run, rerun only the failed tests, up to n times (1-10). A test that
+                           passes on a retry is reported as flaky and does not fail the run; one that never
+                           passes stays failed. Quarantined tests are not retried.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
 
