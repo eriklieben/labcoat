@@ -191,10 +191,13 @@ the preview. Outside a git repository the button explains why it is unavailable.
 ## Changed tests
 
 The **Changed** chip and `is:changed` show the tests you added or modified on the current branch, for example to rerun
-only what a pull request touches. A test counts as changed when its own lines (the method, from its first line to its
-last) overlap lines that git reports as changed, or when it sits in a file that is new. Editing another method of the
-same file, or only the product code, does not mark it. Tests without a known line range count when their file changed,
-and a pure rename changes nothing.
+only what a pull request touches. A test counts as changed when its own lines (the method, from its attributes to its
+closing brace) overlap lines that git reports as changed, or when it sits in a file that is new. Editing another method
+of the same file, or only the product code, does not mark it. Test frameworks report a line range only partly (TUnit
+reports the whole method, MSTest and xUnit one line, NUnit none), so for C# files Labcoat reads the method's extent from
+the source: it finds the method at the reported line, or by name, and matches its braces (skipping strings and
+comments). If it cannot delimit the method, a test with one reported line counts when that line changed, and a test
+without a line counts when its file changed. A pure rename changes nothing.
 
 The comparison is the one of **Branch vs main** in [Run affected tests](#run-affected-tests): your working tree against
 the merge base with the base branch (the `affectedBase` option), including uncommitted and untracked files. When there is

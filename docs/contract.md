@@ -995,8 +995,11 @@ interface AffectedProject { projectId: string; name: string; tests: number; all?
   Aspire `AffectedBase` / `WithAffectedBase(ref)`) sets the default base ref of `branch`. Precedence: CLI > env >
   workspace file > user file. It is not validated against the repository at startup; an unknown ref gives `404 unknownRef`.
 - `GET /api/changed-tests` uses the changes of the `branch` base (untracked files included). A test is changed when its
-  file is new, or its `line`..`lineEnd` overlaps a changed line range of its file; tests without a line range count when
-  their file changed, a pure rename changes nothing. The Changed filter chip and `is:changed` of the UI read it.
+  file is new, or the lines of its method overlap a changed line range of its file. The method's lines are `line`..`lineEnd`
+  when the framework reports a range (TUnit); otherwise (MSTest and xUnit: one line, NUnit: none) the host reads the C#
+  source and brace-matches the method found at `line` or by `methodName` (attributes included, strings and comments
+  skipped; cached per file by modification time). When that fails, the reported `line` alone is used, and without a `line`
+  the whole file counts. A pure rename changes nothing. The Changed filter chip and `is:changed` of the UI read it.
 - `GET /api/git` only reads (`git status --porcelain=v2`, `rev-parse`, `symbolic-ref`); with `GIT_OPTIONAL_LOCKS=0` it
   never refreshes the index, so it does not get in the way of the user's own git commands.
 - Impact-map spans now carry the Cobertura method name (async state machines / lambdas map to the declaring method,
