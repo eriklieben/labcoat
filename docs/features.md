@@ -80,6 +80,12 @@ appears by itself (or with **Rediscover**).
   [configuration.md](configuration.md#parallel-projects-slow-tests-and-timeouts).
 - **Run 20 times:** repeat a test to find out whether it is flaky. The result shows how many repetitions passed and
   failed.
+- **Run in random order:** the command palette's "Run in random order" runs every test one at a time in a random
+  order, to find tests that only pass because of the order they normally run in. The run overview, the log, the JUnit
+  and HTML reports show the **seed**; "Run again with seed N" (palette) runs the same order again, and so does
+  `labcoat --run --order random --seed N`. Every test is a separate request to the test host, so class and assembly
+  fixtures run again for each test and tests do not run in parallel; coverage is not collected. Why it works this way,
+  and what each framework offers itself: [protocol.md](protocol.md#test-order-research-2026-10).
 - **Debug test:** starts the test paused until a debugger attaches, and shows the process id to attach to.
 - **Multi-targeted projects** run on their highest .NET target framework (`POST /api/target-framework` switches it,
   see [contract.md](contract.md)).
