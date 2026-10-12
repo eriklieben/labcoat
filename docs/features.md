@@ -8,6 +8,7 @@ A tour of the Labcoat UI. Most actions have a keyboard shortcut; press `?` in th
 - [Failure details](#failure-details)
 - [Snapshot testing](#snapshot-testing)
 - [Run affected tests](#run-affected-tests)
+- [Changed tests](#changed-tests)
 - [Watch mode](#watch-mode)
 - [Code coverage](#code-coverage)
 - [History, flaky tests and past runs](#history-flaky-tests-and-past-runs)
@@ -24,14 +25,14 @@ Tests are shown as project › namespace › class › method, with a row per da
 shows its status, the number of failed and total tests below it, and the duration. Results stream in while a run is in
 progress.
 
-- **Filter chips:** All, Failed, New, Passed, Skipped, Flaky, Not run. With a filter on, the tree turns into a flat
+- **Filter chips:** All, Failed, New, Changed, Passed, Skipped, Flaky, Not run. With a filter on, the tree turns into a flat
   list of matching tests (**Show as tree** switches back).
 - **Search:** press `/` and type. Plain words match the test, class, namespace, project and trait names. Every term
   must match. Tokens narrow the search further:
 
   | Token | Example | Matches |
   | --- | --- | --- |
-  | `is:` | `is:failed`, `is:failed\|flaky` | `failed`, `passed`, `skipped`, `flaky`, `new`, `slow`, `notrun`, `running`, `snapshot` |
+  | `is:` | `is:failed`, `is:failed\|flaky` | `failed`, `passed`, `skipped`, `flaky`, `new`, `changed`, `slow`, `notrun`, `running`, `snapshot` |
   | `cat:` | `cat:Integration` | a trait value, such as an MSTest `[TestCategory]` |
   | `trait:` | `trait:Owner=web-team` | a trait key, optionally with a value |
   | `msg:` | `msg:timeout`, `msg:"no such host"` | text in the error message, stack trace or output |
@@ -186,6 +187,20 @@ Shallow clones (CI) may not have the merge base; Labcoat then compares with the 
 the preview. Outside a git repository the button explains why it is unavailable. Scripts can use
 `GET /api/affected?base=working|branch|range&ref=…` (the plan) and `POST /api/run-affected` (see
 [contract.md](contract.md#run-affected-tests-git)).
+
+## Changed tests
+
+The **Changed** chip and `is:changed` show the tests you added or modified on the current branch, for example to rerun
+only what a pull request touches. A test counts as changed when its own lines (the method, from its first line to its
+last) overlap lines that git reports as changed, or when it sits in a file that is new. Editing another method of the
+same file, or only the product code, does not mark it. Tests without a known line range count when their file changed,
+and a pure rename changes nothing.
+
+The comparison is the one of **Branch vs main** in [Run affected tests](#run-affected-tests): your working tree against
+the merge base with the base branch (the `affectedBase` option), including uncommitted and untracked files. When there is
+no base branch it compares with `HEAD` (uncommitted changes). Outside a git repository the chip stays hidden. The list
+refreshes when the window gets focus, after a run and after a discovery (the host caches git's answer for about 2
+seconds). Scripts can read it from `GET /api/changed-tests` (see [contract.md](contract.md#run-affected-tests-git)).
 
 ## Watch mode
 

@@ -941,6 +941,13 @@ interface AffectedPlan {            // GET /api/affected
   impactMap?: ImpactMapInfo;
   warnings?: string[];              // e.g. shallow clone without merge base, tests of projects not discovered yet
 }
+interface ChangedTests {            // GET /api/changed-tests
+  available: boolean;               // false outside a repository (or when git can't answer): `error` says why, `tests` is empty
+  error?: string;
+  base?: "branch" | "working";      // "branch": merge base with the base branch → working tree; "working": no base branch, HEAD → working tree
+  ref?: string;                     // the base branch that was used
+  tests: { projectId: string; id: string }[];
+}
 interface AffectedFile {
   path: string;                     // absolute
   relativePath: string;             // relative to the repository root, "/" separators
@@ -972,6 +979,7 @@ interface AffectedProject { projectId: string; name: string; tests: number; all?
 | --- | --- | --- |
 | `GET /api/git` | | `200 GitInfo` (cached ~2 s; `available: false` + `error` outside a repository) |
 | `GET /api/affected` | `?base=working\|branch\|range&ref=<ref>` | `200 AffectedPlan` (never runs anything); `400 { error, code }` (`code`: `badBase`, `badRef`, `refRequired`); `404 { error, code: "unknownRef" \| "noBase" }`; `409 { error, code: "notGitRepo" \| "gitUnavailable" \| "noCommits" }` |
+| `GET /api/changed-tests` | | `200 ChangedTests` (cached ~2 s): the tests added or modified on the branch (`available: false` outside a repository, never a `4xx`) |
 | `POST /api/run-affected` | `{ base?, ref?, coverage?, buildImpactMap? }` | `202 { accepted: true, runId, queued, merged, tests, files, projects }`; with `buildImpactMap` and projects lacking impact data `202 { accepted: true, impactMapFirst: true, tests, files, projects }` (no `runId` yet: the pass runs first, then the run is queued); `200 { accepted: false, reason, files }` when no test is affected; `400` malformed JSON; other errors as `GET /api/affected` (`404` when none of the selected tests is known any more) |
 
 ### Behaviour
@@ -986,6 +994,9 @@ interface AffectedProject { projectId: string; name: string; tests: number; all?
 - The server option **`affectedBase`** (settings file key, `--affected-base <ref>`, env `LABCOAT_AFFECTED_BASE`,
   Aspire `AffectedBase` / `WithAffectedBase(ref)`) sets the default base ref of `branch`. Precedence: CLI > env >
   workspace file > user file. It is not validated against the repository at startup; an unknown ref gives `404 unknownRef`.
+- `GET /api/changed-tests` uses the changes of the `branch` base (untracked files included). A test is changed when its
+  file is new, or its `line`..`lineEnd` overlaps a changed line range of its file; tests without a line range count when
+  their file changed, a pure rename changes nothing. The Changed filter chip and `is:changed` of the UI read it.
 - `GET /api/git` only reads (`git status --porcelain=v2`, `rev-parse`, `symbolic-ref`); with `GIT_OPTIONAL_LOCKS=0` it
   never refreshes the index, so it does not get in the way of the user's own git commands.
 - Impact-map spans now carry the Cobertura method name (async state machines / lambdas map to the declaring method,
