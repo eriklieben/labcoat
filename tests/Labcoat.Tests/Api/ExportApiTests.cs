@@ -39,8 +39,8 @@ public class ExportApiTests
         await using var h = await ApiHost.StartAsync();
         await AssertError(HttpStatusCode.NotFound, h.Client.GetAsync("/api/runs/latest/export?format=junit", TestContext.CancellationToken), "No runs yet");
         RecordRuns(h);
-        await AssertError(HttpStatusCode.BadRequest, h.Client.GetAsync("/api/runs/latest/export", TestContext.CancellationToken), "format must be junit or html");
-        await AssertError(HttpStatusCode.BadRequest, h.Client.GetAsync("/api/runs/latest/export?format=pdf", TestContext.CancellationToken), "format must be junit or html");
+        await AssertError(HttpStatusCode.BadRequest, h.Client.GetAsync("/api/runs/latest/export", TestContext.CancellationToken), "format must be junit, html, markdown, trx or sarif");
+        await AssertError(HttpStatusCode.BadRequest, h.Client.GetAsync("/api/runs/latest/export?format=pdf", TestContext.CancellationToken), "format must be junit, html, markdown, trx or sarif");
         await AssertError(HttpStatusCode.NotFound, h.Client.GetAsync("/api/runs/nope/export?format=html", TestContext.CancellationToken), "Unknown run id");
 
         using (var res = await h.Client.GetAsync("/api/runs/latest/export?format=junit", TestContext.CancellationToken))
@@ -77,6 +77,27 @@ public class ExportApiTests
             Assert.StartsWith("<!doctype html>", html);
             Assert.Contains("Data (1,&quot;&lt;x&gt;&quot;)", html);
             Assert.Contains("1 test failed", html);
+        }
+    }
+
+    [TestMethod]
+    public async Task Markdown_trx_and_sarif_exports_are_downloads_too()
+    {
+        await using var h = await ApiHost.StartAsync();
+        RecordRuns(h);
+        foreach (var (format, mediaType, file) in new[]
+        {
+            ("markdown", "text/markdown", "labcoat-api-tests-run-2.md"),
+            ("trx", "application/xml", "labcoat-api-tests-run-2.trx"),
+            ("sarif", "application/sarif+json", "labcoat-api-tests-run-2.sarif"),
+        })
+        {
+            using var res = await h.Client.GetAsync($"/api/runs/latest/export?format={format}", TestContext.CancellationToken);
+            Assert.AreEqual(HttpStatusCode.OK, res.StatusCode, format);
+            Assert.AreEqual(mediaType, res.Content.Headers.ContentType!.MediaType);
+            Assert.AreEqual(file, res.Content.Headers.ContentDisposition!.FileNameStar ?? res.Content.Headers.ContentDisposition.FileName);
+            var body = await res.Content.ReadAsStringAsync(TestContext.CancellationToken);
+            Assert.Contains("Data (1,", body, format);
         }
     }
 
