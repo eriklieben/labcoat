@@ -53,6 +53,24 @@ public class CliRunTests
     }
 
     [TestMethod]
+    public void Order_and_seed_parse()
+    {
+        var o = Ok("--run", "--order", "random", "--seed=77");
+        Assert.AreEqual(("random", 77), (o.Order, o.Seed));
+        var plain = Ok("--run", "--order=random");
+        Assert.AreEqual(("random", (int?)null), (plain.Order, plain.Seed));
+        Assert.IsNull(Ok("--run").Order);
+
+        Assert.Contains("--order must be \"random\"", Error("--run", "--order", "alphabetical"));
+        Assert.Contains("--seed needs a positive number", Error("--run", "--order", "random", "--seed", "x"));
+        Assert.Contains("--seed needs a positive number", Error("--run", "--order", "random", "--seed", "0"));
+        Assert.Contains("--seed needs --order random", Error("--run", "--seed", "5"));
+        Assert.Contains("need --run", Error("--order", "random"));
+        Assert.Contains("--order random", Cli.Usage);
+        Assert.Contains("--seed <n>", Cli.Usage);
+    }
+
+    [TestMethod]
     public void Filters_match_names_classes_methods_and_projects()
     {
         TestNode N(string id, string name, string? ns, string? cls, string? method, string project = "P") =>
