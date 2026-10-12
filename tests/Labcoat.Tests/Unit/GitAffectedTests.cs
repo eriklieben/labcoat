@@ -635,6 +635,84 @@ public class GitAffectedTests
         finally { dir.Delete(recursive: true); }
     }
 
+    private const string CartTests = """"
+        namespace Shop;
+        public class CartTests
+        {
+            [TestMethod]
+            public void Adds_an_item()
+            {
+                var json = "{ not a brace";   // } neither
+                Assert.AreEqual(1, 1);
+            }
+
+            [Test]
+            [TestCase(1)]
+            public async Task Removes_an_item(int n)
+            {
+                /* { */
+                var raw = """{""";
+                await Task.Delay(n);
+            }
+
+            [Fact]
+            public int Total() => 1 + 2;
+
+            [Test]
+            public void Untouched()
+            {
+                Assert.IsTrue(true);
+            }
+        }
+        """";
+
+    [TestMethod]
+    public void The_extent_of_a_method_comes_from_its_source_when_the_framework_reports_one_line_or_none()
+    {
+        var dir = Directory.CreateTempSubdirectory("labcoat-extent-");
+        try
+        {
+            var file = Path.Combine(dir.FullName, "CartTests.cs");
+            System.IO.File.WriteAllText(file, CartTests);
+            Assert.AreEqual((4, 9), TestSourceRange.Find(file, 4, "Adds_an_item")); // MSTest: the [TestMethod] line
+            Assert.AreEqual((4, 9), TestSourceRange.Find(file, null, "Adds_an_item")); // NUnit: no line, found by name
+            Assert.AreEqual((11, 18), TestSourceRange.Find(file, null, "Removes_an_item(1)")); // attributes included, data row name
+            Assert.AreEqual((20, 21), TestSourceRange.Find(file, 21, "Total")); // expression body
+            Assert.IsNull(TestSourceRange.Find(file, null, "Missing"));
+            Assert.IsNull(TestSourceRange.Find(Path.Combine(dir.FullName, "nope.cs"), 3, "X"));
+            Assert.IsNull(TestSourceRange.Find(Path.ChangeExtension(file, ".fs"), 4, "Adds_an_item"));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [TestMethod]
+    public async Task A_body_edit_marks_the_test_whatever_the_framework_reports()
+    {
+        await using var r = await Repo.CreateAsync();
+        r.Write("tests/Shop.Tests/CartTests.cs", CartTests);
+        await r.CommitAllAsync("cart tests");
+        TestNode Node(string id, string method, int? line, int? lineEnd)
+        {
+            var n = r.Node("Shop.Tests", id, "tests/Shop.Tests/CartTests.cs");
+            (n.MethodName, n.Line, n.LineEnd) = (method, line, lineEnd);
+            return n;
+        }
+        r.Explorer.SeedTests([
+            Node("mstest", "Adds_an_item", 4, 4), // MSTest / xUnit: one line
+            Node("nunit", "Removes_an_item", null, null), // NUnit: none
+            Node("tunit", "Untouched", 24, 27), // TUnit: a real range
+            Node("xunit", "Total", 21, 21),
+        ]);
+        // body-only edits of Adds_an_item (line 8) and Untouched (line 26)
+        r.Write("tests/Shop.Tests/CartTests.cs", CartTests.Replace("Assert.AreEqual(1, 1)", "Assert.AreEqual(2, 2)").Replace("Assert.IsTrue(true)", "Assert.IsFalse(false)"));
+        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/mstest", "Shop.Tests/tunit" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+
+        // an edit inside the NUnit test (the raw string line) and the expression-bodied one
+        r.Write("tests/Shop.Tests/CartTests.cs", CartTests.Replace("Task.Delay(n)", "Task.Delay(n + 1)").Replace("1 + 2", "1 + 3"));
+        r.Explorer.InvalidateChangedTests();
+        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/nunit", "Shop.Tests/xunit" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+    }
+
     [TestMethod]
     public void A_pure_rename_changes_no_test_and_line_ranges_must_overlap()
     {

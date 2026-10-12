@@ -593,7 +593,7 @@ public sealed partial class Explorer
     private readonly SemaphoreSlim _changedLock = new(1, 1);
 
     /// <summary>
-    /// GET /api/changed-tests: the tests added or modified on the current branch, i.e. whose own lines (Line..LineEnd)
+    /// GET /api/changed-tests: the tests added or modified on the current branch, i.e. whose own lines (the method's extent, see IsChanged)
     /// overlap a changed range of their source file, or that sit in a newly added file. Same changes as Run affected's
     /// "branch" base (merge base with the base branch → working tree, untracked files included), else the uncommitted
     /// changes when there is no base branch. Cached ~2 s (and per discovered test count); outside a repository: Available false.
@@ -634,6 +634,7 @@ public sealed partial class Explorer
         catch (AffectedException ex) { return new ChangedTests { Available = false, Error = ex.Message, Tests = [] }; }
 
         var tests = new List<ChangedTest>();
+        var candidates = new List<(TestNode Test, GitChange Change)>();
         lock (Sync)
         {
             var byFile = new Dictionary<string, List<TestNode>>(PathComparer);
@@ -644,26 +645,35 @@ public sealed partial class Explorer
                 if (!byFile.TryGetValue(f, out var list)) byFile[f] = list = [];
                 list.Add(_tests[k]);
             }
-            var seen = new HashSet<(string, string)>();
             foreach (var change in changes.Files.Where(c => c.Status != "deleted"))
             {
                 var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, change.Path.Replace('/', Path.DirectorySeparatorChar)));
-                if (!byFile.TryGetValue(abs, out var inFile)) continue;
-                foreach (var t in inFile.Where(t => IsChanged(t, change)))
-                    if (seen.Add((t.ProjectId, t.Id))) tests.Add(new ChangedTest(t.ProjectId, t.Id));
+                if (byFile.TryGetValue(abs, out var inFile)) candidates.AddRange(inFile.Select(t => (t, change)));
             }
         }
+        // outside the lock: reading the sources of tests without a usable line range (TestSourceRange.cs)
+        var seen = new HashSet<(string, string)>();
+        foreach (var (t, change) in candidates)
+            if (IsChanged(t, change) && seen.Add((t.ProjectId, t.Id))) tests.Add(new ChangedTest(t.ProjectId, t.Id));
         return new ChangedTests { Available = true, Base = kind, Ref = changes.Ref, Tests = tests };
     }
 
-    /// <summary>A test of a changed file is changed when the file is new or its line range overlaps a changed range (no range known: the file counts).</summary>
+    /// <summary>
+    /// A test of a changed file is changed when the file is new or its line range overlaps a changed range. The range is
+    /// the reported Line..LineEnd (TUnit); frameworks that report one line (MSTest, xUnit) or none (NUnit) get the method's
+    /// extent from the source file (<see cref="TestSourceRange"/>), else the reported line, else the whole file counts.
+    /// </summary>
     internal static bool IsChanged(TestNode test, GitChange change)
     {
         if (change.Status is "added" or "untracked") return true;
         if (change.Lines is not { } spans) return change.Status is not ("renamed" or "copied"); // a pure rename changed no line
-        if (test.Line is not { } start) return true;
-        var end = test.LineEnd ?? start;
-        return spans.Any(s => s.Start <= end && start <= s.End);
+        (int Start, int End)? range = test.Line is { } l && test.LineEnd is { } e && e > l ? (l, e) : TestSourceRange.Find(test.FilePath, test.Line, test.MethodName);
+        if (range is not { } r)
+        {
+            if (test.Line is not { } only) return true;
+            r = (only, only);
+        }
+        return spans.Any(s => s.Start <= r.End && r.Start <= s.End);
     }
 
     /// <summary>Normalizes a base name; throws 400 badBase / badRef.</summary>
