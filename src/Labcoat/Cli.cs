@@ -104,6 +104,10 @@ public static class Cli
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+          --order random   Run the tests one at a time in a random order, to find tests that depend on
+                           each other. The seed is printed (and written to the junit / html reports);
+                           the run does not collect coverage. See docs/features.md.
+          --seed <n>       With --order random: the seed of an earlier run, to run the same order again.
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):
           --theme <name>   catppuccin, aspire, github, one, dracula, solarized or gruvbox

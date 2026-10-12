@@ -11,7 +11,7 @@ namespace Labcoat;
 /// <code>
 /// testsuites name tests failures errors time
 ///   testsuite (one per test project) name tests failures errors skipped time timestamp id package
-///     properties/property  labcoat.version, labcoat.runId, labcoat.trigger, labcoat.scope, targetFramework, …
+///     properties/property  labcoat.version, labcoat.runId, labcoat.trigger, labcoat.scope, labcoat.randomSeed (random-order runs), targetFramework, …
 ///     testcase classname="Namespace.Class" name="display name (data row)" time="seconds"
 ///       failure | error  message type, text = stack trace      (assertion failures vs unexpected exceptions / timeouts)
 ///       skipped message                                        (skipped, not run, cancelled, quarantined failures)
@@ -106,6 +106,7 @@ public static class JUnitWriter
         yield return ("labcoat.runId", run.RunId);
         yield return ("labcoat.trigger", run.Trigger ?? "user");
         yield return ("labcoat.scope", run.Scope ?? "all");
+        if (run.Seed is { } seed) yield return ("labcoat.randomSeed", seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
         yield return ("labcoat.startedAt", run.StartedAt);
         if (run.FinishedAt is { } finished) yield return ("labcoat.finishedAt", finished);
         yield return ("labcoat.workspace", export.WorkspaceName);

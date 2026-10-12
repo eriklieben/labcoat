@@ -89,6 +89,7 @@ public static partial class HtmlReport
         if (run.DurationMs is { } ms) meta.Add($"took {Duration(ms)}");
         meta.Add(run.Scope == "subset" ? $"partial run ({run.Total} selected)" : "all tests");
         meta.Add($"trigger: {run.Trigger ?? "user"}");
+        if (run.Seed is { } seed) meta.Add($"random order, seed {seed}");
         meta.Add($"{export.Projects.Count} project{Plural(export.Projects.Count)}");
         o.Write($"<p class=\"meta\">{E(string.Join(" · ", meta))}</p>\n");
         Banner(export, o, failed, passed);
