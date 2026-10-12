@@ -71,7 +71,9 @@ public sealed partial class StartOptions
             ? "--export, --filter, --export-paths, --order and --seed need --run."
             : Seed is not null && Order is null
                 ? "--seed needs --order random."
-                : null;
+                : Order is not null && (Coverage || Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format)))
+                    ? "--order random can't be combined with --coverage or an lcov / cobertura --export: random-order runs do not collect coverage."
+                    : null;
 }
 
 /// <summary>
@@ -173,8 +175,8 @@ public static class CliRun
         var verdict = run.Failed > 0 ? Cli.Red($"{run.Failed} failed") : Cli.Bold("no failures");
         var extra = (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
         Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {HtmlReport.Duration(elapsed.TotalMilliseconds)}");
-        if (run.Seed is { } seed && run.Failed > 0)
-            Console.WriteLine($"  Reproduce this order: --order random --seed {seed}");
+        if (run.Seed is { } seed)
+            Console.WriteLine($"  Random order, seed {seed}: " + (run.Failed > 0 ? "reproduce this order" : "passed in this order; if a later run fails, reproduce it") + $" with --order random --seed {seed}");
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
         if (run.Cancelled == true) Console.Error.WriteLine($"{WarningLabel} Run cancelled.");
     }

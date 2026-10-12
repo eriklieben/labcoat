@@ -106,7 +106,8 @@ public static class Cli
                            or absolute.
           --order random   Run the tests one at a time in a random order, to find tests that depend on
                            each other. The seed is printed (and written to the junit / html reports);
-                           the run does not collect coverage. See docs/features.md.
+                           it can't be combined with --coverage or an
+                           lcov / cobertura export. See docs/features.md.
           --seed <n>       With --order random: the seed of an earlier run, to run the same order again.
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):

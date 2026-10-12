@@ -66,6 +66,10 @@ public class CliRunTests
         Assert.Contains("--seed needs a positive number", Error("--run", "--order", "random", "--seed", "0"));
         Assert.Contains("--seed needs --order random", Error("--run", "--seed", "5"));
         Assert.Contains("need --run", Error("--order", "random"));
+        Assert.Contains("do not collect coverage", Error("--run", "--order", "random", "--coverage"));
+        Assert.Contains("do not collect coverage", Error("--run", "--order", "random", "--export", "lcov=x.info"));
+        Assert.Contains("do not collect coverage", Error("--run", "--order", "random", "--export", "cobertura=c.xml"));
+        Assert.AreEqual("random", Ok("--run", "--order", "random", "--export", "junit=r.xml").Order);
         Assert.Contains("--order random", Cli.Usage);
         Assert.Contains("--seed <n>", Cli.Usage);
     }
