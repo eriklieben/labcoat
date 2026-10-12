@@ -544,7 +544,8 @@ public class GitAffectedTests
         Assert.IsEmpty(plan.ClassLevel);
     }
 
-    private const string OrdersTests = """
+    // the raw strings take the checkout's line endings (CRLF on Windows); the edits below match on "\n"
+    private static readonly string OrdersTests = """
         class OrdersTests
         {
             void t1()
@@ -557,7 +558,7 @@ public class GitAffectedTests
             {
             }
         }
-        """;
+        """.ReplaceLineEndings("\n");
 
     /// <summary>OrdersTests.cs committed with t1 (lines 3–5), t2 (6–8) and t3 (9–11); the other tests keep their line-less nodes.</summary>
     private static async Task<Repo> CreateWithTestLinesAsync()
@@ -635,7 +636,7 @@ public class GitAffectedTests
         finally { dir.Delete(recursive: true); }
     }
 
-    private const string CartTests = """"
+    private static readonly string CartTests = """"
         namespace Shop;
         public class CartTests
         {
@@ -664,7 +665,7 @@ public class GitAffectedTests
                 Assert.IsTrue(true);
             }
         }
-        """";
+        """".ReplaceLineEndings("\n");
 
     [TestMethod]
     public void The_extent_of_a_method_comes_from_its_source_when_the_framework_reports_one_line_or_none()
@@ -711,6 +712,34 @@ public class GitAffectedTests
         r.Write("tests/Shop.Tests/CartTests.cs", CartTests.Replace("Task.Delay(n)", "Task.Delay(n + 1)").Replace("1 + 2", "1 + 3"));
         r.Explorer.InvalidateChangedTests();
         CollectionAssert.AreEquivalent(new[] { "Shop.Tests/nunit", "Shop.Tests/xunit" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+    }
+
+    [TestMethod]
+    public async Task Sources_with_CRLF_line_endings_give_the_same_extents_and_changes()
+    {
+        var crlf = CartTests.ReplaceLineEndings("\r\n");
+        var dir = Directory.CreateTempSubdirectory("labcoat-crlf-");
+        try
+        {
+            var file = Path.Combine(dir.FullName, "CartTests.cs");
+            System.IO.File.WriteAllText(file, crlf);
+            Assert.AreEqual((4, 9), TestSourceRange.Find(file, 4, "Adds_an_item"));
+            Assert.AreEqual((11, 18), TestSourceRange.Find(file, null, "Removes_an_item"));
+            Assert.AreEqual((20, 21), TestSourceRange.Find(file, 21, "Total"));
+        }
+        finally { dir.Delete(recursive: true); }
+
+        await using var r = await Repo.CreateAsync();
+        await r.GitAsync("config", "core.autocrlf", "false");
+        r.Write("tests/Shop.Tests/CartTests.cs", crlf);
+        await r.CommitAllAsync("cart tests");
+        var mstest = r.Node("Shop.Tests", "mstest", "tests/Shop.Tests/CartTests.cs");
+        (mstest.MethodName, mstest.Line, mstest.LineEnd) = ("Adds_an_item", 4, 4);
+        var nunit = r.Node("Shop.Tests", "nunit", "tests/Shop.Tests/CartTests.cs");
+        (nunit.MethodName, nunit.Line, nunit.LineEnd) = ("Removes_an_item", null, null);
+        r.Explorer.SeedTests([mstest, nunit]);
+        r.Write("tests/Shop.Tests/CartTests.cs", crlf.Replace("Assert.AreEqual(1, 1)", "Assert.AreEqual(2, 2)"));
+        CollectionAssert.AreEqual(new[] { "Shop.Tests/mstest" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
     }
 
     [TestMethod]
