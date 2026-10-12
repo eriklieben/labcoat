@@ -33,6 +33,8 @@ interface Spec {
   node: TestNode;
   behavior: Behavior;
   ms: [number, number];
+  /** Baseline of the seeded history when it should differ from the middle of `ms`. */
+  typicalMs?: number;
   error?: { type: string; message: string; stack: string };
   stdOut?: string;
   stdErr?: string;
