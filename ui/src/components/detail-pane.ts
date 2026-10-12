@@ -53,6 +53,7 @@ import { failureMessage } from "./diff-view";
 import { snapshotPanel } from "./snapshot-view";
 import { needsDiagnostics } from "./diagnostics";
 import { distBar, nextFailureKey, onFailureNavRequest } from "./run-overview";
+import { slowestTrendList } from "./slowest-tests";
 import "./history-strip";
 import "./live-console"; // LIVE OUTPUT: <lc-live-console>
 import "./detail-pane.css";
@@ -971,8 +972,20 @@ function groupDetail(ctx: Ctx): Child {
       () => section(() => `Failures (${failures().length})`, () => h("ul", { class: "failure-list" }, list(failures, (t) => testKey(t), (t) => testRow(t, true)))),
     ),
     show(
-      () => slowest().length > 0 && node().kind !== "method",
+      () => slowest().length > 0 && node().kind !== "method" && node().kind !== "project",
       () => section("Slowest tests", () => h("ul", { class: "failure-list" }, list(slowest, (t) => testKey(t), (t) => testRow(t, false)))),
+    ),
+    // a project: the slowest tests with their duration trend over the recent runs (GET /api/tests/slowest)
+    show(
+      () => slowest().length > 0 && node().kind === "project",
+      () =>
+        section("Slowest tests", () =>
+          slowestTrendList(
+            computed(() => node().projectId),
+            computed(() => `${node().durationMs}|${counts().total}|${node().status}`),
+            (t) => ctx.select(`t:${testKey(t)}`),
+          ),
+        ),
     ),
     () => {
       if (diagnose()) return h("lc-project-diagnostics", { projectId: project()!.id });

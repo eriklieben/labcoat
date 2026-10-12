@@ -10,6 +10,8 @@ import type {
   LogLevel,
   Outcome,
   RunSummary,
+  SlowestTestsResponse,
+  SlowTest,
   ServerEvent,
   TestNode,
   TestProject,
@@ -520,6 +522,34 @@ export class MockTransport implements Transport {
   // COVERAGE mock: GET /api/coverage/line
   fetchCoverageLine(path: string, line: number, signal?: AbortSignal) {
     return mockCoverageLine(path, line, this.specs.map((x) => x.node), this.testCoverage.values(), signal);
+  }
+
+  // SLOWEST mock: GET /api/tests/slowest (the host's ranking over the mock tests' history)
+  fetchSlowest(projectId: string, limit: number): Promise<SlowestTestsResponse> {
+    const timed = this.specs.map((x) => x.node).filter((n) => n.projectId === projectId && (n.durationMs ?? 0) > 0 && n.outcome !== "skipped");
+    const median = (xs: number[]) => {
+      const s = [...xs].sort((a, b) => a - b);
+      return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : undefined;
+    };
+    const tests = timed
+      .sort((a, b) => b.durationMs! - a.durationMs!)
+      .slice(0, limit)
+      .map((n): SlowTest => {
+        const trend = (n.history ?? []).filter((e) => e.outcome !== "skipped" && e.durationMs != null).map((e) => ({ at: e.at, durationMs: e.durationMs!, outcome: e.outcome }));
+        const m = median((trend.at(-1)?.at === n.lastRunAt ? trend.slice(0, -1) : trend).map((p) => p.durationMs));
+        return {
+          projectId: n.projectId,
+          id: n.id,
+          name: n.displayName,
+          className: n.className,
+          namespace: n.namespace,
+          durationMs: n.durationMs!,
+          medianMs: m,
+          factor: m ? Math.round((n.durationMs! / m) * 100) / 100 : undefined,
+          trend,
+        };
+      });
+    return Promise.resolve({ projectId, total: timed.length, tests });
   }
 
   fetchRun(runId: string): Promise<RunDetails | null> {

@@ -747,3 +747,32 @@ export interface ExplorerState {
   /** the run limits in effect */
   limits?: { maxParallelProjects: number; hangThresholdMs?: number; testTimeoutMs?: number };
 }
+
+// --- SLOWEST TESTS --- (docs/contract.md "Slowest tests": GET /api/tests/slowest)
+
+export interface SlowTestPoint {
+  at: string;
+  durationMs: number;
+  outcome: Outcome;
+}
+export interface SlowTest {
+  projectId: string;
+  id: string;
+  name: string;
+  className?: string;
+  namespace?: string;
+  /** the latest duration */
+  durationMs: number;
+  /** median of the earlier results */
+  medianMs?: number;
+  /** durationMs / medianMs */
+  factor?: number;
+  quarantined?: boolean;
+  /** recent durations, oldest first, the latest last */
+  trend: SlowTestPoint[];
+}
+export interface SlowestTestsResponse {
+  projectId?: string;
+  total: number;
+  tests: SlowTest[];
+}
