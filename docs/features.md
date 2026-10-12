@@ -131,6 +131,9 @@ Selecting a project lists its ten slowest tests. Each row has a sparkline of the
 history as the duration sparkline of a single test), how the latest run compares to the median of the earlier ones
 ("3.0× median"; red from 2×) and the latest duration. A row opens the test. The list follows the latest results and
 needs no run of its own; the host serves it as `GET /api/tests/slowest` ([contract.md](contract.md#slowest-tests-added)).
+
+![The slowest tests of a project, with a duration sparkline and how each compares to its median](images/slowest-tests.png)
+
 To fail a CI run on slow tests, set a [duration budget](configuration.md#duration-budget) for `labcoat --run`.
 
 ## Snapshot testing
