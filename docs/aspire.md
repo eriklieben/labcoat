@@ -40,6 +40,7 @@ builder.AddLabcoat("tests")
        .WithMaxParallelProjects(2)          // test projects discovered / run at once (default: processors, max 4)
        .WithHangThreshold(TimeSpan.FromMinutes(2))  // "possibly hanging" after 2 min (default 60 s; Zero = never)
        .WithTestTimeout(TimeSpan.FromMinutes(5))    // a test running longer times out, its project's run is cancelled
+       .WithMaxTestDuration(TimeSpan.FromSeconds(10)) // labcoat --run fails when a test took longer (default: no budget)
        .WithHostPort(4300)                  // a fixed port instead of a random one
        .WithPassThroughEnvironment("OTEL_*"); // keep variables the tests would otherwise not get (see below)
 ```
@@ -61,6 +62,7 @@ builder.AddLabcoat("tests", labcoat =>
     labcoat.MaxParallelProjects = 2;                // appsettings.json: "MaxParallelProjects": 2
     labcoat.HangThreshold = TimeSpan.FromMinutes(2); // appsettings.json: "HangThreshold": "2m" (or "00:02:00", seconds)
     labcoat.TestTimeout = TimeSpan.FromMinutes(5);  // appsettings.json: "TestTimeout": "5m"; off by default
+    labcoat.MaxTestDuration = TimeSpan.FromSeconds(10); // appsettings.json: "MaxTestDuration": "10s"; off by default
     labcoat.PassThroughEnvironment.Add("ASPIRE_ALLOW_UNSECURED_TRANSPORT"); // see "The tests' environment"
 
     labcoat.Ui.Theme = LabcoatTheme.Aspire;         // Catppuccin, Aspire, GitHub, One, Dracula, Solarized, Gruvbox
@@ -73,8 +75,9 @@ builder.AddLabcoat("tests", labcoat =>
 
 The fluent methods keep working and can be mixed with the options (a fluent call after `AddLabcoat` wins).
 
-`MaxParallelProjects`, `HangThreshold` and `TestTimeout` are Labcoat's `maxParallelProjects`, `hangThreshold` and
-`testTimeout` (passed as `LABCOAT_MAX_PARALLEL`, `LABCOAT_HANG_THRESHOLD`, `LABCOAT_TEST_TIMEOUT`); see
+`MaxParallelProjects`, `HangThreshold`, `TestTimeout` and `MaxTestDuration` are Labcoat's `maxParallelProjects`,
+`hangThreshold`, `testTimeout` and `maxTestDuration` (passed as `LABCOAT_MAX_PARALLEL`, `LABCOAT_HANG_THRESHOLD`,
+`LABCOAT_TEST_TIMEOUT`, `LABCOAT_MAX_TEST_DURATION`; the budget only applies to `labcoat --run`); see
 [configuration.md](configuration.md#parallel-projects-slow-tests-and-timeouts). A test timeout is per test; MTP's
 `--timeout` in a project's `TestingPlatformCommandLineArguments` limits each run of that project.
 
