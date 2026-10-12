@@ -66,6 +66,9 @@ public static class Cli
           --coverage-include <globs>  Modules or path globs to count although the defaults leave them out
                            (e.g. Labcoat.*). Comma-separated; repeatable.
           --coverage-exclude <globs>  Modules or path globs never to count. Comma-separated; repeatable.
+          --quarantine-file <file>  Shared list of quarantined tests, one name per line (Namespace.Class.Method,
+                           Namespace.Class, '*' wildcards, # comments). They run but do not fail the run,
+                           in addition to the tests quarantined in the UI. Read only.
           --traces         Start with per-test trace collection enabled (only has an effect when hosted by an
                            Aspire AppHost). Off by default; a choice made in the UI is remembered per workspace.
           --trace-filter <expr>  While trace collection is on, trace only the tests that match <expr>, in the

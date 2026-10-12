@@ -33,6 +33,8 @@ public sealed partial class StartOptions
     /// <summary>--coverage-include / --coverage-exclude: module names or path globs (repeatable, comma-separated).</summary>
     public List<string> CoverageInclude { get; } = [];
     public List<string> CoverageExclude { get; } = [];
+    /// <summary>--quarantine-file: a shared list of quarantined tests by name (QuarantineFile.cs).</summary>
+    public string? QuarantineFile { get; set; }
     /// <summary>UI defaults from the command line (--theme, --mode, --editor, --motion, --lock): the highest settings layer.</summary>
     public UiLayer CliUi { get; } = new(ConfigLayer.Cli, "the command line");
     /// <summary>--help / --version: print this and exit with code 0.</summary>
@@ -71,8 +73,8 @@ public sealed partial class StartOptions
         private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
-            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
-            "--export", "--filter", "--export-paths", // --run (CliRun.cs)
+            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter", "--quarantine-file",
+            "--export", "--filter", "--export-paths", "--retry-failed", // --run (CliRun.cs)
         };
 
         private int _index = -1;
@@ -114,6 +116,9 @@ public sealed partial class StartOptions
                 CoverageSettings = args.Value();
                 return ErrorUnless(!string.IsNullOrWhiteSpace(CoverageSettings), "--coverage-settings needs a file.");
             case "--coverage-include" or "--coverage-exclude": return AddCoverageGlobs(a, args.Value());
+            case "--quarantine-file":
+                QuarantineFile = args.Value();
+                return ErrorUnless(!string.IsNullOrWhiteSpace(QuarantineFile), "--quarantine-file needs a file.");
             case "--affected-base":
                 AffectedBase = args.Value();
                 return ErrorUnless(GitRepo.IsValidRef(AffectedBase), "--affected-base needs a git ref, e.g. origin/main.");
@@ -135,7 +140,7 @@ public sealed partial class StartOptions
             case "--root": return AddRoot(args.Value());
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
-            case "--run" or "--export" or "--filter" or "--export-paths": return ApplyRunOption(a, args); // CliRun.cs
+            case "--run" or "--export" or "--filter" or "--export-paths" or "--retry-failed": return ApplyRunOption(a, args); // CliRun.cs
             case "--log-file":
                 LogFile = args.Value();
                 return ErrorUnless(!string.IsNullOrWhiteSpace(LogFile), "--log-file needs a file (or 'auto').");
@@ -242,6 +247,8 @@ public sealed class LabcoatAppOptions
     public CoverageOptions Coverage { get; init; } = CoverageOptions.None;
     /// <summary>maxParallelProjects, hangThreshold, testTimeout (LabcoatApp.Limits.cs).</summary>
     public RunLimitOptions Limits { get; init; } = RunLimitOptions.Default;
+    /// <summary>The shared quarantine list (--quarantine-file > "quarantineFile" of the settings files), or null.</summary>
+    public QuarantineFile? QuarantineFile { get; init; }
     /// <summary>The settings files in use (for the diagnostics report).</summary>
     public IReadOnlyList<string> SettingsFiles { get; init; } = [];
     /// <summary>The ASP.NET Core log level (--verbose / LABCOAT_LOG_LEVEL; default Warning).</summary>
@@ -302,6 +309,16 @@ public static partial class LabcoatApp
             Include = options.CoverageInclude, Exclude = options.CoverageExclude,
         });
 
+        // The shared quarantine list: a missing file is an error (ignoring it would let quarantined tests fail the run).
+        QuarantineFile? quarantineFile = null;
+        var quarantinePath = options.QuarantineFile ?? config.QuarantineFile;
+        if (quarantinePath is not null)
+        {
+            quarantineFile = QuarantineFile.Load(quarantinePath, out var quarantineError);
+            if (quarantineFile is null) return Fail(quarantineError!, usageHint: false, ErrorExitCode(options));
+            startupNotes.Add($"Quarantine file: {quarantineFile.Path} ({quarantineFile.Count} entries)");
+        }
+
         var aspireDashboardUrl = AspireDashboardUrl();
 
         // Host log level and file (LabcoatApp.Diagnostics.cs); --diagnostics prints the report instead of starting.
@@ -333,6 +350,7 @@ public static partial class LabcoatApp
             ImpactMap = impactMap,
             Coverage = coverageOptions,
             Limits = ResolveRunLimits(options, config),
+            QuarantineFile = quarantineFile,
             SettingsFiles = config.FilesForDisplay,
             LogLevel = logLevel,
             LogFile = logFile,
@@ -593,7 +611,7 @@ public static partial class LabcoatApp
         var uiDefaultsJson = o.UiDefaults is null ? (JsonElement?)null : JsonSerializer.SerializeToElement(o.UiDefaults);
         return new Explorer(hub, o.Projects, o.AspireDashboardUrl, sourceRoots,
             o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
-              TraceFilter = o.TraceFilter,
+              TraceFilter = o.TraceFilter, QuarantineFile = o.QuarantineFile,
               ImpactMapMode = o.ImpactMap ?? ImpactMapModes.Default,
               MaxParallelProjects = o.Limits.EffectiveMaxParallel, HangThreshold = o.Limits.EffectiveHangThreshold, TestTimeout = o.Limits.EffectiveTestTimeout,
               ProjectFinder = warn => ProjectDiscovery.FindProjects(o.Paths, warn), WorkspaceRoots = WorkspaceRootsOf(o.Paths) };

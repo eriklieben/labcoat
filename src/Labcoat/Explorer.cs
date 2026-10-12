@@ -151,7 +151,7 @@ public sealed partial class Explorer : IAsyncDisposable
                 TracingFilter = TraceFilter,
                 WorkspaceName = _workspaceName,
                 SourceRoots = SourceRootsLocked(),
-                Quarantined = _settings.Quarantined(),
+                Quarantined = QuarantinedKeysLocked(),
                 Editors = _editors,
                 TelemetryAvailable = DashboardTelemetry.Available ? true : null,
                 UiDefaults = UiDefaults,
@@ -376,8 +376,7 @@ public sealed partial class Explorer : IAsyncDisposable
     private CommandRejectedEvent? SetQuarantineCommand(ClientCommand cmd)
     {
         if (cmd.ProjectId is null || cmd.Id is null) return RejectCommand(cmd, 400, "setQuarantine needs projectId and id");
-        SetQuarantine(cmd.ProjectId, cmd.Id, cmd.Quarantined ?? true);
-        return null;
+        return SetQuarantine(cmd.ProjectId, cmd.Id, cmd.Quarantined ?? true) is { } error ? RejectCommand(cmd, 409, error) : null;
     }
 
     private CommandRejectedEvent? SetTargetFrameworkCommand(ClientCommand cmd)
@@ -438,7 +437,9 @@ public sealed partial class Explorer : IAsyncDisposable
             Log(null, LogLevels.Info, "Repeat runs do not collect coverage; running without coverage.");
             collectCoverage = false;
         }
-        var x = new RunExecution(req, collectCoverage, _settings.Quarantined().ToHashSet(StringComparer.Ordinal));
+        HashSet<string> quarantined;
+        lock (Sync) quarantined = QuarantinedKeysLocked().ToHashSet(StringComparer.Ordinal);
+        var x = new RunExecution(req, collectCoverage, quarantined);
         try
         {
             var ready = await BuildRunProjectsAsync(req, ct);
@@ -1642,11 +1643,35 @@ public sealed partial class Explorer : IAsyncDisposable
     public string? TraceFilter { get; init; }
 
     /// <summary>setQuarantine: quarantined tests still run but are counted separately (RunSummary.quarantined). Persisted.</summary>
-    public void SetQuarantine(string projectId, string id, bool quarantined)
+    /// <returns>An error message when the test is listed in the quarantine file (read-only: edit the file), else null.</returns>
+    public string? SetQuarantine(string projectId, string id, bool quarantined)
     {
-        if (!_settings.SetQuarantined(projectId, id, quarantined)) return;
+        if (InQuarantineFile(projectId, id))
+            return quarantined ? null : $"Quarantined by {QuarantineFile!.Path}; remove it from that file to release it.";
+        if (!_settings.SetQuarantined(projectId, id, quarantined)) return null;
         PublishSettings();
         Log(projectId, LogLevels.Info, (quarantined ? "Quarantined " : "Released from quarantine: ") + id);
+        return null;
+    }
+
+    /// <summary>The shared quarantine list (<c>--quarantine-file</c>, <c>quarantineFile</c>): additive to the tests quarantined in the UI.</summary>
+    public QuarantineFile? QuarantineFile { get; init; }
+
+    private bool InQuarantineFile(string projectId, string id)
+    {
+        if (QuarantineFile is null) return false;
+        lock (Sync) return _tests.TryGetValue((projectId, id), out var t) && QuarantineFile.Matches(t);
+    }
+
+    /// <summary>The quarantined tests as "projectId|id" keys: the ones set in the UI plus the tests the quarantine file lists.</summary>
+    private List<string> QuarantinedKeysLocked()
+    {
+        var keys = _settings.Quarantined();
+        if (QuarantineFile is null) return keys;
+        var known = keys.ToHashSet(StringComparer.Ordinal);
+        foreach (var t in _tests.Values)
+            if (QuarantineFile.Matches(t) && known.Add(WorkspaceSettings.QuarantineKey(t.ProjectId, t.Id))) keys.Add(WorkspaceSettings.QuarantineKey(t.ProjectId, t.Id));
+        return keys;
     }
 
     // ------------------------------------------------------------------ watch

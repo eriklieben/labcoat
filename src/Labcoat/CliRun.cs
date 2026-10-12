@@ -243,7 +243,7 @@ public static class CliRun
     }
 
     /// <summary>'*'-wildcard match of the whole <paramref name="s"/>; <paramref name="parts"/> = the pattern split at '*'.</summary>
-    private static bool WildcardMatch(string s, string[] parts)
+    internal static bool WildcardMatch(string s, string[] parts)
     {
         if (!s.StartsWith(parts[0], StringComparison.OrdinalIgnoreCase)) return false;
         var at = parts[0].Length;
