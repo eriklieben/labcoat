@@ -13,6 +13,7 @@ integration tests running on Microsoft.Testing.Platform (MTP).
 | `AspireSample.TUnitTests` | TUnit + `Aspire.Hosting.Testing` API tests, with per-test traces from `Labcoat.Testing.TUnit` (no hooks). |
 | `AspireSample.NUnitTests` | NUnit + `Aspire.Hosting.Testing` API tests, with per-test traces from `Labcoat.Testing.NUnit` (no hooks). |
 | `AspireSample.XUnitTests` | xUnit v3 + `Aspire.Hosting.Testing` API tests, with per-test traces from `Labcoat.Testing.XUnit` (no hooks). |
+| `AspireSample.Web` | The orders front end's pricing and validation in TypeScript, tested with Vitest (run by `Labcoat.Vitest`). Not in the solution; run `npm install` in it once. One test fails on purpose. |
 
 ## API
 
@@ -43,6 +44,19 @@ app use the NuGet package):
 builder.AddLabcoat("tests")
        .WithTestProject("../AspireSample.Tests");
 ```
+
+The AppHost has four Labcoat resources:
+
+| Resource | Runners | Tests |
+| --- | --- | --- |
+| `tests-passing` | default | `AspireSample.PassingTests`, `.TUnitTests`, `.NUnitTests`, `.XUnitTests` (all green) |
+| `tests-failing` | `dotnet` | `AspireSample.Tests` (MSTest, with deliberate failures) |
+| `tests-vitest` | `vitest` | `AspireSample.Web` |
+| `tests-combined` | `dotnet`, `vitest` | `AspireSample.Tests` and `AspireSample.Web` in one tree |
+
+`Labcoat.Vitest` (`src/Labcoat.Vitest`) is referenced like `Labcoat.Aspire.Hosting`; building the AppHost copies its
+runner to `labcoat/runners/vitest/`. Run `npm install` in `AspireSample.Web` before the first start, else its project
+shows a discovery error. See [docs/runners.md](../../docs/runners.md).
 
 Building the AppHost publishes `src/Labcoat` and places it in `AspireSample.AppHost/bin/Debug/net10.0/labcoat/`;
 the `tests` resource runs it from there. In the dashboard the `tests` resource (type `Labcoat`) has a

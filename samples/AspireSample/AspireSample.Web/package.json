@@ -1,0 +1,15 @@
+{
+  "name": "aspire-sample-web",
+  "private": true,
+  "type": "module",
+  "description": "The orders front end of the Aspire sample: its pricing and validation in TypeScript, tested with Vitest (Labcoat.Vitest).",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.0.2",
+    "typescript": "5.9.3",
+    "vitest": "5.0.2"
+  }
+}
