@@ -1270,7 +1270,7 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
 
 | Endpoint | Query | Response |
 | --- | --- | --- |
-| `GET /api/runs/{runId}/export` | `format=junit\|html`; `runId` = a persisted run (`GET /api/runs`) or `latest` (the newest) | `200` `application/xml` (JUnit) or `text/html` (report), file `labcoat-<workspace>-<runId>.junit.xml` / `.html`; `400 { error }` other format; `404 { error, runId }` unknown run / no runs yet |
+| `GET /api/runs/{runId}/export` | `format=junit\|html\|markdown\|trx\|sarif`; `runId` = a persisted run (`GET /api/runs`) or `latest` (the newest) | `200` `application/xml` (JUnit, TRX), `text/html` (report), `text/markdown` or `application/sarif+json`, file `labcoat-<workspace>-<runId>.junit.xml` / `.html` / `.md` / `.trx` / `.sarif`; `400 { error }` other format; `404 { error, runId }` unknown run / no runs yet |
 | `GET /api/coverage/export` | `format=lcov\|cobertura`, `scope=full` (default: `fullCoverage`) `\|last` (`coverage`), `paths=relative` (default) `\|absolute` | `200` `text/plain` (lcov) or `application/xml` (Cobertura), file `labcoat-<workspace>-<report runId>.info` / `.cobertura.xml`; `400 { error }`; `404 { error }` no such report yet |
 
 - **Run data:** a persisted run keeps outcome, duration, error message (≤ 2 KB) and stack (≤ 4 KB) per test; names,
@@ -1286,6 +1286,18 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
   failures of quarantined tests (`message` says which). `system-out` / `system-err` per test case, 16 K chars each,
   8 M chars per report (failed tests first). Text without ANSI sequences; characters XML 1.0 can't carry become U+FFFD.
   Valid against the Jenkins xunit plugin's `junit-10.xsd` (tests/Labcoat.Tests/Fixtures/JUnit).
+- **Markdown:** `## Test results: <verdict>`, a totals table, `### Failed tests` (name, class, `file:line`, message in a
+  code fence, stack trace in `<details>`), `### Slowest tests` (10), coverage when given. At most 60,000 bytes as a
+  download; the remaining failed tests are counted in a note. Test text is escaped (markup, `@`).
+- **TRX:** `TestRun` (namespace `http://microsoft.com/schemas/VisualStudio/TeamTest/2010`) `> Times, TestSettings, Results
+  > UnitTestResult` (`outcome` Passed / Failed / Timeout / NotExecuted, `duration` `hh:mm:ss.fffffff`, `Output > StdOut,
+  StdErr, ErrorInfo`), `TestDefinitions > UnitTest`, `TestEntries`, `TestLists`, `ResultSummary > Counters`. Ids are
+  derived from the run and test ids.
+- **SARIF:** 2.1.0, one `run` (`tool.driver` Labcoat, rules `labcoat/assertion-failure` and `labcoat/test-error`), one
+  `result` per failed test (`level` `error`; `note` for a quarantined failure) with the assertion's `physicalLocation`
+  (relative to `%SRCROOT%`; else the test's, else the project file) and a `partialFingerprints` entry per test.
+- **Source location:** the first stack frame with a file and line under the workspace root, else the test's own file and
+  line (`ExportTest.sourceFile` / `sourceLine`).
 - **HTML:** one static file; its CSP (`<meta http-equiv>`) is `default-src 'none'` plus the hashes of its one inline
   style and script. All test data HTML-escaped. Passed / skipped tests one line each; details for the first 500
   failures (message 8 K, stack 16 K, output 8 K chars each).
