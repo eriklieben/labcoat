@@ -188,6 +188,37 @@ public class ImpactMapFileTests
     }
 
     [TestMethod]
+    public async Task A_symlinked_checkout_still_stores_relative_paths()
+    {
+        await using var r = await GitAffectedTests.Repo.CreateAsync();
+        var link = Path.Combine(r.Dir.FullName, "link");
+        try { Directory.CreateSymbolicLink(link, r.Root); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Assert.Inconclusive("symbolic links are not permitted here: " + ex.Message);
+            return;
+        }
+
+        // the workspace is opened through the link (like /var -> /private/var on macOS); git and the coverage paths are real paths
+        string ViaLink(string p) => Path.Combine(link, p.Replace('/', Path.DirectorySeparatorChar));
+        await using var explorer = new Explorer(new EventHub(), [ViaLink("tests/Shop.Tests/Shop.Tests.csproj")], null, [link]);
+        explorer.SeedTests([new TestNode { Id = "a", ProjectId = "Shop.Tests", DisplayName = "t1", ClassName = "C", MethodName = "t1", FilePath = ViaLink("tests/Shop.Tests/OrdersTests.cs") }]);
+        var orders = PathUtil.Canonicalize(r.P("src/Shop/Orders.cs"));
+        lock (explorer.Sync) explorer.ImpactMapState.Record("Shop.Tests", ["a"], new() { [orders] = [new LineSpan(4, 7) { Name = "Validate" }] });
+
+        var file = TempFile(r, "link-impact.json");
+        Assert.IsNotNull(await explorer.SaveImpactMapAsync(file, TestContext.CancellationToken));
+        var text = File.ReadAllText(file);
+        Assert.Contains("\"path\":\"tests/Shop.Tests/Shop.Tests.csproj\"", text);
+        Assert.Contains("\"src/Shop/Orders.cs\"", text);
+        Assert.DoesNotContain("..", text, "no path climbs out of the root");
+
+        await using var fresh = new Explorer(new EventHub(), [ViaLink("tests/Shop.Tests/Shop.Tests.csproj")], null, [link]);
+        fresh.SeedTests([new TestNode { Id = "z", ProjectId = "Shop.Tests", DisplayName = "t1", ClassName = "C", MethodName = "t1", FilePath = ViaLink("tests/Shop.Tests/OrdersTests.cs") }]);
+        Assert.AreEqual(1, fresh.LoadImpactMap(file).Tests);
+    }
+
+    [TestMethod]
     public async Task A_map_without_data_is_not_written()
     {
         await using var r = await GitAffectedTests.Repo.CreateAsync();

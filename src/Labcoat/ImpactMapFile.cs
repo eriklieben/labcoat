@@ -257,7 +257,10 @@ public sealed partial class Explorer
     private const char Sep = '/';
 
     /// <summary>The folder stored paths are relative to: the workspace root of the exports (git root, else the common root).</summary>
-    private string ImpactRoot() => ExportRoot ?? WorkspaceDir() ?? Directory.GetCurrentDirectory();
+    private string ImpactRoot() => PathUtil.CanonicalizeOrSelf(ExportRoot ?? WorkspaceDir() ?? Directory.GetCurrentDirectory());
+
+    /// <summary>A project file relative to <paramref name="root"/>: both sides as real paths (a symlinked checkout, /var -> /private/var on macOS, must not leak absolute paths).</summary>
+    private static string RelProject(string root, string projectPath) => Rel(root, PathUtil.CanonicalizeOrSelf(projectPath));
 
     private static string Rel(string root, string path) => Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, Sep);
 
@@ -296,7 +299,7 @@ public sealed partial class Explorer
         {
             foreach (var project in doc.Projects)
             {
-                var entry = _projects.FirstOrDefault(p => string.Equals(Rel(root, p.Project.Path), project.Path, PathUtil.Comparison));
+                var entry = _projects.FirstOrDefault(p => string.Equals(RelProject(root, p.Project.Path), project.Path, PathUtil.Comparison));
                 if (entry is null)
                 {
                     unmatched += project.Classes.Sum(c => c.Tests.Count);
@@ -406,7 +409,7 @@ public sealed partial class Explorer
             var classes = new List<DocClass>();
             foreach (var byClass in byProject.GroupBy(e => ClassKeyOf(e.Test)))
                 classes.Add(new DocClass(byClass.Key, byClass.Select(e => new DocTest(e.Test.MethodName ?? "", e.Test.DisplayName, ProfileId(e.Files), e.PerTest)).ToList()));
-            doc.Projects.Add(new DocProject(Rel(root, project.Project.Path), classes));
+            doc.Projects.Add(new DocProject(RelProject(root, project.Project.Path), classes));
         }
     }
 
