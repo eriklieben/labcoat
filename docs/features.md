@@ -86,6 +86,9 @@ appears by itself (or with **Rediscover**).
   `labcoat --run --order random --seed N`. Every test is a separate request to the test host, so class and assembly
   fixtures run again for each test and tests do not run in parallel; coverage is not collected. Why it works this way,
   and what each framework offers itself: [protocol.md](protocol.md#test-order-research-2026-10).
+
+  ![The command palette with Run in random order; the run overview shows the seed](images/random-order.png)
+
 - **Debug test:** starts the test paused until a debugger attaches, and shows the process id to attach to.
 - **Multi-targeted projects** run on their highest .NET target framework (`POST /api/target-framework` switches it,
   see [contract.md](contract.md)).
