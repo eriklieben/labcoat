@@ -125,6 +125,14 @@ turn live output off. Details: [protocol.md](protocol.md#live-console-output-res
 
 Selecting a class, namespace or project shows a summary instead: pass rate, totals and the slowest tests.
 
+### Slowest tests
+
+Selecting a project lists its ten slowest tests. Each row has a sparkline of the test's recent durations (the same
+history as the duration sparkline of a single test), how the latest run compares to the median of the earlier ones
+("3.0× median"; red from 2×) and the latest duration. A row opens the test. The list follows the latest results and
+needs no run of its own; the host serves it as `GET /api/tests/slowest` ([contract.md](contract.md#slowest-tests-added)).
+To fail a CI run on slow tests, set a [duration budget](configuration.md#duration-budget) for `labcoat --run`.
+
 ## Snapshot testing
 
 Labcoat understands [Verify](https://github.com/VerifyTests/Verify) snapshot tests (`Verify.MSTest`, `Verify.NUnit`,
