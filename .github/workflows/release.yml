@@ -3,7 +3,7 @@ run-name: Release${{ inputs.dry_run && ' (dry run)' || '' }}${{ inputs.commit !=
 
 # semantic-release: works out the next version from the commit messages since the last tag (Angular format, see
 # CONTRIBUTING.md), then updates CHANGELOG.md, <VersionPrefix> and the package validation baseline, packs and pushes the
-# eight NuGet packages (each with its SBOM), tags v<version> and creates the GitHub release; then attests the build
+# nine NuGet packages (each with its SBOM), tags v<version> and creates the GitHub release; then attests the build
 # provenance of the released packages and their SBOMs, and each package's SBOM (job sbom-attestation). Configuration:
 # release.config.mjs. Overview: docs/releasing.md.
 #
@@ -294,6 +294,7 @@ jobs:
           - Labcoat.Testing.TUnit
           - Labcoat.Testing.XUnit
           - Labcoat.TestingPlatform
+          - Labcoat.Vitest
     permissions:
       id-token: write        # Sigstore signing (OIDC)
       attestations: write    # SBOM attestations of the released packages

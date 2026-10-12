@@ -53,9 +53,10 @@ prereleases: `1.3.0-beta.1`, `1.3.0-beta.2`, ... as NuGet prerelease versions an
 
 ## What a release contains
 
-- **Eight NuGet packages:** `Labcoat` (the .NET tool), `Labcoat.Aspire.Hosting`, `Labcoat.Testing`,
-  `Labcoat.Testing.MSTest`, `Labcoat.Testing.NUnit`, `Labcoat.Testing.XUnit`, `Labcoat.Testing.TUnit` and
-  `Labcoat.TestingPlatform`, each with a symbol package (`.snupkg`, on the NuGet symbol server) and SourceLink.
+- **Nine NuGet packages:** `Labcoat` (the .NET tool), `Labcoat.Aspire.Hosting`, `Labcoat.Testing`,
+  `Labcoat.Testing.MSTest`, `Labcoat.Testing.NUnit`, `Labcoat.Testing.XUnit`, `Labcoat.Testing.TUnit`,
+  `Labcoat.TestingPlatform` and `Labcoat.Vitest`, each with a symbol package (`.snupkg`, on the NuGet symbol server)
+  and SourceLink, except `Labcoat.Vitest`, which has no assembly (a Node.js runner only).
 - **SBOMs** (see [SBOM](#sbom)): an SPDX 2.2 SBOM inside each `.nupkg`, and a CycloneDX SBOM of the web UI's npm
   dependencies in the three packages that bundle the UI.
 - **The GitHub release** `v<version>`: the release notes, the `.nupkg` and `.snupkg` files, each package's SBOM as

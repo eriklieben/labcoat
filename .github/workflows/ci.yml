@@ -66,6 +66,11 @@ jobs:
         working-directory: .
         run: node --test eng/release-commit.test.mjs
 
+      - name: Vitest runner tests
+        # src/Labcoat.Vitest/runner against a real Vitest: scratch projects linked to this job's ui/node_modules
+        working-directory: .
+        run: node --test tests/Labcoat.Vitest.Tests/
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -141,6 +146,12 @@ jobs:
         if: matrix.os == 'ubuntu-24.04'
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vitest for the Vitest runner test
+        # VitestEndToEndTests links a scratch Vitest project to ui/node_modules (inconclusive without it: the other OSes)
+        if: matrix.os == 'ubuntu-24.04'
+        working-directory: ui
+        run: npm ci --ignore-scripts
 
       - name: Test with code coverage
         # Runs every test project with coverage (tests/CodeCoverage.xml), merges the Cobertura reports, writes the job

@@ -32,6 +32,7 @@ release news to Announcements.
 | `src/Labcoat.Testing` | Test-side core, framework neutral: per-test OpenTelemetry traces for Aspire integration tests (design: [ARCHITECTURE.md](src/Labcoat.Testing/ARCHITECTURE.md)). |
 | `src/Labcoat.Testing.MSTest`, `.TUnit`, `.NUnit`, `.XUnit` | The framework adapters of `Labcoat.Testing` (hooks, live output). |
 | `src/Labcoat.TestingPlatform` | Preview MTP extension: `dotnet run -- --labcoat`; bundles a publish of `src/Labcoat`. |
+| `src/Labcoat.Vitest` | The Vitest runner package ([docs/runners.md](docs/runners.md)): `runner/` is a Node.js test host that speaks MTP server mode and drives the project's own Vitest; no .NET code. Its tests: `tests/Labcoat.Vitest.Tests` (`node --test`). |
 | `tests/Labcoat.Tests` | Tests of the host (MSTest on MTP): unit tests, the HTTP / WebSocket API in-process, end-to-end runs of small scratch test projects. |
 | `tests/Labcoat.*.Tests` | Tests of the other packages (`Aspire.Hosting`, `Testing`, `Testing.MSTest`, `TestingPlatform`; `Testing.TUnit`, `Testing.NUnit` and `Testing.XUnit` run on their own framework). |
 | `ui/` | The web UI: TypeScript + native custom elements, built with Vite into `src/Labcoat/wwwroot`. npm workspace root. |
@@ -430,7 +431,7 @@ check a message by hand: `echo "feat(ui): add a duration filter" | npx commitlin
    semantic-release
    - computes the version, e.g. 1.3.0, and writes its release notes to the top of `CHANGELOG.md`;
    - sets `<VersionPrefix>` and the package validation baseline (the previous release) in `src/Directory.Build.props`,
-     builds the UI and runs `dotnet pack` with `-p:Version=1.3.0` for the eight packages, which also checks the public
+     builds the UI and runs `dotnet pack` with `-p:Version=1.3.0` for the nine packages, which also checks the public
      API against the previous release (`node eng/release.mjs prepare 1.3.0 --baseline=1.2.1`);
    - commits `CHANGELOG.md` and `Directory.Build.props` as `chore(release): 1.3.0 [skip ci]` and tags it `v1.3.0`;
    - creates the GitHub release with the notes, the `.nupkg` / `.snupkg` files and their SBOMs, then pushes the

@@ -77,7 +77,7 @@ public sealed partial class Explorer
             lock (Sync) ordered = _order.Where(k => k.ProjectId == p.Project.Id && ids.Contains(k.Id)).Select(k => k.Id).ToList();
             if (ordered.Count == 0) ordered = [.. ids];
             var report = acc.Build(runId, [p.Project.Id], ordered) with { Settings = [plan.Info] };
-            var stamp = OutputFingerprint(p.TargetPath);
+            var stamp = CodeStampOf(p);
             lock (Sync) _coverageCache.Store(p.Project.Id, report, stamp);
         }
         catch (Exception ex)
@@ -94,17 +94,17 @@ public sealed partial class Explorer
     {
         if (testIds.Count == 0) return null;
         (CoverageReport Report, string Stamp)? hit = null;
-        string? targetPath = null;
+        ProjectEntry? project = null;
         lock (Sync)
         {
             foreach (var p in SelectProjects(projectId))
             {
                 hit = _coverageCache.Find(p.Project.Id, testIds);
-                if (hit is not null) { targetPath = p.TargetPath; break; }
+                if (hit is not null) { project = p; break; }
             }
         }
         if (hit is not { } h) return null;
-        var stale = targetPath is null || !File.Exists(targetPath) || OutputFingerprint(targetPath) != h.Stamp;
+        var stale = project?.TargetPath is not { } targetPath || !File.Exists(targetPath) || CodeStampOf(project) != h.Stamp;
         return stale ? h.Report with { Stale = true } : h.Report;
     }
 }

@@ -19,7 +19,11 @@ public sealed partial class Explorer
     public void StartProjectWatcher()
     {
         if (ProjectFinder is null || WorkspaceRoots.Count == 0 || _projectWatcher is not null) return;
-        _projectWatcher = new ProjectWatcher(WorkspaceRoots, OnProjectFilesChanged, warning => Log(null, LogLevels.Warning, warning));
+        _projectWatcher = new ProjectWatcher(WorkspaceRoots, OnProjectFilesChanged, warning => Log(null, LogLevels.Warning, warning))
+        {
+            ProjectFileNames = _runners.Plugins.Count == 0 ? new HashSet<string>()
+                : _runners.Plugins.SelectMany(r => r.ConfigFiles).Append("package.json").ToHashSet(StringComparer.OrdinalIgnoreCase),
+        };
     }
 
     /// <summary>
@@ -126,7 +130,7 @@ public sealed partial class Explorer
             var added = new List<ProjectEntry>();
             foreach (var path in found.Where(f => !known.Contains(PathUtil.CanonicalizeOrSelf(f))))
             {
-                var p = new ProjectEntry(new TestProject { Id = UniqueProjectIdLocked(Path.GetFileNameWithoutExtension(path)), Name = Path.GetFileNameWithoutExtension(path), Path = path });
+                var p = NewProjectEntry(path, UniqueProjectIdLocked(ProjectNameOf(path)));
                 _projects.Add(p);
                 added.Add(p);
                 AdoptProjectDataLocked(p);

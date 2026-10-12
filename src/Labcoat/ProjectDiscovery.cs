@@ -24,15 +24,24 @@ namespace Labcoat;
 ///         Directory.Build.props, central package management and package props (IsTestingPlatformApplication is set by the
 ///         Microsoft.Testing.Platform.MSBuild package once the project is restored).
 /// Directory scans are recursive and skip bin, obj, node_modules and dot-folders.
+/// With runner packages (<see cref="TestRunners"/>, docs/runners.md) a scan also finds their projects: a folder with the
+/// runner's config file or a package.json that depends on it (the scan doesn't go below such a folder). A solution
+/// doesn't list them, so for a solution its folder is scanned for them. An explicitly given package.json / config file
+/// of a runner is used as is. Without the .NET runner (--runners without dotnet) no .NET projects are looked for.
 /// </summary>
 public static partial class ProjectDiscovery
 {
     private static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj"];
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", "node_modules" };
 
-    /// <summary>Test projects for <paramref name="paths"/>. Problems with explicitly given paths go to <paramref name="errors"/>.</summary>
-    public static List<string> FindProjects(IEnumerable<string> paths, Action<string> warn, List<string>? errors = null, Action<string>? info = null)
+    /// <summary>
+    /// Test projects for <paramref name="paths"/>. Problems with explicitly given paths go to <paramref name="errors"/>.
+    /// <paramref name="runners"/>: the test runners in use (null = only the .NET runner).
+    /// </summary>
+    public static List<string> FindProjects(IEnumerable<string> paths, Action<string> warn, List<string>? errors = null, Action<string>? info = null,
+        TestRunners? runners = null)
     {
+        runners ??= TestRunners.DotnetOnly;
         var result = new List<string>();
         void Error(string message)
         {
@@ -44,8 +53,9 @@ public static partial class ProjectDiscovery
         {
             var path = Path.GetFullPath(raw);
             List<string> found;
-            if (Directory.Exists(path)) found = Classify(ScanDirectory(path).ToList(), info);
-            else if (File.Exists(path)) found = ProjectsOfFile(path, warn, Error, info);
+            if (Directory.Exists(path))
+                found = [.. runners.IncludesDotnet ? Classify(ScanDirectory(path).ToList(), info) : [], .. ScanRunnerProjects(path, runners.Plugins)];
+            else if (File.Exists(path)) found = ProjectsOfFile(path, runners, warn, Error, info);
             else
             {
                 Error($"Path not found: {path}");
@@ -56,16 +66,70 @@ public static partial class ProjectDiscovery
         return result;
     }
 
+    /// <summary>
+    /// The name (and project id) of a test project: the file name without extension, or for a runner package's project
+    /// (package.json, vitest.config.ts) the name of its folder.
+    /// </summary>
+    public static string ProjectNameOf(string path) =>
+        IsDotnetProjectFile(path) ? Path.GetFileNameWithoutExtension(path) : Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(path))) ?? Path.GetFileNameWithoutExtension(path);
+
+    /// <summary>A .csproj / .fsproj / .vbproj (a project of the .NET runner).</summary>
+    public static bool IsDotnetProjectFile(string path) => ProjectExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
+
     /// <summary>The test projects of an explicitly given file: the project itself, or the test projects of a solution.</summary>
-    private static List<string> ProjectsOfFile(string path, Action<string> warn, Action<string> error, Action<string>? info)
+    private static List<string> ProjectsOfFile(string path, TestRunners runners, Action<string> warn, Action<string> error, Action<string>? info)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ProjectExtensions.Contains(ext)) return [path];
+        if (ProjectExtensions.Contains(ext))
+        {
+            if (runners.IncludesDotnet) return [path];
+            warn($"Skipping {Path.GetFileName(path)}: the dotnet test runner isn't in use (runners: {runners.Describe()}).");
+            return [];
+        }
+        if (runners.PluginFor(path) is not null) return [path];
         if (ext is not (".sln" or ".slnx" or ".slnf"))
         {
             error($"Unsupported path (expected a project, solution or directory): {path}");
             return [];
         }
+        // A solution lists .NET projects only: the projects of runner packages are looked for in its folder.
+        var runnerProjects = ScanRunnerProjects(Path.GetDirectoryName(path)!, runners.Plugins);
+        if (!runners.IncludesDotnet) return runnerProjects;
+        return [.. SolutionProjects(path, warn, error, info), .. runnerProjects];
+    }
+
+    /// <summary>
+    /// The projects of runner packages under <paramref name="root"/>: folders with a runner's config file or a package.json
+    /// that depends on it (skipping bin, obj, node_modules and dot-folders; not below a project found).
+    /// </summary>
+    internal static List<string> ScanRunnerProjects(string root, IReadOnlyList<RunnerPlugin> plugins)
+    {
+        var found = new List<string>();
+        if (plugins.Count == 0) return found;
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            var project = plugins.Select(p => p.IsProjectDirectory(dir, out var file) ? file : null).FirstOrDefault(f => f is not null);
+            if (project is not null)
+            {
+                found.Add(project);
+                continue;
+            }
+            try
+            {
+                foreach (var d in Directory.EnumerateDirectories(dir).Where(d => !IsSkippedDir(Path.GetFileName(d))).OrderByDescending(d => d, StringComparer.Ordinal))
+                    stack.Push(d);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { /* unreadable folder: skip it */ }
+        }
+        return found;
+    }
+
+    /// <summary>The test projects listed in a solution.</summary>
+    private static List<string> SolutionProjects(string path, Action<string> warn, Action<string> error, Action<string>? info)
+    {
         List<string> listed;
         try { listed = ReadSolution(path).ToList(); }
         catch (Exception ex) when (ex is System.Xml.XmlException or JsonException or IOException or UnauthorizedAccessException

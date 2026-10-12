@@ -135,6 +135,14 @@
       "pattern": "^\\s*(off|none|\\d+(\\.\\d+)?\\s*(ms|s|sec|m|min|h|hour)?)\\s*$",
       "description": "Per-test timeout (like --test-timeout): a test running longer is marked timed out and its project's run is cancelled. Seconds, or a duration such as \"30s\", \"5m\". 0 or \"off\" = no timeout (the default). Not MTP's --timeout, which limits a whole test session."
     },
+    "runners": {
+      "oneOf": [
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        { "type": "string", "minLength": 1 }
+      ],
+      "examples": [["dotnet", "vitest"], ["vitest"], "dotnet,vitest"],
+      "description": "The test runners to use (like --runners; docs/runners.md): \"dotnet\" (MSTest, NUnit, xUnit v3 and TUnit on Microsoft.Testing.Platform; \"mstest\" means the same) and runner packages such as \"vitest\" (Labcoat.Vitest). A list or a comma-separated string. Default: dotnet plus every installed runner package. LABCOAT_RUNNERS and --runners win over it."
+    },
     "port": {
       "type": "integer",
       "minimum": 1,

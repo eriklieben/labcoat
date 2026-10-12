@@ -78,6 +78,11 @@ public static class Cli
           --impact-map <m> Granularity of the impact map that smart watch and "Run affected" use: class (one
                            coverage run per test class), test (one per test: exact, slower) or auto (per class,
                            then refined per test where a change needs it; the default).
+          --runners <list> Test runners to use, comma-separated: dotnet (MSTest, NUnit, xUnit v3, TUnit on
+                           Microsoft.Testing.Platform) and runner packages such as vitest (Labcoat.Vitest). Default:
+                           dotnet plus every installed runner package. A runner package that isn't installed is
+                           fetched from NuGet in Labcoat's version.
+          --runner-path <dir>  Folder with a runner package (its runner.json) or one per subfolder. Repeatable.
           --max-parallel <n>  Test projects discovered and run at the same time (default: processors, max 4).
           --hang-threshold <d>  Mark a test running this long as possibly hanging (default 60s; 0 = off).
           --test-timeout <d>  Per-test timeout: a longer test is marked timed out and its project's run is
@@ -137,6 +142,8 @@ public static class Cli
           LABCOAT_AFFECTED_BASE   base ref of "Run affected: branch vs …" (like --affected-base)
           LABCOAT_IMPACT_MAP      class, test or auto (like --impact-map)
           LABCOAT_TRACE_FILTER    the tests to trace (like --trace-filter)
+          LABCOAT_RUNNERS         the test runners to use (like --runners)
+          LABCOAT_RUNNER_PATH     folders with runner packages, separated like PATH (like --runner-path)
           LABCOAT_MAX_PARALLEL, LABCOAT_HANG_THRESHOLD, LABCOAT_TEST_TIMEOUT
                                   like --max-parallel, --hang-threshold, --test-timeout
           LABCOAT_LIVE_OUTPUT     0 = no live output of running tests (no extra test host options or
@@ -151,6 +158,7 @@ public static class Cli
           labcoat                                  tests of the current project / solution
           labcoat tests/MyApp.Tests --watch        one project, watch mode
           labcoat MyApp.slnx --port 5000 --no-open
+          labcoat --runners dotnet,vitest          .NET and Vitest tests (Labcoat.Vitest)
           labcoat --theme dracula --mode dark      UI defaults for this start
           labcoat --run --export junit=out/results.xml --export html=out/report.html
                                                    CI: run everything once, write JUnit + HTML reports

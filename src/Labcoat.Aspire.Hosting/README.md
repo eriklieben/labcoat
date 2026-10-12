@@ -39,6 +39,16 @@ builder.AddLabcoat("tests")
        .WithHostPort(4300);                 // a fixed port instead of a random one
 ```
 
+Vitest projects: add the `Labcoat.Vitest` package to the AppHost too. Each Labcoat resource then runs .NET and Vitest
+tests; `WithRunners` picks per resource:
+
+```csharp
+builder.AddLabcoat("tests-dotnet").WithRunners("dotnet");   // MSTest, NUnit, xUnit v3, TUnit
+builder.AddLabcoat("tests-web").WithTestProject("../MyApp.Web").WithRunners("vitest");
+```
+
+See [docs/runners.md](https://github.com/eriklieben/labcoat/blob/main/docs/runners.md).
+
 Or all in one place, with defaults for the Labcoat UI's settings (theme, mode, motion, editor, coverage tint,
 confetti, …). A choice made in the browser wins over a default, unless the setting is locked:
 

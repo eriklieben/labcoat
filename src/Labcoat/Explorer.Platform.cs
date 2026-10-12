@@ -30,6 +30,7 @@ public sealed partial class Explorer
     /// </summary>
     private async Task<bool> CheckPlatformAsync(ProjectEntry p, CancellationToken ct)
     {
+        if (p.Plugin is not null) return true; // a runner package's project (Explorer.Runners.cs)
         var stamp = ProjectDiscovery.DetectionStamp(p.Project.Path);
         if (p.PlatformStamp != stamp || p.Platform is null)
         {

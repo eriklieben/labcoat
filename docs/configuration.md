@@ -12,7 +12,7 @@ labcoat [paths...] [options]
 
 | Option | Meaning |
 | --- | --- |
-| `paths` | `.csproj`, `.sln`, `.slnx`, `.slnf` files or directories (scanned recursively). Default: the test project in the current directory, else the nearest `.slnx` or `.sln` walking up to the repository root, else the current directory. |
+| `paths` | `.csproj`, `.sln`, `.slnx`, `.slnf` files or directories (scanned recursively); with [runner packages](runners.md) also their project files (`package.json`, `vitest.config.ts`). Default: the test project in the current directory, else the nearest `.slnx` or `.sln` walking up to the repository root, else the current directory. |
 | `-p`, `--port <n>` | HTTP port. Default 4300; when that is busy the next free port is used. An explicit port is used as is and fails when busy. |
 | `--no-open` | Don't open the browser. It is also not opened when `CI` is set or no display is available. |
 | `-w`, `--watch` | Start in watch mode. |
@@ -24,6 +24,8 @@ labcoat [paths...] [options]
 | `--trace-filter <expr>` | While per-test traces are on, trace only the tests that match `<expr>`, in the UI's search syntax: `cat:Integration`, `trait:Kind=Slow`, `proj:Orders.Tests` or name text; every term must match (see [Trace only some tests](aspire.md#trace-only-some-tests)). An invalid filter stops Labcoat with an error. |
 | `--root <dir>` | An extra directory whose source files the UI may show, for example the solution root for stack-trace frames outside the test projects. Repeatable. |
 | `--impact-map <mode>` | Granularity of the [impact map](features.md#the-impact-map): `class`, `test` or `auto` (the default). |
+| `--runners <list>` | The [test runners](runners.md) to use, comma-separated: `dotnet` (MSTest, NUnit, xUnit v3, TUnit) and runner packages such as `vitest`. Default: `dotnet` plus every installed runner package. A runner package that isn't installed is fetched from NuGet in Labcoat's version. |
+| `--runner-path <dir>` | A folder with a runner package (its `runner.json`), or one per subfolder. Repeatable. |
 | `--max-parallel <n>` | Test projects discovered and run at the same time (1-64). Default: the number of processors, at most 4. Builds are one `dotnet build` for all projects that need one either way (see [Parallel projects, slow tests and timeouts](#parallel-projects-slow-tests-and-timeouts)). |
 | `--hang-threshold <duration>` | A test running this long is shown as **possibly hanging** (default `60s`; `0` turns it off). |
 | `--test-timeout <duration>` | Per-test timeout: a test running longer is marked **Timed out** and its project's run is cancelled. Off by default. |
@@ -52,6 +54,7 @@ labcoat tests/MyApp.Tests --watch         # one project, watch mode
 labcoat MyApp.slnx --port 5000 --no-open  # a solution on a fixed port
 labcoat src tests --coverage              # every test project under two directories
 labcoat --theme dracula --mode dark       # UI defaults for this start
+labcoat --runners dotnet,vitest           # .NET and Vitest tests (Labcoat.Vitest)
 ```
 
 The value options also accept `--name=value` (`--theme=dracula`). An invalid value stops Labcoat with an error.
@@ -76,6 +79,8 @@ The value options also accept `--name=value` (`--theme=dracula`). An invalid val
 | `LABCOAT_MAX_PARALLEL`, `LABCOAT_HANG_THRESHOLD`, `LABCOAT_TEST_TIMEOUT` | Like `--max-parallel`, `--hang-threshold`, `--test-timeout` (the command line wins). `Labcoat.Aspire.Hosting` sets them from `WithMaxParallelProjects` / `WithHangThreshold` / `WithTestTimeout`. |
 | `LABCOAT_IMPACT_MAP` | `class`, `test` or `auto`, like `--impact-map`. `Labcoat.Aspire.Hosting` sets it from `ImpactMap` / `WithImpactMap("test")`. |
 | `LABCOAT_TRACE_FILTER` | The tests to trace, like `--trace-filter` (which wins). `Labcoat.Aspire.Hosting` sets it from `TestTracingFilter` / `WithTestTracing(filter: "cat:Integration")`. An invalid filter stops Labcoat with an error. |
+| `LABCOAT_RUNNERS` | The test runners to use, like `--runners` (which wins). `Labcoat.Aspire.Hosting` sets it from `Runners` / `WithRunners("vitest")`. |
+| `LABCOAT_RUNNER_PATH` | Folders with runner packages, separated like `PATH`, like `--runner-path`. `Labcoat.Aspire.Hosting` sets it to the AppHost's `labcoat/runners/`. |
 | `LABCOAT_LIVE_OUTPUT` | `0` (or `false`) turns [live output](features.md#live-console-output) of running tests off: no extra test host options or variables, no `liveOutput` events. On by default. |
 | `LABCOAT_LOG_LEVEL` | The host's log level: `trace`, `debug`, `information`, `warning` (the default), `error`, `critical` or `none`. `--verbose` lowers it to `debug`. |
 | `LABCOAT_LOG_FILE` | Like `--log-file` (which wins). |
@@ -178,7 +183,8 @@ Labcoat reads up to two JSON files. Both have the same shape; every key is optio
   "impactMap": "auto",
   "maxParallelProjects": 4,
   "hangThreshold": "60s",
-  "testTimeout": "5m"
+  "testTimeout": "5m",
+  "runners": ["dotnet", "vitest"]
 }
 ```
 
@@ -214,6 +220,9 @@ Labcoat reads up to two JSON files. Both have the same shape; every key is optio
   [Parallel projects, slow tests and timeouts](#parallel-projects-slow-tests-and-timeouts). Durations are seconds (`90`)
   or a number with a unit (`500ms`, `30s`, `5m`, `1.5h`); `0` or `"off"` turns them off. The workspace file wins over
   the user file; the environment variables and the command line win over both.
+- `runners`: the [test runners](runners.md) to use, a list (`["dotnet", "vitest"]`) or a comma-separated string. The
+  workspace file wins over the user file; `LABCOAT_RUNNERS` and `--runners` win over both. Default: `dotnet` plus every
+  installed runner package.
 - When `.labcoat.json` and `.config/labcoat.json` are both in the same directory (or `~/.labcoat.json` and the config
   dir file both exist), the first is used and a warning is logged.
 - Unknown keys and invalid values are skipped with a warning in the log (`Settings: .labcoat.json: 'theme' must be
