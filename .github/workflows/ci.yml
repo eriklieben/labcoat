@@ -69,7 +69,7 @@ jobs:
       - name: Vitest runner tests
         # src/Labcoat.Vitest/runner against a real Vitest: scratch projects linked to this job's ui/node_modules
         working-directory: .
-        run: node --test tests/Labcoat.Vitest.Tests/
+        run: node --test "tests/Labcoat.Vitest.Tests/*.test.mjs"
 
       - name: Typecheck
         run: npm run typecheck
