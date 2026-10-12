@@ -20,6 +20,7 @@ labcoat [paths...] [options]
 | `--coverage-settings <file>` | The coverage settings file for every test project (a Microsoft.CodeCoverage configuration or a `.runsettings` with a CodeCoverage section). Relative: next to each test project, then the current directory. Default: each project's own settings, else Labcoat's defaults (see [Which code counts](features.md#which-code-counts)). |
 | `--coverage-include <globs>` | Modules or path globs to count although Labcoat's coverage defaults leave them out, e.g. `Labcoat.*`. Comma-separated, repeatable. |
 | `--coverage-exclude <globs>` | Modules or path globs never to count, e.g. `MyApp.Tools,**/Migrations/**`. Comma-separated, repeatable. |
+| `--quarantine-file <file>` | A committed list of quarantined tests, one name per line (`Namespace.Class.Method`, `Namespace.Class`, `*` wildcards, `#` comments), added to the tests quarantined in the UI. Read only (see [Flaky tests and the quarantine file](standalone.md#flaky-tests-and-the-quarantine-file)). |
 | `--traces` | Start with per-test traces on. Only has an effect when hosted by an Aspire AppHost. A choice made in the UI is remembered per workspace and wins. |
 | `--trace-filter <expr>` | While per-test traces are on, trace only the tests that match `<expr>`, in the UI's search syntax: `cat:Integration`, `trait:Kind=Slow`, `proj:Orders.Tests` or name text; every term must match (see [Trace only some tests](aspire.md#trace-only-some-tests)). An invalid filter stops Labcoat with an error. |
 | `--root <dir>` | An extra directory whose source files the UI may show, for example the solution root for stack-trace frames outside the test projects. Repeatable. |
@@ -176,6 +177,7 @@ Labcoat reads up to two JSON files. Both have the same shape; every key is optio
   "port": 4300,
   "affectedBase": "origin/develop",
   "impactMap": "auto",
+  "quarantineFile": "quarantine.txt",
   "maxParallelProjects": 4,
   "hangThreshold": "60s",
   "testTimeout": "5m"
@@ -210,6 +212,9 @@ Labcoat reads up to two JSON files. Both have the same shape; every key is optio
 - `impactMap`: `"class"`, `"test"` or `"auto"` (default), the granularity of the
   [impact map](features.md#the-impact-map). The workspace file wins over the user file; `LABCOAT_IMPACT_MAP` and
   `--impact-map` win over both.
+- `quarantineFile`: a committed list of quarantined tests, like `--quarantine-file`; relative to the file that names it.
+  The workspace file wins over the user file, `--quarantine-file` over both. A missing file is an error. The format is
+  described under [Flaky tests and the quarantine file](standalone.md#flaky-tests-and-the-quarantine-file).
 - `maxParallelProjects`, `hangThreshold`, `testTimeout`: see
   [Parallel projects, slow tests and timeouts](#parallel-projects-slow-tests-and-timeouts). Durations are seconds (`90`)
   or a number with a unit (`500ms`, `30s`, `5m`, `1.5h`); `0` or `"off"` turns them off. The workspace file wins over
