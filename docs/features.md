@@ -328,6 +328,9 @@ Results are kept between sessions (see [configuration.md](configuration.md#where
   viewing, else the latest) as a self-contained HTML report, JUnit XML, Markdown, TRX or SARIF; the Coverage page's **Export** button gives
   the coverage report as lcov or Cobertura. The command palette has the same entries. For CI, `labcoat --run --export …`
   writes these files without the UI (see [Labcoat in CI](standalone.md#labcoat-in-ci)).
+
+  ![The run menu with the HTML, JUnit, Markdown, TRX and SARIF export entries](images/export-menu.png)
+
 - **Quarantine:** a known-flaky test can be quarantined. It still runs, but its result is counted separately and
   doesn't turn the suite red.
 

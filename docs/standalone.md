@@ -233,6 +233,8 @@ Under GitHub Actions `--run` reports to the workflow by itself; there is nothing
   more per step), followed by a `::notice` that counts the rest. Characters the workflow-command syntax reserves
   (`%`, line breaks, and `:` / `,` in the file and title) are escaped. Quarantined failures are not annotated.
 
+![The Markdown report as GitHub renders it: totals, the failed tests with their messages, the slowest tests](images/markdown-report.png)
+
 ```yaml
 jobs:
   test:
