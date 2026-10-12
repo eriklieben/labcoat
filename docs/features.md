@@ -190,6 +190,8 @@ the preview. Outside a git repository the button explains why it is unavailable.
 
 ## Changed tests
 
+![The test tree with the Changed filter](images/changed-tests.png)
+
 The **Changed** chip and `is:changed` show the tests you added or modified on the current branch, for example to rerun
 only what a pull request touches. A test counts as changed when its own lines (the method, from its attributes to its
 closing brace) overlap lines that git reports as changed, or when it sits in a file that is new. Editing another method
