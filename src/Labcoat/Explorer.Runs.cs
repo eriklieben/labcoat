@@ -438,6 +438,14 @@ public sealed partial class Explorer
         }
     }
 
+    /// <summary>The slowest tests of a project (or of all) with their duration trend: GET /api/tests/slowest.</summary>
+    public SlowestTestsResult GetSlowest(string? projectId, int limit)
+    {
+        var quarantined = _settings.Quarantined().ToHashSet(StringComparer.Ordinal);
+        lock (Sync)
+            return SlowestTests.Compute(projectId, _order.Where(k => projectId is null || k.ProjectId == projectId).Select(k => _tests[k]), quarantined, limit);
+    }
+
     public sealed record TestHistoryInfo(string ProjectId, string Id, List<HistoryEntry> History, bool? Flaky);
 
     public sealed record TestOutputInfo(string ProjectId, string Id, string? StdOut, string? StdErr, bool Truncated);

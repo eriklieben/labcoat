@@ -86,6 +86,7 @@ public static partial class LabcoatApp
         // The full node, its history, its full console output.
         app.MapGet("/api/tests/details", (string? projectId, string? id) => TestDetails(explorer, projectId, id));
         app.MapGet("/api/tests/history", (string? projectId, string? id) => TestHistory(explorer, projectId, id));
+        app.MapGet("/api/tests/slowest", (string? projectId, int? limit) => TestsSlowest(explorer, projectId, limit));
         app.MapGet("/api/tests/output", (string? projectId, string? id) => TestOutput(explorer, projectId, id));
 
         // Live console output of a running test (LiveOutput.cs): what was streamed so far, for clients that join mid-test.
@@ -211,6 +212,13 @@ public static partial class LabcoatApp
         if (projectId is not null && !explorer.HasProject(projectId)) return UnknownProject(projectId);
         var list = explorer.GetHistory(projectId, id);
         return id is not null && list.Count == 0 ? Results.NotFound(new { error = UnknownTest }) : Results.Json(new { tests = list }, Json.Options);
+    }
+
+    private static IResult TestsSlowest(Explorer explorer, string? projectId, int? limit)
+    {
+        if (projectId is not null && !explorer.HasProject(projectId)) return UnknownProject(projectId);
+        if (limit is < 1) return Results.BadRequest(new { error = "limit must be a positive number" });
+        return Results.Json(explorer.GetSlowest(projectId, limit ?? SlowestTests.DefaultLimit), Json.Options);
     }
 
     private static IResult TestOutput(Explorer explorer, string? projectId, string? id)
