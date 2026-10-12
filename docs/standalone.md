@@ -155,7 +155,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | Exit code | Meaning |
 | --- | --- |
 | `0` | No test failed (skipped tests and failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests don't count). |
-| `1` | A test failed or timed out, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, or a report could not be written. |
+| `1` | A test failed or timed out, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, a report could not be written, or a coverage threshold was missed or could not be checked. |
 | `2` | A project did not build or discover, nothing could run, or the command line is invalid. |
 
 | Option | |
@@ -165,7 +165,23 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
 | `--export-paths absolute` | Absolute source paths in lcov / Cobertura. The default writes them relative to the workspace root: the git repository root, else the common folder of the inputs and the test projects (and what they reference); files outside it stay absolute. |
+| `--min-coverage <percent>` | Fails the run (exit code 1) when the line coverage of this run is below the percentage (0-100). Collects coverage like `--coverage`; with `--filter` the coverage is that of the filtered tests. |
+| `--min-diff-coverage <percent>` | Fails the run (exit code 1) when the lines changed versus the base are covered less than the percentage. The base is the merge base with `--affected-base` (else `origin/HEAD`, `origin/main`, `main` or `master`), plus uncommitted and untracked files, as in "Run affected"; the changed lines come from `git diff` and only the executable ones count. Collects coverage like `--coverage`. |
 | `--filter <pattern>` | Only tests whose display name, `Namespace.Class(.Method)` or project contains the pattern; `*` is a wildcard over the whole name (`*CartTests.Pay*`). Comma-separated; repeatable. |
+
+The thresholds print their result and, for the diff, the lines that lack coverage:
+
+```
+  Coverage: ok 84.2% of lines (1263/1500), minimum 80%
+  Diff coverage: below 66.6% of changed lines (10/15), minimum 80% (changes vs origin/main (a1b2c3d))
+    src/Shop/Cart.cs: lines 41-44, 60 not covered (3/7)
+```
+
+They need coverage: when none was collected (no test project references `Microsoft.Testing.Extensions.CodeCoverage`),
+or no base can be found for `--min-diff-coverage` (not a repository, no `main` / `master` and no `--affected-base`; in a
+shallow clone fetch the base branch first), the run fails with exit code 1 and says why. A build error (exit code 2)
+takes precedence. A change without executable lines (documentation, comments, files outside the coverage settings)
+passes `--min-diff-coverage`; lines next to a removed block count as changed.
 
 Coverage counts what the [coverage settings](features.md#which-code-counts) count: the project's settings file, or
 Labcoat's defaults (product code only). The console output and the Cobertura comment say which applied. Results also go
