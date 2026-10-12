@@ -362,7 +362,7 @@ public sealed partial class Explorer : IAsyncDisposable
         var debug = cmd.Type == "debug";
         var r = RequestRun(new RunRequestOptions
         {
-            ProjectId = cmd.ProjectId, TestIds = cmd.TestIds, Coverage = cmd.Coverage, Trigger = debug ? "debug" : "user", Repeat = cmd.Repeat, Debug = debug,
+            ProjectId = cmd.ProjectId, TestIds = cmd.TestIds, Coverage = cmd.Coverage, Trigger = debug ? "debug" : "user", Repeat = cmd.Repeat, Order = cmd.Order, Seed = cmd.Seed, Debug = debug,
         });
         return r.Status != 202 ? RejectCommand(cmd, r.Status, r.Error ?? "rejected", r.UnknownTestIds) : null;
     }
@@ -436,6 +436,11 @@ public sealed partial class Explorer : IAsyncDisposable
         if (collectCoverage && req.Iterations > 1)
         {
             Log(null, LogLevels.Info, "Repeat runs do not collect coverage; running without coverage.");
+            collectCoverage = false;
+        }
+        if (collectCoverage && req.Order is not null)
+        {
+            Log(null, LogLevels.Info, "Random-order runs do not collect coverage; running without coverage.");
             collectCoverage = false;
         }
         var x = new RunExecution(req, collectCoverage, _settings.Quarantined().ToHashSet(StringComparer.Ordinal));
@@ -569,6 +574,8 @@ public sealed partial class Explorer : IAsyncDisposable
                 Trigger = req.Trigger,
                 Watch = req.Watch,
                 Repeat = x.Iterations > 1 ? new RepeatSummary { Count = x.Iterations } : null,
+                Order = req.Order,
+                Seed = req.Seed,
                 Debug = req.Debug ? true : null,
             };
             x.Run = run;
@@ -1192,7 +1199,7 @@ public sealed partial class Explorer : IAsyncDisposable
             else if (coverageFile is null)
             {
                 // Warm test host: the process (and whatever its fixtures keep alive) is reused across runs.
-                await RequestOnHostAsync(p, onUpdate, (conn, token) => conn.RunAsync(runId, subset, token), ct);
+                await RequestOnHostAsync(p, onUpdate, (conn, token) => RunInOrderAsync(conn, pr, runId, subset, token), ct);
                 await CheckWarmAfterRunAsync(p, pr.RequestedKeys, ct);
             }
             else await RunCoverageHostAsync(p, coveragePlan!, extraArgs, onUpdate, runId, subset, ct);
@@ -1216,6 +1223,29 @@ public sealed partial class Explorer : IAsyncDisposable
         }
         SetStatus(p, ProjectStatus.Idle);
         return null;
+    }
+
+    /// <summary>
+    /// <c>testing/runTests</c> for a project's tests. In random order (RunSummary.order) one request per test, in the order
+    /// the seed gives: MTP runs the requested nodes in the framework's own order and ignores the order of the list (docs/protocol.md
+    /// "Test order"), so a request per test is the only way to control it. Otherwise one request for all of them.
+    /// </summary>
+    private async Task<JsonNode?> RunInOrderAsync(MtpConnection conn, ProjectRun pr, Guid runId, List<(string, string)>? subset, CancellationToken ct)
+    {
+        if (pr.Run.Order is null || pr.Run.Seed is not { } seed) return await conn.RunAsync(runId, subset, ct);
+        var projectId = pr.Project.Project.Id;
+        List<(string Id, string Name)> tests;
+        lock (Sync)
+            tests = subset ?? pr.RequestedKeys.Where(k => _tests.ContainsKey(k)).Select(k => (k.Id, _tests[k].DisplayName)).ToList();
+        var shuffled = RandomOrder.Shuffle(tests, seed, t => t.Id);
+        Log(projectId, LogLevels.Info, $"Random order, seed {seed}: {shuffled.Count} tests, one at a time (reproduce with the same seed).");
+        JsonNode? last = null;
+        for (var i = 0; i < shuffled.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            last = await conn.RunAsync(i == 0 ? runId : Guid.NewGuid(), [shuffled[i]], ct);
+        }
+        return last;
     }
 
     /// <summary>The (id, display name) of the selected tests that are still known; null = every test of the project.</summary>
