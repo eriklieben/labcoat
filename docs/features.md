@@ -182,6 +182,9 @@ really execute the change (and, with `impactMap: "auto"`, refines the selected c
 of changed files. The command palette has **Run affected: uncommitted changes**, **Run affected: branch vs …** and
 **Preview affected tests…**.
 
+In CI, `labcoat --run --affected` does the same without the UI, and `--impact-map-file` carries the impact map from a job
+on main to the pull request jobs: see [Running only the affected tests in CI](standalone.md#running-only-the-affected-tests-in-ci).
+
 Shallow clones (CI) may not have the merge base; Labcoat then compares with the base branch directly and says so in
 the preview. Outside a git repository the button explains why it is unavailable. Scripts can use
 `GET /api/affected?base=working|branch|range&ref=…` (the plan) and `POST /api/run-affected` (see
@@ -220,7 +223,8 @@ takes 3–6 s (dynamic) or 12–19 s (static).
 
 Reasons say which kind of data selected a test: *Calculator.cs changed (method Subtract, per-test data)* or *(…,
 class-level data)*. Single-test coverage runs (coverage on, one test) also add per-test data; a later run of several
-tests does not overwrite it. The map is kept in memory and rebuilt after a restart.
+tests does not overwrite it. The map is kept in memory and rebuilt after a restart; for CI it can be saved to a file and
+loaded again (`--impact-map-file`, [standalone.md](standalone.md#running-only-the-affected-tests-in-ci)).
 
 ![Watch mode after a file change](images/watch.png)
 
