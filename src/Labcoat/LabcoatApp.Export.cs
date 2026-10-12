@@ -1,13 +1,13 @@
 namespace Labcoat;
 
-// Export endpoints (docs/contract.md "Export"): a run as JUnit XML / HTML report, a coverage report as lcov / Cobertura.
+// Export endpoints (docs/contract.md "Export"): a run as JUnit XML / HTML / Markdown / TRX / SARIF, a coverage report as lcov / Cobertura.
 // Plain GETs like the rest of the read API: the Host check applies (Security.cs); downloads are attachments that a
 // cross-site page can trigger but never read (no CORS).
 public static partial class LabcoatApp
 {
     private static void MapExportEndpoints(WebApplication app, Explorer explorer)
     {
-        // runId = a persisted run's id or "latest"; format = junit | html.
+        // runId = a persisted run's id or "latest"; format = junit | html | markdown | trx | sarif.
         app.MapGet("/api/runs/{runId}/export", (HttpContext ctx, string runId, string? format) => ExportRun(ctx, explorer, runId, format));
         // format = lcov | cobertura; scope = full (default, the Coverage page's report) | last (the latest coverage run's
         // own report); paths = relative (default: to the workspace root) | absolute.
@@ -16,8 +16,8 @@ public static partial class LabcoatApp
 
     private static IResult ExportRun(HttpContext ctx, Explorer explorer, string runId, string? format)
     {
-        if (format is not (ExportFormats.JUnit or ExportFormats.Html))
-            return Results.BadRequest(new { error = "format must be junit or html" });
+        if (format is null || !ExportFormats.RunFormats.Contains(format))
+            return Results.BadRequest(new { error = "format must be junit, html, markdown, trx or sarif" });
         if (explorer.ExportRun(runId) is not { } export)
             return Results.NotFound(new { error = runId == Explorer.LatestRun ? "No runs yet" : "Unknown run id", runId });
         using var ms = new MemoryStream();
@@ -38,13 +38,15 @@ public static partial class LabcoatApp
         return Download(ctx, ms.ToArray(), format, ExportFormats.FileName(explorer.ExportWorkspaceName, report.RunId, format));
     }
 
-    /// <summary>Writes a run export (JUnit XML or HTML report) as UTF-8 to <paramref name="stream"/>.</summary>
+    /// <summary>Writes a run export (JUnit, HTML, Markdown, TRX or SARIF) as UTF-8 to <paramref name="stream"/>.</summary>
     internal static void WriteRunExport(RunExport export, string format, Stream stream)
     {
-        if (format == ExportFormats.JUnit)
+        switch (format)
         {
-            JUnitWriter.Write(export, stream);
-            return;
+            case ExportFormats.JUnit: JUnitWriter.Write(export, stream); return;
+            case ExportFormats.Markdown: MarkdownReport.Write(export, stream); return;
+            case ExportFormats.Trx: TrxWriter.Write(export, stream); return;
+            case ExportFormats.Sarif: SarifWriter.Write(export, stream); return;
         }
         using var w = new StreamWriter(stream, new System.Text.UTF8Encoding(false), 64 * 1024, leaveOpen: true) { NewLine = "\n" };
         HtmlReport.Write(export, w);
