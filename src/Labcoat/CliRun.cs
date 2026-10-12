@@ -16,6 +16,10 @@ public sealed partial class StartOptions
     public List<string> Filters { get; } = [];
     /// <summary>--export-paths absolute: absolute source paths in lcov / Cobertura (default: relative to the workspace root).</summary>
     public bool ExportAbsolutePaths { get; private set; }
+    /// <summary>--min-coverage: the lowest overall line coverage (percent) of this run; below it the run fails (CoverageGate.cs).</summary>
+    public double? MinCoverage { get; private set; }
+    /// <summary>--min-diff-coverage: the lowest line coverage (percent) of the lines changed versus the affected base.</summary>
+    public double? MinDiffCoverage { get; private set; }
 
     private static readonly string[] AllExportFormats = [.. ExportFormats.RunFormats, .. ExportFormats.CoverageFormats];
 
@@ -32,6 +36,12 @@ public sealed partial class StartOptions
                 var filter = args.Value();
                 if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
                 Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
+                return null;
+            case "--min-coverage" or "--min-diff-coverage":
+                var percent = CoverageGate.ParsePercent(args.Value());
+                if (percent is null) return $"{option} needs a percentage from 0 to 100, e.g. 80.";
+                if (option == "--min-coverage") MinCoverage = percent;
+                else MinDiffCoverage = percent;
                 return null;
             default: // --export-paths
                 var mode = args.Value();
@@ -52,10 +62,10 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--export / --filter / --export-paths only make sense with --run.</summary>
+    /// <summary>--export / --filter / --export-paths / --min-coverage / --min-diff-coverage only make sense with --run.</summary>
     private string? ValidateRunOptions() =>
-        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths)
-            ? "--export, --filter and --export-paths need --run."
+        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || MinCoverage is not null || MinDiffCoverage is not null)
+            ? "--export, --filter, --export-paths, --min-coverage and --min-diff-coverage need --run."
             : null;
 }
 
@@ -63,7 +73,8 @@ public sealed partial class StartOptions
 /// <c>labcoat --run</c>: the non-interactive mode for CI. Builds and discovers the test projects, runs every test (or
 /// the <c>--filter</c>ed ones; with <c>--coverage</c>, which an lcov / Cobertura export implies), writes the
 /// <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed, <see cref="ExitFailed"/> when a test
-/// failed (or the run was aborted / cancelled), <see cref="ExitBuildError"/> when a project did not build or discover
+/// failed (or the run was aborted / cancelled, or a <c>--min-coverage</c> / <c>--min-diff-coverage</c> threshold was
+/// missed), <see cref="ExitBuildError"/> when a project did not build or discover
 /// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
 public static class CliRun
@@ -113,7 +124,7 @@ public static class CliRun
                 return broken.Count > 0 ? ExitBuildError : ExitFailed;
             }
         }
-        var wantCoverage = coverage || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
+        var wantCoverage = coverage || options.MinCoverage is not null || options.MinDiffCoverage is not null || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
         var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
         if (request.Status != 202)
         {
@@ -128,17 +139,18 @@ public static class CliRun
         broken = BrokenProjects(explorer);
         PrintResult(run, status, broken, sw.Elapsed);
         var exportsOk = WriteExports(explorer, options, run?.RunId);
-        return ExitCode(run, broken, exportsOk);
+        var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, ct);
+        return ExitCode(run, broken, exportsOk, gatesOk);
     }
 
     /// <summary>Projects whose build or discovery failed.</summary>
     private static List<TestProject> BrokenProjects(Explorer explorer) =>
         explorer.Snapshot().Projects.Where(p => p.Status == ProjectStatus.Error).ToList();
 
-    internal static int ExitCode(RunSummary? run, IReadOnlyCollection<TestProject> broken, bool exportsOk)
+    internal static int ExitCode(RunSummary? run, IReadOnlyCollection<TestProject> broken, bool exportsOk, bool gatesOk = true)
     {
         if (broken.Count > 0 || run is null) return ExitBuildError;
-        if (run.Failed > 0 || run.Aborted == true || run.Cancelled == true || !exportsOk) return ExitFailed;
+        if (run.Failed > 0 || run.Aborted == true || run.Cancelled == true || !exportsOk || !gatesOk) return ExitFailed;
         return ExitPassed;
     }
 

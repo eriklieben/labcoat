@@ -104,6 +104,12 @@ public static class Cli
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+          --min-coverage <percent>  Fail the run (exit 1) when the line coverage of this run is below the
+                           percentage (0-100). Collects coverage like --coverage.
+          --min-diff-coverage <percent>  Fail the run (exit 1) when the lines changed versus the base
+                           (--affected-base, else origin/HEAD, main or master; plus uncommitted changes) are
+                           covered less than the percentage. Lists the uncovered lines; non-executable lines
+                           don't count. Collects coverage like --coverage.
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):
           --theme <name>   catppuccin, aspire, github, one, dracula, solarized or gruvbox
