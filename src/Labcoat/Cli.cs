@@ -82,6 +82,9 @@ public static class Cli
           --hang-threshold <d>  Mark a test running this long as possibly hanging (default 60s; 0 = off).
           --test-timeout <d>  Per-test timeout: a longer test is marked timed out and its project's run is
                            cancelled (off by default). Durations: 90, 30s, 5m, 1.5h; 0 or off.
+          --max-test-duration <d>  With --run: fail the run (exit 1) and list the tests that took longer than
+                           this, quarantined tests excluded. Nothing is cancelled (unlike --test-timeout);
+                           off by default.
           --config <file>  Settings file to use instead of the nearest .labcoat.json / .config/labcoat.json
                            (searched from the workspace up to the repository root).
           --no-user-config Ignore the user settings file (~/.labcoat.json or the platform config dir).
@@ -96,7 +99,8 @@ public static class Cli
 
         Run once (CI; no UI, no browser):
           --run            Build, run the tests once, write the --export files and exit: 0 when no test
-                           failed, 1 when one failed (or the run was aborted / cancelled), 2 when a project
+                           failed, 1 when one failed or took longer than --max-test-duration (or the run
+                           was aborted / cancelled), 2 when a project
                            did not build or discover (or nothing could run).
           --export <format>=<file>  Write a report: junit, html, lcov or cobertura. Repeatable; lcov and
                            cobertura collect coverage (like --coverage) and hold this run's coverage.
@@ -137,8 +141,8 @@ public static class Cli
           LABCOAT_AFFECTED_BASE   base ref of "Run affected: branch vs …" (like --affected-base)
           LABCOAT_IMPACT_MAP      class, test or auto (like --impact-map)
           LABCOAT_TRACE_FILTER    the tests to trace (like --trace-filter)
-          LABCOAT_MAX_PARALLEL, LABCOAT_HANG_THRESHOLD, LABCOAT_TEST_TIMEOUT
-                                  like --max-parallel, --hang-threshold, --test-timeout
+          LABCOAT_MAX_PARALLEL, LABCOAT_HANG_THRESHOLD, LABCOAT_TEST_TIMEOUT, LABCOAT_MAX_TEST_DURATION
+                                  like --max-parallel, --hang-threshold, --test-timeout, --max-test-duration
           LABCOAT_LIVE_OUTPUT     0 = no live output of running tests (no extra test host options or
                                   variables, no liveOutput events)
           LABCOAT_LOG_LEVEL       host log level: trace, debug, information, warning (default), error,

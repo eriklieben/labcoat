@@ -5,8 +5,9 @@ namespace Aspire.Hosting;
 
 /// <summary>
 /// Run limits of a Labcoat resource: how many test projects build, discover and run at once, when a running test is
-/// shown as possibly hanging, and the optional per-test timeout. Passed to the explorer as <c>LABCOAT_MAX_PARALLEL</c>,
-/// <c>LABCOAT_HANG_THRESHOLD</c> and <c>LABCOAT_TEST_TIMEOUT</c>.
+/// shown as possibly hanging, the optional per-test timeout and the optional duration budget of <c>--run</c>. Passed to the
+/// explorer as <c>LABCOAT_MAX_PARALLEL</c>, <c>LABCOAT_HANG_THRESHOLD</c>, <c>LABCOAT_TEST_TIMEOUT</c> and
+/// <c>LABCOAT_MAX_TEST_DURATION</c>.
 /// </summary>
 public static class LabcoatRunLimitsExtensions
 {
@@ -16,6 +17,9 @@ public static class LabcoatRunLimitsExtensions
     public const string HangThresholdEnvironmentVariable = "LABCOAT_HANG_THRESHOLD";
     /// <summary>Environment variable that carries <see cref="WithTestTimeout"/> to the explorer (seconds).</summary>
     public const string TestTimeoutEnvironmentVariable = "LABCOAT_TEST_TIMEOUT";
+
+    /// <summary>Environment variable that carries <see cref="WithMaxTestDuration"/> to the explorer (seconds).</summary>
+    public const string MaxTestDurationEnvironmentVariable = "LABCOAT_MAX_TEST_DURATION";
 
     internal const int MaxParallelLimit = 64;
 
@@ -54,12 +58,26 @@ public static class LabcoatRunLimitsExtensions
         return builder.WithRunLimitsEnvironment();
     }
 
+    /// <summary>
+    /// Duration budget: when Labcoat runs the tests once (<c>labcoat --run</c>), a test that took longer than
+    /// <paramref name="budget"/> fails the run (quarantined tests excluded). Unlike <see cref="WithTestTimeout"/> nothing is
+    /// cancelled. Off by default; <see cref="TimeSpan.Zero"/> turns it off.
+    /// </summary>
+    public static IResourceBuilder<LabcoatResource> WithMaxTestDuration(this IResourceBuilder<LabcoatResource> builder, TimeSpan budget)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentOutOfRangeException.ThrowIfLessThan(budget, TimeSpan.Zero);
+        builder.Resource.MaxTestDuration = budget;
+        return builder.WithRunLimitsEnvironment();
+    }
+
     /// <summary>The run limits of <see cref="LabcoatOptions"/> (AddLabcoat with options / configuration).</summary>
     internal static IResourceBuilder<LabcoatResource> WithRunLimits(this IResourceBuilder<LabcoatResource> builder, LabcoatOptions options)
     {
         if (options.MaxParallelProjects is { } max) builder.WithMaxParallelProjects(max);
         if (options.HangThreshold is { } hang) builder.WithHangThreshold(hang);
         if (options.TestTimeout is { } timeout) builder.WithTestTimeout(timeout);
+        if (options.MaxTestDuration is { } budget) builder.WithMaxTestDuration(budget);
         return builder;
     }
 
@@ -74,6 +92,7 @@ public static class LabcoatRunLimitsExtensions
             if (resource.MaxParallelProjects is { } max) ctx.EnvironmentVariables[MaxParallelEnvironmentVariable] = max.ToString(CultureInfo.InvariantCulture);
             if (resource.HangThreshold is { } hang) ctx.EnvironmentVariables[HangThresholdEnvironmentVariable] = Seconds(hang);
             if (resource.TestTimeout is { } timeout) ctx.EnvironmentVariables[TestTimeoutEnvironmentVariable] = Seconds(timeout);
+            if (resource.MaxTestDuration is { } budget) ctx.EnvironmentVariables[MaxTestDurationEnvironmentVariable] = Seconds(budget);
         });
     }
 
