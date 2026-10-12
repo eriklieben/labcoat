@@ -327,7 +327,8 @@ Results are kept between sessions (see [configuration.md](configuration.md#where
 - **Export:** the run menu's **Export as HTML report / JUnit XML** downloads the shown run (a past run you are
   viewing, else the latest) as a self-contained HTML report or JUnit XML; the Coverage page's **Export** button gives
   the coverage report as lcov or Cobertura. The command palette has the same entries. For CI, `labcoat --run --export …`
-  writes these files without the UI (see [Labcoat in CI](standalone.md#labcoat-in-ci)).
+  writes these files without the UI (see [Labcoat in CI](standalone.md#labcoat-in-ci)), and `labcoat merge` combines the
+  files of a split run into one ([Merging shard reports](standalone.md#merging-shard-reports)).
 - **Quarantine:** a known-flaky test can be quarantined. It still runs, but its result is counted separately and
   doesn't turn the suite red.
 
