@@ -175,12 +175,17 @@ public partial class ExportTests
     [TestMethod]
     public void Sarif_escapes_uris_and_writes_absolute_files_as_file_uris()
     {
-        using var doc = JsonDocument.Parse(SarifWriter.ToJson(Export(At(T("x", Outcome.Failed), "my dir/a#b.cs", 2), At(T("y", Outcome.Failed), "/abs/C.cs", 4))));
+        using var doc = JsonDocument.Parse(SarifWriter.ToJson(Export(At(T("x", Outcome.Failed), "my dir/a#b.cs", 2), At(T("y", Outcome.Failed), "/abs/C.cs", 4),
+            At(T("z", Outcome.Failed), "C:\\proj dir\\Z.cs", 6), At(T("u", Outcome.Failed), "\\\\host\\share\\U.cs", 8))));
         var results = doc.RootElement.GetProperty("runs")[0].GetProperty("results");
-        Assert.AreEqual("my%20dir/a%23b.cs", results[0].GetProperty("locations")[0].GetProperty("physicalLocation").GetProperty("artifactLocation").GetProperty("uri").GetString());
-        var abs = results[1].GetProperty("locations")[0].GetProperty("physicalLocation").GetProperty("artifactLocation");
-        Assert.StartsWith("file:///", abs.GetProperty("uri").GetString());
-        Assert.IsFalse(abs.TryGetProperty("uriBaseId", out _));
+        JsonElement Artifact(int i) => results[i].GetProperty("locations")[0].GetProperty("physicalLocation").GetProperty("artifactLocation");
+        Assert.AreEqual("my%20dir/a%23b.cs", Artifact(0).GetProperty("uri").GetString());
+        Assert.AreEqual("%SRCROOT%", Artifact(0).GetProperty("uriBaseId").GetString());
+        // absolute paths are file URIs of any platform's form, wherever Labcoat runs
+        Assert.AreEqual("file:///abs/C.cs", Artifact(1).GetProperty("uri").GetString());
+        Assert.AreEqual("file:///C:/proj%20dir/Z.cs", Artifact(2).GetProperty("uri").GetString());
+        Assert.AreEqual("file://host/share/U.cs", Artifact(3).GetProperty("uri").GetString());
+        for (var i = 1; i < 4; i++) Assert.IsFalse(Artifact(i).TryGetProperty("uriBaseId", out _));
     }
 
     // ------------------------------------------------------------------ formats

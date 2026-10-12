@@ -112,8 +112,8 @@ public static class SarifWriter
         {
             w.WriteStartObject("physicalLocation");
             w.WriteStartObject("artifactLocation");
-            var absolute = Path.IsPathRooted(file) || file.Contains(':');
-            w.WriteString("uri", absolute ? new Uri(file).AbsoluteUri : Uri(file));
+            var absolute = IsAbsolute(file);
+            w.WriteString("uri", absolute ? FileUri(file) : Uri(file));
             if (!absolute) w.WriteString("uriBaseId", SrcRoot);
             w.WriteEndObject();
             w.WriteStartObject("region");
@@ -147,6 +147,22 @@ public static class SarifWriter
 
     /// <summary>A relative path as a URI reference: '/' separators, each segment escaped.</summary>
     private static string Uri(string path) => string.Join('/', path.Split('/').Select(System.Uri.EscapeDataString));
+
+    /// <summary>A rooted POSIX path, a Windows drive path ("C:\x", "C:/x") or a UNC path, whatever the platform Labcoat runs on.</summary>
+    private static bool IsAbsolute(string path) =>
+        path.StartsWith('/') || path.StartsWith('\\') || (path.Length >= 2 && char.IsAsciiLetter(path[0]) && path[1] == ':');
+
+    /// <summary>
+    /// An absolute path as a file URI: "/a/b c" is file:///a/b%20c, "C:\x\y" is file:///C:/x/y and "\\host\share\f" is
+    /// file://host/share/f. Built by hand, since <see cref="System.Uri"/> only accepts the paths of the current platform.
+    /// </summary>
+    private static string FileUri(string path)
+    {
+        var p = path.Replace('\\', '/');
+        if (p.StartsWith("//", StringComparison.Ordinal)) return "file:" + Uri(p);
+        if (p.Length >= 2 && p[1] == ':') return "file:///" + p[..2] + Uri(p[2..]);
+        return "file://" + Uri(p);
+    }
 
     private static string Utc(string iso) =>
         DateTimeOffset.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var at)
