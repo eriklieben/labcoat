@@ -77,6 +77,7 @@ public static partial class LabcoatApp
     {
         app.MapGet("/api/git", async (CancellationToken ct) => Results.Json(await explorer.GitInfoAsync(ct), Json.Options));
         app.MapGet("/api/affected", (string? @base, string? @ref, CancellationToken ct) => PlanAffectedAsync(explorer, @base, @ref, ct));
+        app.MapGet("/api/changed-tests", async (CancellationToken ct) => Results.Json(await explorer.ChangedTestsAsync(ct), Json.Options));
         app.MapPost("/api/run-affected", (HttpRequest req, CancellationToken ct) => RunAffectedAsync(req, explorer, ct));
     }
 

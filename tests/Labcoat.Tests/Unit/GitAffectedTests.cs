@@ -544,6 +544,107 @@ public class GitAffectedTests
         Assert.IsEmpty(plan.ClassLevel);
     }
 
+    private const string OrdersTests = """
+        class OrdersTests
+        {
+            void t1()
+            {
+            }
+            void t2()
+            {
+            }
+            void t3()
+            {
+            }
+        }
+        """;
+
+    /// <summary>OrdersTests.cs committed with t1 (lines 3–5), t2 (6–8) and t3 (9–11); the other tests keep their line-less nodes.</summary>
+    private static async Task<Repo> CreateWithTestLinesAsync()
+    {
+        var r = await Repo.CreateAsync();
+        r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests);
+        await r.CommitAllAsync("tests");
+        foreach (var (id, line) in new[] { ("t1", 3), ("t2", 6), ("t3", 9) })
+        {
+            var node = r.Node("Shop.Tests", id, "tests/Shop.Tests/OrdersTests.cs");
+            node.Line = line;
+            node.LineEnd = line + 2;
+            r.Explorer.SeedTests([node]);
+        }
+        return r;
+    }
+
+    private static string[] Changed(ChangedTests c) => c.Tests.Select(t => $"{t.ProjectId}/{t.Id}").ToArray();
+
+    [TestMethod]
+    public async Task Only_the_tests_whose_lines_were_edited_are_changed()
+    {
+        await using var r = await CreateWithTestLinesAsync();
+        var none = await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken);
+        Assert.IsTrue(none.Available);
+        Assert.AreEqual("branch", none.Base);
+        Assert.IsEmpty(none.Tests);
+
+        // a line inside t2, and a product file (no tests of its own)
+        r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests.Replace("void t2()\n    {\n    }", "void t2()\n    {\n        var x = 1;\n    }"));
+        r.Write("src/Shop/Prices.cs", "namespace Shop;\npublic static class Prices { public const int Base = 2; }\n");
+        r.Explorer.InvalidateChangedTests();
+        CollectionAssert.AreEqual(new[] { "Shop.Tests/t2" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+    }
+
+    [TestMethod]
+    public async Task Committed_branch_changes_and_new_test_files_count()
+    {
+        await using var r = await CreateWithTestLinesAsync();
+        await r.GitAsync("switch", "-q", "-c", "feature");
+        r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests.Replace("void t1()\n    {\n    }", "void t1()\n    {\n        var y = 1;\n    }"));
+        await r.CommitAllAsync("edit t1");
+        r.Write("tests/Other.Tests/OtherTests.cs", "class OtherTests { void o1() {} }\n"); // o1 has no line range: its file counts
+        var changed = await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken);
+        Assert.AreEqual("main", changed.Ref);
+        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/t1", "Other.Tests/o1" }, Changed(changed));
+
+        // a test in a newly added (untracked) file is changed as a whole
+        r.Write("tests/Other.Tests/NewTests.cs", "class NewTests {}\n");
+        r.Explorer.SeedTests([r.Node("Other.Tests", "n1", "tests/Other.Tests/NewTests.cs")]);
+        CollectionAssert.Contains(Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)), "Other.Tests/n1");
+    }
+
+    [TestMethod]
+    public async Task Without_a_base_branch_the_uncommitted_changes_count_and_outside_a_repository_it_is_unavailable()
+    {
+        await using var r = await CreateWithTestLinesAsync();
+        await r.GitAsync("branch", "-m", "trunk"); // no main / master: no base branch
+        r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests.Replace("void t3()\n    {\n    }", "void t3()\n    {\n        var z = 1;\n    }"));
+        var changed = await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken);
+        Assert.AreEqual("working", changed.Base);
+        CollectionAssert.AreEqual(new[] { "Shop.Tests/t3" }, Changed(changed));
+
+        var dir = Directory.CreateTempSubdirectory("labcoat-nogit-");
+        try
+        {
+            var project = Path.Combine(dir.FullName, "A.Tests.csproj");
+            System.IO.File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+            await using var explorer = new Explorer(new EventHub(), [project], null, [dir.FullName]);
+            var outside = await explorer.ChangedTestsAsync(TestContext.CancellationToken);
+            Assert.IsFalse(outside.Available);
+            Assert.IsNotNull(outside.Error);
+            Assert.IsEmpty(outside.Tests);
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [TestMethod]
+    public void A_pure_rename_changes_no_test_and_line_ranges_must_overlap()
+    {
+        var test = new TestNode { Id = "t", ProjectId = "P", DisplayName = "t", Line = 10, LineEnd = 12 };
+        Assert.IsFalse(Explorer.IsChanged(test, new GitChange("a.cs", "renamed", "b.cs")));
+        Assert.IsTrue(Explorer.IsChanged(test, new GitChange("a.cs", "modified")));
+        Assert.IsTrue(Explorer.IsChanged(test, new GitChange("a.cs", "modified") { Lines = [new LineSpan(12, 14)] }));
+        Assert.IsFalse(Explorer.IsChanged(test, new GitChange("a.cs", "modified") { Lines = [new LineSpan(13, 14), new LineSpan(1, 9)] }));
+    }
+
     [TestMethod]
     public void Cobertura_method_names_are_readable_and_spans_compare_without_names()
     {
