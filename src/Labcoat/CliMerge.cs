@@ -122,13 +122,16 @@ public static class CliMerge
         var written = WriteExports(options.Exports, junit, coverage, junitTotals, coverageTotals);
         if (junitTotals is not null) PrintTests(junitTotals);
         if (coverageTotals is not null)
-            Console.WriteLine($"  Coverage: {coverageTotals.LineRate:P1} of lines ({coverageTotals.LinesCovered}/{coverageTotals.LinesValid})" +
-                              (coverageTotals.BranchesValid > 0 ? $", {coverageTotals.BranchRate:P1} of branches ({coverageTotals.BranchesCovered}/{coverageTotals.BranchesValid})" : "") +
+            Console.WriteLine($"  Coverage: {Percent(coverageTotals.LineRate)} of lines ({coverageTotals.LinesCovered}/{coverageTotals.LinesValid})" +
+                              (coverageTotals.BranchesValid > 0 ? $", {Percent(coverageTotals.BranchRate)} of branches ({coverageTotals.BranchesCovered}/{coverageTotals.BranchesValid})" : "") +
                               $" in {coverageTotals.Files} file{(coverageTotals.Files == 1 ? "" : "s")}");
         return ExitCode(junitTotals, written);
     }
 
     private const int MaxWarnings = 20;
+
+    /// <summary>"81.2%" whatever the culture.</summary>
+    private static string Percent(double rate) => (rate * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "%";
 
     internal static int ExitCode(JUnitTotals? tests, bool exportsOk) =>
         tests is { Failed: > 0 } || !exportsOk ? ExitFailed : ExitPassed;
@@ -270,7 +273,7 @@ public static class CliMerge
                 }
                 Console.WriteLine(target.Format == ExportFormats.JUnit
                     ? $"  Wrote {target.Format}: {target.Path} ({tests!.Tests} tests in {tests.Suites} suite{(tests.Suites == 1 ? "" : "s")})"
-                    : $"  Wrote {target.Format}: {target.Path} ({totals!.Files} files, {totals.LineRate:P1} of lines)");
+                    : $"  Wrote {target.Format}: {target.Path} ({totals!.Files} files, {Percent(totals.LineRate)} of lines)");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
