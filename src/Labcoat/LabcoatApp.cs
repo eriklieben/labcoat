@@ -72,7 +72,7 @@ public sealed partial class StartOptions
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
             "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
-            "--export", "--filter", "--export-paths", // --run (CliRun.cs)
+            "--export", "--filter", "--export-paths", "--affected", "--impact-map-file", // --run (CliRun.cs)
         };
 
         private int _index = -1;
@@ -90,6 +90,14 @@ public sealed partial class StartOptions
                 return a[..eq];
             }
             return a;
+        }
+
+        /// <summary>The value of an option that may stand alone: its <c>=value</c>, else the next argument when <paramref name="accept"/> takes it (consumed).</summary>
+        public string? OptionalValue(Func<string, bool> accept)
+        {
+            if (_inlineValue is not null) return _inlineValue;
+            if (_index + 1 >= args.Count || !accept(args[_index + 1])) return null;
+            return args[++_index];
         }
 
         /// <summary>The option's value: its <c>=value</c>, else the next argument (consumed); null when there is none.</summary>
@@ -135,7 +143,8 @@ public sealed partial class StartOptions
             case "--root": return AddRoot(args.Value());
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
-            case "--run" or "--export" or "--filter" or "--export-paths": return ApplyRunOption(a, args); // CliRun.cs
+            case "--run" or "--export" or "--filter" or "--export-paths" or "--affected" or "--impact-map-file" or "--build-impact-map":
+                return ApplyRunOption(a, args); // CliRun.cs
             case "--log-file":
                 LogFile = args.Value();
                 return ErrorUnless(!string.IsNullOrWhiteSpace(LogFile), "--log-file needs a file (or 'auto').");

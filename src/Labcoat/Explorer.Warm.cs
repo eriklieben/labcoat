@@ -473,6 +473,9 @@ public sealed partial class Explorer
     /// </summary>
     internal static int ImpactParallelism { get; } = Math.Clamp(Environment.ProcessorCount / 2, 1, 6);
 
+    /// <summary>False for <c>--run --affected</c>: planning must not start coverage processes next to the run.</summary>
+    internal bool RefineImpactInBackground { get; set; } = true;
+
     // impactMap "auto": classes waiting for per-test refinement, and the ones queued / done since the last pass.
     private readonly Queue<(string ProjectId, string ClassKey)> _refineQueue = new();
     private readonly HashSet<(string ProjectId, string ClassKey)> _refineSeen = [];
@@ -676,7 +679,7 @@ public sealed partial class Explorer
     /// </summary>
     private void QueueImpactRefinementLocked(IEnumerable<(string ProjectId, string Id)> classLevel)
     {
-        if (ImpactMapMode != ImpactMapModes.Auto) return;
+        if (ImpactMapMode != ImpactMapModes.Auto || !RefineImpactInBackground) return;
         var added = false;
         foreach (var key in classLevel)
         {

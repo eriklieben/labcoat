@@ -64,6 +64,8 @@ public sealed record AffectedFile
     public List<string>? ProjectIds { get; init; }
     public List<int[]>? Lines { get; init; }
     public List<string>? Methods { get; init; }
+    /// <summary>How precise the impact data behind <see cref="Mapping"/> is: "per-test", "class-level" or "per-test and class-level" (run --affected prints it).</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string? DataQuality { get; init; }
 }
 
 public sealed record AffectedTest(string ProjectId, string Id, List<string> Reasons)
@@ -107,8 +109,11 @@ public sealed record GitChange(string Path, string Status, string? OldPath = nul
     public List<LineSpan>? Lines { get; set; }
 }
 
-/// <summary>The changes of one base: files plus what was compared.</summary>
-public sealed record GitChanges(List<GitChange> Files, string? Ref, string? MergeBase, List<string> Warnings);
+/// <summary>
+/// The changes of one base: files plus what was compared. <paramref name="From"/> is the revision the changes start from
+/// (the old side of every file), null when there is none (no commits, a root commit).
+/// </summary>
+public sealed record GitChanges(List<GitChange> Files, string? Ref, string? MergeBase, List<string> Warnings, string? From = null);
 
 /// <summary>
 /// Thin wrapper around the <c>git</c> CLI for one repository. Every call is a child process with an argument list (no
@@ -191,6 +196,13 @@ public sealed partial class GitRepo
 
     public async Task<bool> RefExistsAsync(string rev, CancellationToken ct = default) =>
         (await Git(ct, RevParse, "--verify", "-q", rev + "^{commit}")).Code == 0;
+
+    /// <summary>The text of <paramref name="path"/> (relative to the repository root) at <paramref name="rev"/>; null when it does not exist there.</summary>
+    public async Task<string?> FileAtAsync(string rev, string path, CancellationToken ct = default)
+    {
+        var (code, output, _) = await Git(ct, "show", $"{rev}:{path}");
+        return code == 0 ? output : null;
+    }
 
     private async Task<string?> ShortShaAsync(string rev, CancellationToken ct)
     {
@@ -313,7 +325,7 @@ public sealed partial class GitRepo
         var from = hasHead ? "HEAD" : await EmptyTreeAsync(ct);
         var files = await DiffAsync([from], ct);
         files.AddRange(await UntrackedAsync(ct));
-        return new GitChanges(Sort(files), hasHead ? "HEAD" : null, null, []);
+        return new GitChanges(Sort(files), hasHead ? "HEAD" : null, null, [], hasHead ? "HEAD" : null);
     }
 
     private async Task<GitChanges> BranchChangesAsync(bool hasHead, string? reference, string? configuredBase, CancellationToken ct)
@@ -327,7 +339,7 @@ public sealed partial class GitRepo
         var (from, mergeBase) = await MergeBaseAsync(baseRef, warnings, ct);
         var files = await DiffAsync([from], ct);
         files.AddRange(await UntrackedAsync(ct));
-        return new GitChanges(Sort(files), baseRef, mergeBase, warnings);
+        return new GitChanges(Sort(files), baseRef, mergeBase, warnings, from);
     }
 
     /// <summary>What "branch vs <paramref name="baseRef"/>" compares with: the merge base, else the base itself (warning).</summary>
@@ -350,11 +362,20 @@ public sealed partial class GitRepo
         if (RangeSeparator(reference) is { } sep)
         {
             await CheckRangeSidesAsync(reference, sep, ct);
-            return new GitChanges(Sort(await DiffAsync([reference], ct)), reference, null, []);
+            return new GitChanges(Sort(await DiffAsync([reference], ct)), reference, null, [], await RangeFromAsync(reference, sep, ct));
         }
         if (!await RefExistsAsync(reference, ct)) throw new AffectedException(404, "unknownRef", $"Unknown git ref '{reference}'.");
         var parent = await RefExistsAsync(reference + "^1", ct) ? reference + "^1" : await EmptyTreeAsync(ct);
-        return new GitChanges(Sort(await DiffAsync([parent, reference], ct)), reference, null, []);
+        return new GitChanges(Sort(await DiffAsync([parent, reference], ct)), reference, null, [], await RefExistsAsync(reference + "^1", ct) ? parent : null);
+    }
+
+    /// <summary>The old side of "A..B" (A) or "A...B" (their merge base); null when it can't be determined.</summary>
+    private async Task<string?> RangeFromAsync(string reference, string sep, CancellationToken ct)
+    {
+        var sides = reference.Split(sep).Select(s => s.Length == 0 ? "HEAD" : s).ToArray();
+        if (sep == "..") return sides[0];
+        var (code, output, _) = await Git(ct, "merge-base", sides[0], sides[1]);
+        return code == 0 && output.Trim() is { Length: > 0 } mb ? mb : null;
     }
 
     /// <summary>"..." or ".." of a commit range, null for a single commit.</summary>
@@ -613,9 +634,10 @@ public sealed partial class Explorer
             return new ProjectScope(r.Id, r.Name, PathUtil.CanonicalizeOrSelf(r.Path), dir, dirs);
         }).ToList();
 
+        var stale = await StaleImpactFilesAsync(repo, changes, ct);
         lock (Sync)
         {
-            var plan = BuildPlanLocked(kind, changes, info, repo.Root, scopes);
+            var plan = BuildPlanLocked(kind, changes, info, repo.Root, scopes, stale);
             QueueImpactRefinementLocked(plan.ClassLevel); // impactMap "auto" (Explorer.Warm.cs)
             return plan;
         }
@@ -625,11 +647,36 @@ public sealed partial class Explorer
 
     private static bool InOrUnder(string path, string dir) => string.Equals(path, dir, PathUtil.Comparison) || PathUtil.IsUnder(path, dir);
 
-    private AffectedPlan BuildPlanLocked(string kind, GitChanges changes, GitInfo info, string root, List<ProjectScope> scopes)
+    /// <summary>
+    /// A loaded impact map file knows the hash of every source file when its coverage was recorded: a changed file whose
+    /// old side (the revision the changes start from) hashes differently changed after the map was built, so the map's
+    /// line numbers no longer fit it. Those files (canonical paths) get the project fallback instead of wrong methods.
+    /// </summary>
+    private async Task<HashSet<string>> StaleImpactFilesAsync(GitRepo repo, GitChanges changes, CancellationToken ct)
+    {
+        var stale = new HashSet<string>(PathComparer);
+        bool hashes;
+        lock (Sync) hashes = _impact.HasHashes;
+        if (!hashes) return stale;
+        foreach (var change in changes.Files.Where(c => c.Status is "modified" or "typeChanged"))
+        {
+            var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, change.Path.Replace('/', Path.DirectorySeparatorChar)));
+            string? recorded;
+            lock (Sync) recorded = _impact.HashOf(abs);
+            if (recorded is null) continue;
+            var old = changes.From is null ? null : await repo.FileAtAsync(changes.From, change.Path, ct);
+            if (old is null || ImpactMapFile.HashText(old) != recorded) stale.Add(abs);
+        }
+        return stale;
+    }
+
+    private AffectedPlan BuildPlanLocked(string kind, GitChanges changes, GitInfo info, string root, List<ProjectScope> scopes, HashSet<string>? stale = null)
     {
         var warnings = new List<string>(changes.Warnings);
-        var builder = new AffectedPlanBuilder(this, scopes);
+        var builder = new AffectedPlanBuilder(this, scopes, stale);
         foreach (var change in changes.Files) builder.AddChange(root, change);
+        foreach (var name in builder.StaleFiles)
+            warnings.Add($"{name} changed after the impact map was built: the map says nothing reliable about it, using the project level.");
 
         // Selection + tests in tree order.
         var selection = builder.Selection();
@@ -697,10 +744,15 @@ public sealed partial class Explorer
         public HashSet<string> Mappings { get; } = [];
         public List<AffectedFile> Files { get; } = [];
 
-        public AffectedPlanBuilder(Explorer explorer, List<ProjectScope> scopes)
+        private readonly HashSet<string> _stale;
+        /// <summary>Changed files whose impact data is out of date (see <see cref="StaleImpactFilesAsync"/>).</summary>
+        public List<string> StaleFiles { get; } = [];
+
+        public AffectedPlanBuilder(Explorer explorer, List<ProjectScope> scopes, HashSet<string>? stale = null)
         {
             _explorer = explorer;
             _scopes = scopes;
+            _stale = stale ?? [];
             foreach (var k in explorer._order)
             {
                 if (explorer._tests[k].FilePath is not { } fp) continue;
@@ -754,7 +806,17 @@ public sealed partial class Explorer
                 ProjectIds = m.ProjectIds.Count > 0 ? m.ProjectIds : null,
                 Lines = change.Lines?.Select(l => new[] { l.Start, l.End }).ToList(),
                 Methods = m.Methods,
+                DataQuality = DataQualityOf(m),
             });
+        }
+
+        /// <summary>The granularity of the impact data behind a file's tests (null for other mappings).</summary>
+        private string? DataQualityOf(FileMatch m)
+        {
+            if (m.Mapping != "impactMap" || m.Selected.Count == 0) return null;
+            var kinds = m.Selected.Select(k => Granularity.GetValueOrDefault(k)).ToList();
+            if (kinds.All(g => g == "test")) return "per-test";
+            return kinds.All(g => g != "test") ? "class-level" : "per-test and class-level";
         }
 
         private void MatchTestFile(FileMatch m, List<(string ProjectId, string Id)> inFile)
@@ -808,12 +870,28 @@ public sealed partial class Explorer
         private void MatchImpactMap(FileMatch m, List<LineSpan>? lines)
         {
             var impact = _explorer._impact;
+            if (_stale.Contains(m.Abs))
+            {
+                StaleFiles.Add(m.Name);
+                return;
+            }
             foreach (var projectId in _scopes.Select(s => s.Id))
             {
                 if (impact.AffectedByLines(projectId, m.Abs, lines, out var outside) is not { } hits) continue;
                 m.Mapping = "impactMap";
                 foreach (var (tid, methods) in hits.Where(h => _explorer._tests.ContainsKey((projectId, h.Key))))
                     SelectByImpact(m, (projectId, tid), methods, outside);
+                if (impact.IsImported(projectId)) SelectUnmappedTests(m, projectId);
+            }
+        }
+
+        /// <summary>Tests the loaded map file has no data for (added after it was built): they may execute the file, so they run too.</summary>
+        private void SelectUnmappedTests(FileMatch m, string projectId)
+        {
+            foreach (var k in _explorer._order.Where(k => k.ProjectId == projectId && !_explorer._impact.Has(k.ProjectId, k.Id)))
+            {
+                m.Selected.Add(k);
+                AddReason(k, $"{m.Name} {m.Verb} (no impact data for this test: it is newer than the impact map)");
             }
         }
 
@@ -1002,8 +1080,10 @@ public sealed partial class Explorer
         catch (OperationCanceledException) { return null; }
     }
 
-    private RunRequestResult? StartAffectedRun(AffectedPlan plan, bool? coverage, string trigger)
+    /// <summary>Queues the run of a plan; <paramref name="selection"/> / <paramref name="tests"/> narrow it down (run --affected with --filter).</summary>
+    internal RunRequestResult? StartAffectedRun(AffectedPlan plan, bool? coverage, string trigger, Dictionary<string, HashSet<string>?>? selection = null, int? tests = null)
     {
+        selection ??= plan.Selection;
         var what = plan.Base switch
         {
             AffectedBases.Branch => $"branch vs {plan.Ref}",
@@ -1011,12 +1091,13 @@ public sealed partial class Explorer
             _ => BaseLabels[plan.Base],
         };
         var fileCount = $"{plan.Counts.Files} file{(plan.Counts.Files == 1 ? "" : "s")}";
-        if (plan.Selection.Count == 0)
+        if (selection.Count == 0)
         {
             Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} changed → no affected tests");
             return null;
         }
-        Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} → {plan.Counts.Tests} test{(plan.Counts.Tests == 1 ? "" : "s")} in " +
+        var count = tests ?? plan.Counts.Tests;
+        Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} → {count} test{(count == 1 ? "" : "s")} in " +
             $"{plan.Counts.Projects} project{(plan.Counts.Projects == 1 ? "" : "s")} ({plan.Strategy})");
         var affected = new AffectedRun
         {
@@ -1024,9 +1105,9 @@ public sealed partial class Explorer
             ChangedFiles = plan.Files.Select(f => f.Path).ToList(),
             Base = plan.Base,
             Ref = plan.Ref,
-            Tests = plan.Counts.Tests,
+            Tests = count,
         };
-        var r = RequestRun(new RunRequestOptions { Coverage = coverage, Trigger = trigger, Affected = affected, Selection = plan.Selection });
+        var r = RequestRun(new RunRequestOptions { Coverage = coverage, Trigger = trigger, Affected = affected, Selection = selection });
         if (r.Status != 202) Log(null, LogLevels.Warning, "Run affected: " + r.Error);
         return r;
     }

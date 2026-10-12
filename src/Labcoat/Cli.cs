@@ -104,6 +104,17 @@ public static class Cli
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+          --affected [base]  Only the tests the changes in git affect: working (uncommitted), branch (against
+                           the base branch, see --affected-base; the default) or a commit range such as
+                           origin/main..HEAD (--affected=<ref> for a single commit). Prints the plan; when
+                           nothing is affected it says so, writes the reports and exits 0. With --filter
+                           only the tests matching both run.
+          --impact-map-file <file>  The impact map to use for --affected, so a changed product file selects
+                           the tests that run it instead of every test of its projects. Ignored with a
+                           warning when it is unusable. '.gz' compresses it.
+          --build-impact-map  Run the impact-map pass (one coverage run per test class; --impact-map test:
+                           per test) and save it to --impact-map-file. Run it on your main branch, cache
+                           the file, use it in pull request jobs (docs/standalone.md).
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):
           --theme <name>   catppuccin, aspire, github, one, dracula, solarized or gruvbox

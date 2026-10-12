@@ -5,7 +5,11 @@ namespace Labcoat;
 /// <summary>An <c>--export format=path</c> target of <c>--run</c>.</summary>
 public sealed record ExportTarget(string Format, string Path);
 
-// --run, --export, --filter, --export-paths (CliRun.cs): the non-interactive mode for CI.
+/// <summary><c>--affected</c>: what the changes are compared with (<c>AffectedBases</c>) and the ref / range of "branch" and "range".</summary>
+public sealed record AffectedSelector(string Base, string? Ref);
+
+// --run, --export, --filter, --export-paths, --affected, --impact-map-file, --build-impact-map (CliRun.cs): the
+// non-interactive mode for CI.
 public sealed partial class StartOptions
 {
     /// <summary>--run: build, run the tests once, write the exports and exit (no web server, no browser).</summary>
@@ -16,6 +20,13 @@ public sealed partial class StartOptions
     public List<string> Filters { get; } = [];
     /// <summary>--export-paths absolute: absolute source paths in lcov / Cobertura (default: relative to the workspace root).</summary>
     public bool ExportAbsolutePaths { get; private set; }
+
+    /// <summary>--affected [working|branch|&lt;range&gt;]: run only the tests the changes in git affect. Null = every test.</summary>
+    public AffectedSelector? Affected { get; private set; }
+    /// <summary>--impact-map-file: where the impact map is loaded from before planning and saved to after --build-impact-map.</summary>
+    public string? ImpactMapFile { get; private set; }
+    /// <summary>--build-impact-map: run the impact-map pass and save it to <see cref="ImpactMapFile"/>.</summary>
+    public bool BuildImpactMap { get; private set; }
 
     private static readonly string[] AllExportFormats = [.. ExportFormats.RunFormats, .. ExportFormats.CoverageFormats];
 
@@ -32,6 +43,17 @@ public sealed partial class StartOptions
                 var filter = args.Value();
                 if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
                 Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
+                return null;
+            case "--affected":
+                return SetAffected(args.OptionalValue(IsAffectedValue));
+            case "--impact-map-file":
+                var file = args.Value();
+                if (string.IsNullOrWhiteSpace(file)) return "--impact-map-file needs a file, e.g. impact.json (or impact.json.gz).";
+                if (Directory.Exists(file)) return $"--impact-map-file: '{file}' is a directory; give a file.";
+                ImpactMapFile = file.Trim();
+                return null;
+            case "--build-impact-map":
+                BuildImpactMap = true;
                 return null;
             default: // --export-paths
                 var mode = args.Value();
@@ -52,11 +74,35 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--export / --filter / --export-paths only make sense with --run.</summary>
-    private string? ValidateRunOptions() =>
-        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths)
-            ? "--export, --filter and --export-paths need --run."
-            : null;
+    /// <summary>--affected: working (uncommitted), branch (the default: against the base branch) or a commit range / commit.</summary>
+    private string? SetAffected(string? value)
+    {
+        var v = value?.Trim();
+        if (string.IsNullOrEmpty(v) || v.Equals("branch", StringComparison.OrdinalIgnoreCase)) Affected = new AffectedSelector(AffectedBases.Branch, null);
+        else if (v.ToLowerInvariant() is "working" or "uncommitted") Affected = new AffectedSelector(AffectedBases.Working, null);
+        else if (GitRepo.IsValidRef(v)) Affected = new AffectedSelector(AffectedBases.Range, v);
+        else return $"--affected needs working, branch or a commit range such as origin/main..HEAD (got '{v}').";
+        return null;
+    }
+
+    /// <summary>The value of --affected when it follows the option: only a base name or a range, so a path after a bare --affected stays a path.</summary>
+    internal static bool IsAffectedValue(string value) =>
+        value.ToLowerInvariant() is "working" or "uncommitted" or "branch"
+        || (value.Contains("..", StringComparison.Ordinal) && GitRepo.IsValidRef(value) && !Directory.Exists(value) && !File.Exists(value));
+
+    /// <summary>The options that only make sense with --run, and the ones that need each other.</summary>
+    private string? ValidateRunOptions()
+    {
+        if (!RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths))
+            return "--export, --filter and --export-paths need --run.";
+        if (!RunOnce && (Affected is not null || ImpactMapFile is not null || BuildImpactMap))
+            return "--affected, --impact-map-file and --build-impact-map need --run.";
+        if (BuildImpactMap && ImpactMapFile is null && Affected is null)
+            return "--build-impact-map needs --impact-map-file (to keep the map) or --affected (to use it now).";
+        if (ImpactMapFile is not null && Affected is null && !BuildImpactMap)
+            return "--impact-map-file needs --affected (to use the map) or --build-impact-map (to create it).";
+        return null;
+    }
 }
 
 /// <summary>
@@ -66,7 +112,7 @@ public sealed partial class StartOptions
 /// failed (or the run was aborted / cancelled), <see cref="ExitBuildError"/> when a project did not build or discover
 /// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
-public static class CliRun
+public static partial class CliRun
 {
     public const int ExitPassed = 0;
     public const int ExitFailed = 1;
@@ -102,6 +148,8 @@ public static class CliRun
         await explorer.DiscoverAsync(null);
         if (ct.IsCancellationRequested) return ExitFailed;
         var broken = BrokenProjects(explorer);
+        if (options.Affected is not null) explorer.RefineImpactInBackground = false; // no coverage processes beside the run
+        if (options.ImpactMapFile is { } mapFile) LoadImpactMap(explorer, mapFile, options);
         List<string>? ids = null;
         if (options.Filters.Count > 0)
         {
@@ -114,7 +162,21 @@ public static class CliRun
             }
         }
         var wantCoverage = coverage || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
-        var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
+        AffectedSelection? affected = null;
+        if (options.Affected is { } selector)
+        {
+            try { affected = await PlanAffectedRunAsync(explorer, options, selector, ids, ct); }
+            catch (AffectedException ex)
+            {
+                await Console.Error.WriteLineAsync($"{ErrorLabel} --affected: {ex.Message}");
+                WriteExports(explorer, options, null, nothingToRun: true);
+                return ExitBuildError;
+            }
+            if (affected.Tests == 0) return await NothingAffectedAsync(explorer, options, broken);
+        }
+        var request = affected is null
+            ? explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger })
+            : explorer.StartAffectedRun(affected.Plan, wantCoverage, Trigger, affected.Selection, affected.Tests)!;
         if (request.Status != 202)
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
@@ -128,7 +190,8 @@ public static class CliRun
         broken = BrokenProjects(explorer);
         PrintResult(run, status, broken, sw.Elapsed);
         var exportsOk = WriteExports(explorer, options, run?.RunId);
-        return ExitCode(run, broken, exportsOk);
+        var mapOk = await BuildAndSaveImpactMapAsync(explorer, options, affected is null ? ProjectsOf(explorer, ids).ToList() : [], ct);
+        return ExitCode(run, broken, exportsOk && mapOk);
     }
 
     /// <summary>Projects whose build or discovery failed.</summary>
@@ -160,12 +223,12 @@ public static class CliRun
     }
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>
-    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId)
+    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId, bool nothingToRun = false)
     {
         var ok = true;
         foreach (var target in options.Exports)
         {
-            try { ok &= WriteExport(explorer, options, target, runId); }
+            try { ok &= WriteExport(explorer, options, target, runId, nothingToRun); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
                 Console.Error.WriteLine($"{ErrorLabel} Could not write {target.Path}: {ex.Message}");
@@ -175,12 +238,16 @@ public static class CliRun
         return ok;
     }
 
-    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId)
+    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId, bool nothingToRun)
     {
         var path = Path.GetFullPath(target.Path);
         if (ExportFormats.CoverageFormats.Contains(target.Format))
         {
-            if (explorer.LastCoverageReport is not { } report || report.RunId != runId)
+            // Nothing to run (--affected): an empty report, so the file CI uploads exists and says there was no coverage.
+            var report = nothingToRun
+                ? new CoverageReport { RunId = "none", GeneratedAt = Json.Now(), ProjectIds = [], Files = [], Scope = "subset", NoCoverableLines = true }
+                : explorer.LastCoverageReport;
+            if (report is null || (!nothingToRun && report.RunId != runId))
             {
                 Console.Error.WriteLine($"{WarningLabel} No coverage was collected in this run: {target.Path} not written " +
                                         "(do the test projects reference Microsoft.Testing.Extensions.CodeCoverage?).");
