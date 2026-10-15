@@ -97,3 +97,8 @@ $RECYCLE.BIN/
 
 # Claude Code local settings and memory: never committed
 .claude/
+
+# dev container: local-only files
+.devcontainer/.env
+.devcontainer/.env.*
+.devcontainer/**/*.local.*

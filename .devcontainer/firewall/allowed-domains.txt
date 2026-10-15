@@ -1,0 +1,25 @@
+# Hostnames the dev container may reach, on 443/tcp only. One per line. Public hosts only: this
+# file is committed. Hosts private to one machine go in allowed-domains.local.txt (gitignored).
+# Every line is a place data can be sent. Add one only when something breaks, and say why.
+
+github.com
+api.github.com
+codeload.github.com
+objects.githubusercontent.com
+raw.githubusercontent.com
+api.anthropic.com
+api.nuget.org
+globalcdn.nuget.org
+registry.npmjs.org
+
+# Claude Code's API. Logging in needs more (claude.ai, console.anthropic.com).
+# Editors. Uncomment what the editor you use needs, no more:
+# JetBrains Remote Development downloads its backend into the container.
+#   download.jetbrains.com
+#   download-cdn.jetbrains.com
+#   cache-redirector.jetbrains.com
+#   plugins.jetbrains.com
+# VS Code installs its server and extensions from these.
+#   update.code.visualstudio.com
+#   marketplace.visualstudio.com
+#   vscode.blob.core.windows.net

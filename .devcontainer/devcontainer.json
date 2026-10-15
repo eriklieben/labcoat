@@ -1,0 +1,33 @@
+{
+  "name": "ms-test-explorer",
+  "initializeCommand": "sh .devcontainer/init-host.sh",
+  "dockerComposeFile": "compose.yaml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "features": {
+    "ghcr.io/devcontainers/features/dotnet@sha256:0fc16547ed4db6d7ff2a9f5981d2b93eb314e568affb9958029ad794f1f9a093": {
+      "version": "10.0.100"
+    },
+    "ghcr.io/devcontainers/features/node@sha256:8c0de46939b61958041700ee89e3493f3b2e4131a06dc46b4d9423427d06e5f6": {
+      "version": "24"
+    }
+  },
+  "containerEnv": {
+    "SSH_AUTH_SOCK": "",
+    "GIT_ASKPASS": "",
+    "npm_config_min_release_age": "7"
+  },
+  "postCreateCommand": "git config --global credential.helper '!false' && dotnet restore Labcoat.slnx && npm ci && cd ui && npm ci",
+  "customizations": {
+    "jetbrains": {
+      "backend": "Rider"
+    },
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "ms-dotnettools.csdevkit"
+      ]
+    }
+  }
+}
