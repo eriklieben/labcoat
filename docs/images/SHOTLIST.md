@@ -10,11 +10,11 @@ All images except `aspire-trace-dashboard.png` come from one script, `ui/scripts
 
 ```sh
 cd ui
-npm run screenshots:docs                                   # starts a Vite dev server with the current ui/src
-npm run screenshots:docs -- http://127.0.0.1:5370/         # or use a running server (e.g. `npx vite preview`)
-LC_SHOTS=hero-dark,themes npm run screenshots:docs         # only some images ("themes" = all theme images)
-LABCOAT_CHECK_PORT=5470 npm run screenshots:docs           # the dev server's first port to try (default 5300)
-LC_ASPIRE_DASHBOARD=http://localhost:15179/ npm run screenshots:docs   # also aspire-dashboard.png (AppHost running)
+pnpm run screenshots:docs                                   # starts a Vite dev server with the current ui/src
+pnpm run screenshots:docs http://127.0.0.1:5370/         # or use a running server (e.g. `pnpm exec vite preview`)
+LC_SHOTS=hero-dark,themes pnpm run screenshots:docs         # only some images ("themes" = all theme images)
+LABCOAT_CHECK_PORT=5470 pnpm run screenshots:docs           # the dev server's first port to try (default 5300)
+LC_ASPIRE_DASHBOARD=http://localhost:15179/ pnpm run screenshots:docs   # also aspire-dashboard.png (AppHost running)
 ```
 
 What the script does, so the images stay comparable:

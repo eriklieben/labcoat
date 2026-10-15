@@ -47,7 +47,7 @@ release news to Announcements.
 
 - **.NET 10 SDK** (`global.json` pins 10.0.100 or a later feature band).
 - **Node.js 22** or later (npm comes with it).
-- For the UI checks and screenshots: Playwright's Chromium, once: `cd ui && npx playwright install chromium`.
+- For the UI checks and screenshots: Playwright's Chromium, once: `cd ui && pnpm exec playwright install chromium`.
 - `samples/AspireSample` needs nothing extra: it has no container resources.
 
 ## Build and run
@@ -56,8 +56,8 @@ The UI build output (`src/Labcoat/wwwroot`) is **not** checked in. Build it once
 
 ```bash
 cd ui
-npm ci
-npm run build            # typecheck + vite build into ../src/Labcoat/wwwroot
+pnpm install --frozen-lockfile
+pnpm run build            # typecheck + vite build into ../src/Labcoat/wwwroot
 cd ..
 
 dotnet build Labcoat.slnx
@@ -68,7 +68,7 @@ dotnet run --project src/Labcoat -- samples/Samples.slnx
 ```
 
 Without a UI build the host still runs, but the page only says that the UI isn't built. `dotnet pack` refuses to pack
-without it; `dotnet pack -p:LabcoatBuildUi=true` runs `npm ci` (if needed) and `npm run build` for you.
+without it; `dotnet pack -p:LabcoatBuildUi=true` runs `pnpm install --frozen-lockfile` (if needed) and `pnpm run build` for you.
 
 Every `dotnet pack` also puts an SPDX SBOM into each package (`_manifest/spdx_2.2/manifest.spdx.json`, made by
 `Microsoft.Sbom.Targets`, offline; about a second per package). `-p:GenerateSBOM=false` skips it for a quick local
@@ -109,8 +109,8 @@ refactor when a process, the network or a static gets in the way.
 
 ```bash
 cd ui
-npm run dev              # http://localhost:5174, proxies /api and /ws to a host on http://localhost:4300
-npm run mock             # same, opened with ?mock: an in-browser mock backend, no .NET needed
+pnpm run dev              # http://localhost:5174, proxies /api and /ws to a host on http://localhost:4300
+pnpm run mock             # same, opened with ?mock: an in-browser mock backend, no .NET needed
 ```
 
 Useful mock URLs: `/?mock`, `/?mock&coverage`, `/?mock=large` (2000 tests), `/?mock&allpass`, `/?mock&buildfail`.
@@ -119,7 +119,7 @@ To use a real host on another port, start it with the dev server's origin allowe
 ```bash
 LABCOAT_HISTORY_DIR=$(mktemp -d) LABCOAT_ALLOWED_ORIGINS=http://localhost:5174 \
   dotnet run --project src/Labcoat -- samples/Samples.slnx --no-open --port 4370
-MSTEST_EXPLORER_URL=http://localhost:4370 npm run dev
+MSTEST_EXPLORER_URL=http://localhost:4370 pnpm run dev
 ```
 
 Read [`ui/ARCHITECTURE.md`](ui/ARCHITECTURE.md) (reactivity, elements, performance rules) and
@@ -128,24 +128,24 @@ Read [`ui/ARCHITECTURE.md`](ui/ARCHITECTURE.md) (reactivity, elements, performan
 ### Checks (in `ui/`)
 
 Each check starts its own Vite dev server (port 5300 or the next free one; `LABCOAT_CHECK_PORT` changes it) and drives
-Chromium with Playwright. CI runs the first six (unit tests with coverage); `npm run check` runs the typecheck, the unit tests and the next three in one go.
-`npm run gallery` starts the design-system gallery.
+Chromium with Playwright. CI runs the first six (unit tests with coverage); `pnpm run check` runs the typecheck, the unit tests and the next three in one go.
+`pnpm run gallery` starts the design-system gallery.
 
 | Command | What it checks |
 | --- | --- |
-| `npm run typecheck` | `tsc --noEmit` (strict) over the app and the design system. |
-| `npm test` | Vitest unit tests (happy-dom) of the app and the design system, under `ui/test/` (`test/app/**` mirrors `src/`, `test/design-system/**` mirrors `design-system/src/`). `npm run test:watch` while editing; `npm run test:coverage` enforces ≥ 85 % lines / statements / functions overall and per package (report: `ui/coverage/index.html`). |
-| `npm run check:reactive` | Regression tests of the reactive core (`design-system/test/`). |
-| `npm run check:a11y` | axe-core on the design-system gallery (every theme family, light and dark, open overlays) and on the app (mock backend). |
-| `npm run check:keyboard` | Keyboard behavior of the primitives (menu, tabs, dialog, split pane, switch, segmented control, tooltip). |
-| `npm run build` | Typecheck + production build. |
-| `npm run check:themes` | WCAG contrast of every theme family's token pairs, and the `families.ts` swatches against the CSS. |
-| `npm run check:styles` | Style regressions for CSS refactors: freeze a baseline before the change (`-- --update`, stored in the gitignored `ui/.styles-baseline/`), then compare. Prints per screen and element `property before → after`, changed CSS rules and a pixel-diff % per screenshot; exit 1 on any change. See `ui/ARCHITECTURE.md`, "Style regressions". |
-| `npm run check:leaks` | Repeats expand, scroll, filter and page switches on the 2000-test mock; live effect counts must stay flat. |
-| `npm run check:perf` | Long tasks, frame times and live effect counts on the 2000-test mock. Reports numbers; compare before/after. |
-| `npm run check:perf:huge` | Scale check on 20,000 tests (`?mock=huge`) against the budgets in `ui/perf-budgets.json`; `-- --repeat=3` compares medians. |
-| `npm run check:perf:many-projects` | The same on 40 projects × 300 tests (`?mock=many-projects`). |
-| `npm run check:soak` | Accelerated watch session on `?mock=huge&fast` (40 partial + 10 full runs): heap, DOM nodes, listeners, effects must stay flat. `check:soak:long`: 200 + 50 runs, with heap snapshots. |
+| `pnpm run typecheck` | `tsc --noEmit` (strict) over the app and the design system. |
+| `pnpm test` | Vitest unit tests (happy-dom) of the app and the design system, under `ui/test/` (`test/app/**` mirrors `src/`, `test/design-system/**` mirrors `design-system/src/`). `pnpm run test:watch` while editing; `pnpm run test:coverage` enforces ≥ 85 % lines / statements / functions overall and per package (report: `ui/coverage/index.html`). |
+| `pnpm run check:reactive` | Regression tests of the reactive core (`design-system/test/`). |
+| `pnpm run check:a11y` | axe-core on the design-system gallery (every theme family, light and dark, open overlays) and on the app (mock backend). |
+| `pnpm run check:keyboard` | Keyboard behavior of the primitives (menu, tabs, dialog, split pane, switch, segmented control, tooltip). |
+| `pnpm run build` | Typecheck + production build. |
+| `pnpm run check:themes` | WCAG contrast of every theme family's token pairs, and the `families.ts` swatches against the CSS. |
+| `pnpm run check:styles` | Style regressions for CSS refactors: freeze a baseline before the change (`-- --update`, stored in the gitignored `ui/.styles-baseline/`), then compare. Prints per screen and element `property before → after`, changed CSS rules and a pixel-diff % per screenshot; exit 1 on any change. See `ui/ARCHITECTURE.md`, "Style regressions". |
+| `pnpm run check:leaks` | Repeats expand, scroll, filter and page switches on the 2000-test mock; live effect counts must stay flat. |
+| `pnpm run check:perf` | Long tasks, frame times and live effect counts on the 2000-test mock. Reports numbers; compare before/after. |
+| `pnpm run check:perf:huge` | Scale check on 20,000 tests (`?mock=huge`) against the budgets in `ui/perf-budgets.json`; `-- --repeat=3` compares medians. |
+| `pnpm run check:perf:many-projects` | The same on 40 projects × 300 tests (`?mock=many-projects`). |
+| `pnpm run check:soak` | Accelerated watch session on `?mock=huge&fast` (40 partial + 10 full runs): heap, DOM nodes, listeners, effects must stay flat. `check:soak:long`: 200 + 50 runs, with heap snapshots. |
 
 ### Performance and soak checks
 
@@ -217,7 +217,7 @@ small differences, and compare runs from the same machine only.
 #### UI (Vitest bench)
 
 [`ui/bench/`](ui/bench) covers the web UI with Vitest's benchmark mode in happy-dom (`ui/vitest.bench.config.ts`;
-`npm test` and coverage never pick up a `*.bench.ts` file):
+`pnpm test` and coverage never pick up a `*.bench.ts` file):
 
 | File | What it measures |
 | --- | --- |
@@ -234,11 +234,11 @@ in `ui/bench/fixtures.ts`, so every run sees the same data.
 
 ```bash
 cd ui
-npm run bench                              # everything (~5 min), a table per group
-npm run bench -- bench/tree                # one file
-npm run bench -- bench/filter -t "typing"  # one group
-BENCH_TIME=100 npm run bench               # shorter time budget per task (default 400 ms): quicker, noisier
-npm run bench:ci                           # the same + bench-results/ui-bench.json (Vitest json reporter)
+pnpm run bench                              # everything (~5 min), a table per group
+pnpm run bench bench/tree                # one file
+pnpm run bench bench/filter -t "typing"  # one group
+BENCH_TIME=100 pnpm run bench               # shorter time budget per task (default 400 ms): quicker, noisier
+pnpm run bench:ci                           # the same + bench-results/ui-bench.json (Vitest json reporter)
 ```
 
 **Before / after on your machine:** Vitest 5 has no `vitest bench --compare <json>` or `--outputJson` (those were
@@ -246,11 +246,11 @@ Vitest 1-3 flags), so `scripts/bench-compare.mjs` reads the json reporter output
 
 ```bash
 git stash                                  # or check out the base commit
-npm run bench:ci -- bench/tree && cp bench-results/ui-bench.json bench-results/base.json
+pnpm run bench:ci bench/tree && cp bench-results/ui-bench.json bench-results/base.json
 git stash pop
-npm run bench:ci -- bench/tree
-npm run bench:compare -- bench-results/base.json bench-results/ui-bench.json            # every task
-npm run bench:compare -- bench-results/base.json bench-results/ui-bench.json --changed  # only the changed ones
+pnpm run bench:ci bench/tree
+pnpm run bench:compare bench-results/base.json bench-results/ui-bench.json            # every task
+pnpm run bench:compare bench-results/base.json bench-results/ui-bench.json --changed  # only the changed ones
 ```
 
 It prints a Markdown table (mean time per task, base → head, the change and ×-factor). A task counts as faster or slower
@@ -261,7 +261,7 @@ Reading the numbers:
 - **happy-dom is not a browser.** Pure logic (reactive graph, tree, filter, store, diff, buffers) runs as in the app.
   DOM-heavy tasks measure happy-dom: its `nextSibling` / `insertBefore` are O(siblings) and style writes are slow, so
   list moves, big lists and colored ANSI spans look far worse than in Chromium. Use them for before/after comparisons of
-  the same task; for real frame times use `npm run check:perf*`. That is also why `list()` stops at 5,000 rows: the
+  the same task; for real frame times use `pnpm run check:perf*`. That is also why `list()` stops at 5,000 rows: the
   app's tree is virtualized, and its 20,000-test work is benchmarked without DOM in `tree.bench.ts` / `filter.bench.ts`.
 - Vitest runs the code through its module runner, which adds a small cost to calls across modules (it warns about
   "module export getters"; the warning is turned off in the bench config). It is the same in every run, so comparisons
@@ -326,7 +326,7 @@ to satisfy a tool. Match the code around you.
 
 The UI is built on [`ui/design-system`](ui/design-system/README.md): a tiny reactive core, a typed `h()` DOM builder, a
 custom element base class, design tokens and reusable `lc-*` components. Run its gallery with
-`npm run gallery -w design-system` (http://localhost:5200, `?theme=<family>-<light|dark>`). New reusable UI goes into the
+`pnpm run gallery -w design-system` (http://localhost:5200, `?theme=<family>-<light|dark>`). New reusable UI goes into the
 design system with a gallery section; app-specific components live in `ui/src/components`.
 
 ### Adding a theme family
@@ -337,7 +337,7 @@ design system with a gallery section; app-specific components live in `ui/src/co
 2. Import it in `ui/design-system/src/styles.css` next to the other themes.
 3. Add an entry to `THEME_FAMILIES` in `ui/design-system/src/themes/families.ts` (id, label, flavors, description,
    swatches). The app's theme picker, command palette and the gallery read this list.
-4. Run `npm run check:themes` (contrast + swatches) and `npm run check:a11y`, and look at the gallery and the app in
+4. Run `pnpm run check:themes` (contrast + swatches) and `pnpm run check:a11y`, and look at the gallery and the app in
    both modes.
 
 Details and the token reference: [design-system README, "Themes and tokens"](ui/design-system/README.md#themes-and-tokens).
@@ -415,10 +415,10 @@ purpose: mark the commit as a breaking change (above) and commit the `Compatibil
 `dotnet pack <project> -c Release --no-build -p:ApiCompatGenerateSuppressionFile=true` writes next to the project, in
 the same PR. Details, and new packages: [docs/releasing.md, "Package validation"](docs/releasing.md#package-validation).
 
-**Local check (optional).** `npm install` in the repository root installs the release tooling and a `commit-msg` git
+**Local check (optional).** `pnpm install` in the repository root installs the release tooling and a `commit-msg` git
 hook that runs commitlint on every commit (skip it once with `git commit --no-verify`, remove it with
-`rm .git/hooks/commit-msg`, or don't install it: `SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 npm install`). Without the hook,
-check a message by hand: `echo "feat(ui): add a duration filter" | npx commitlint`.
+`rm .git/hooks/commit-msg`, or don't install it: `SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 pnpm install`). Without the hook,
+check a message by hand: `echo "feat(ui): add a duration filter" | pnpm exec commitlint`.
 
 ### How a release happens
 
@@ -447,8 +447,8 @@ Don't change `<VersionPrefix>`, `CHANGELOG.md` or create `v*` tags by hand.
 without publishing. Locally, with push access to the repository:
 
 ```bash
-npm install
-GITHUB_TOKEN=$(gh auth token) npx semantic-release --dry-run --no-ci
+pnpm install
+GITHUB_TOKEN=$(gh auth token) pnpm exec semantic-release --dry-run --no-ci
 ```
 
 To check the packing step without releasing: `node eng/release.mjs prepare 0.0.0-local.1` (packs into `artifacts/`;

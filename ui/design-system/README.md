@@ -3,7 +3,7 @@
 ## Available primitives
 
 All exported from `@eriklieben/labcoat-design-system` (and `/components`). Factories return plain DOM (cheap, use in
-rows); elements are self-contained (`lc-*`). Gallery with live demos: `npm run gallery -w design-system` → http://localhost:5200/.
+rows); elements are self-contained (`lc-*`). Gallery with live demos: `pnpm run gallery -w design-system` → http://localhost:5200/.
 
 | Primitive | Import | Factory / element | Markup classes | Status |
 |---|---|---|---|---|
@@ -102,13 +102,13 @@ variants, states, keyboard notes and usage snippets are in the gallery.
 ## Gallery and tests
 
 ```sh
-npm run gallery -w design-system           # from ui/: http://localhost:5200/  (?theme=aspire-dark|catppuccin-light|dracula-dark|…)
+pnpm run gallery -w design-system           # from ui/: http://localhost:5200/  (?theme=aspire-dark|catppuccin-light|dracula-dark|…)
 node scripts/ds-gallery.mjs <outDir>       # screenshots of every section in every family × light / dark (LC_FAMILIES=a,b limits)
 node scripts/themes-check.mjs              # WCAG contrast of every theme (all --lc-* pairs the UI draws); exit 1 on failures
 node scripts/ds-axe.mjs                    # axe-core on the gallery (4 themes, unrolled, with menu/dialog/tooltip open)
 node scripts/ds-keyboard.mjs               # keyboard checks: switch, segmented, tabs, menu, tooltip, dialog, split pane
 node scripts/wc/reactive-test.mjs          # reactive core regression tests (design-system/test/)
-npm test                                   # from ui/: Vitest unit tests (core, components, themes: ui/test/design-system/)
+pnpm test                                   # from ui/: Vitest unit tests (core, components, themes: ui/test/design-system/)
 ```
 
 ## Themes and tokens

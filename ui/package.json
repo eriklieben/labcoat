@@ -1,5 +1,6 @@
 {
   "name": "labcoat-ui",
+  "packageManager": "pnpm@12.4.2",
   "private": true,
   "license": "MIT",
   "version": "0.1.0",
@@ -16,7 +17,7 @@
     "bench:ci": "vitest bench --run -c vitest.bench.config.ts --reporter=verbose --reporter=json --outputFile.json=bench-results/ui-bench.json",
     "bench:compare": "node scripts/bench-compare.mjs",
     "preview": "vite preview",
-    "check": "npm run typecheck && npm run test && npm run check:reactive && npm run check:a11y && npm run check:keyboard",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run check:reactive && pnpm run check:a11y && pnpm run check:keyboard",
     "check:reactive": "node scripts/wc/reactive-test.mjs",
     "check:a11y": "node scripts/ds-axe.mjs && node scripts/shell-axe.mjs",
     "check:keyboard": "node scripts/ds-keyboard.mjs",
@@ -30,7 +31,7 @@
     "check:soak:long": "node scripts/wc/soak.mjs --cycles=50 --partial=4 --warmup=5 --heap-snapshots",
     "check:tree-stress": "node scripts/tree-stress.mjs",
     "screenshots:docs": "node scripts/docs-screenshots.mjs",
-    "gallery": "npm run gallery -w design-system"
+    "gallery": "pnpm run gallery -w design-system"
   },
   "dependencies": {
     "@eriklieben/labcoat-design-system": "*",
@@ -43,8 +44,5 @@
     "typescript": "5.9",
     "vite": "^8.3.4",
     "vitest": "5.0.2"
-  },
-  "workspaces": [
-    "design-system"
-  ]
+  }
 }

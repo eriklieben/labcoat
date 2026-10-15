@@ -136,7 +136,7 @@ You should see 35 tests in 4 projects; **Run all** ends with 21 passed, 10 faile
 first:
 
 ```bash
-(cd ui && npm ci && npm run build)
+(cd ui && pnpm install --frozen-lockfile && pnpm run build)
 dotnet run --project samples/AspireSample/AspireSample.AppHost
 ```
 

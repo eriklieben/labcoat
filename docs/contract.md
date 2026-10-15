@@ -95,7 +95,7 @@ type ClientCommand =
 
 ## Dev setup
 - Host listens on `http://localhost:4300` by default (`--port` to change). Vite dev server (port 5174) proxies `/api` and `/ws` to it.
-- `npm run build` in `ui/` outputs to `src/Labcoat/wwwroot`.
+- `pnpm run build` in `ui/` outputs to `src/Labcoat/wwwroot`.
 
 ## Coverage (added)
 

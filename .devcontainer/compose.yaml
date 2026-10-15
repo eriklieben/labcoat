@@ -1,3 +1,4 @@
+name: eriklieben-labcoat
 # Dev container + egress firewall. Rules and rationale: DEVCONTAINERS.md in the author's dotfiles.
 # Only the repo is bind-mounted (.git/hooks and .git/config read-only, see init-host.sh); no sockets,
 # no credentials, no capabilities. All traffic leaves through the firewall sidecar's default-deny

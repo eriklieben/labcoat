@@ -102,3 +102,5 @@ $RECYCLE.BIN/
 .devcontainer/.env
 .devcontainer/.env.*
 .devcontainer/**/*.local.*
+# pnpm store (kept in the dev container's home volume)
+.pnpm-store/
