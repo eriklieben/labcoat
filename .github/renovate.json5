@@ -36,7 +36,7 @@
   minimumReleaseAge: "3 days",
   labels: ["dependencies"],
   semanticCommitScope: "deps",
-  // The design system is an npm workspace of ui/, not a registry package.
+  // The design system is a pnpm workspace of ui/, not a registry package.
   ignoreDeps: ["@eriklieben/labcoat-design-system"],
   vulnerabilityAlerts: {
     enabled: true,
@@ -231,7 +231,7 @@
       addLabels: ["needs-review"],
       automerge: false,
       prBodyNotes: [
-        "**alien-signals** is the dependency graph under the design system's reactive core (ui/ARCHITECTURE.md, \"Scheduling\"). CI runs the canary test (`ui/test/design-system/core/scheduler.test.ts`, in `npm test`) and `npm run check:reactive`. If the canary fails, upstream's scheduler changed: don't just fix the test, reconsider whether the own scheduler is still needed. Read the alien-signals changelog before merging.",
+        "**alien-signals** is the dependency graph under the design system's reactive core (ui/ARCHITECTURE.md, \"Scheduling\"). CI runs the canary test (`ui/test/design-system/core/scheduler.test.ts`, in `pnpm test`) and `pnpm run check:reactive`. If the canary fails, upstream's scheduler changed: don't just fix the test, reconsider whether the own scheduler is still needed. Read the alien-signals changelog before merging.",
       ],
     },
   ],

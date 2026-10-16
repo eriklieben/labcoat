@@ -56,7 +56,7 @@ jobs:
           pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install Playwright Chromium
-        run: npx --no -- playwright install --with-deps chromium # the locked playwright of pnpm install --frozen-lockfile, never a download
+        run: pnpm exec playwright install --with-deps chromium # the playwright the lockfile pins, never a download
 
       - name: Scale check, 20,000 tests (?mock=huge)
         id: huge
