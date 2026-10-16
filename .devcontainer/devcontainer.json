@@ -17,10 +17,9 @@
   "containerEnv": {
     "SSH_AUTH_SOCK": "",
     "GIT_ASKPASS": "",
-    "npm_config_store_dir": "/home/vscode/.local/share/pnpm/store",
     "npm_config_min_release_age": "7"
   },
-  "postCreateCommand": "git config --global credential.helper '!false' && dotnet restore Labcoat.slnx && pnpm install --frozen-lockfile && cd ui && pnpm install --frozen-lockfile",
+  "postCreateCommand": "git config --global credential.helper '!false' && (command -v pnpm >/dev/null && pnpm config set store-dir /home/vscode/.local/share/pnpm/store --global || true) && dotnet restore Labcoat.slnx && pnpm install --frozen-lockfile && (cd ui && pnpm install --frozen-lockfile)",
   "customizations": {
     "jetbrains": {
       "backend": "Rider"
