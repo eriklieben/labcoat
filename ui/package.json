@@ -41,6 +41,7 @@
     "@fluentui/svg-icons": "^1.1.343",
     "@vitest/coverage-v8": "5.0.2",
     "alien-signals": "3.2.1",
+    "axe-core": "^4.14.0",
     "happy-dom": "20.14.5",
     "playwright": "^1.64.0",
     "typescript": "5.9",
