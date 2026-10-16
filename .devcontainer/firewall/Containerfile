@@ -1,0 +1,8 @@
+# The egress firewall sidecar: nftables rules plus a DNS forwarder that only answers allowed names.
+# Debian, not Alpine: Alpine's dnsmasq is built without nftset. Pinned by digest; rebuild on purpose.
+FROM docker.io/library/debian:trixie-slim@sha256:918311b7b6c4c6f68b232ba516584925f6c78ad82b6fd534b98979df6438e483
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends dnsmasq-base nftables curl ca-certificates bind9-dnsutils \
+ && rm -rf /var/lib/apt/lists/*
+COPY firewall.sh /usr/local/bin/firewall.sh
+ENTRYPOINT ["/usr/local/bin/firewall.sh"]

@@ -133,13 +133,13 @@ Dependabot only raises vulnerability alerts. PR titles decide what releases: `fi
 (NuGet packages of `src/`, the UI's runtime dependencies: a patch release), `build(deps)` for samples, the SDK and build
 tooling, `build(deps-dev)` for npm dev dependencies and test packages, `ci(deps)` for GitHub Actions (pinned to commit
 SHAs). Updates are weekly and grouped; a vulnerable dependency gets its own PR at once. Automerge is off. After changing
-the config: `npx --yes --package renovate@44.115.1 -- renovate-config-validator --strict`.
+the config: `pnpm dlx --package renovate@44.115.1 -- renovate-config-validator --strict`.
 
 ## Dry run
 
 - **GitHub:** Actions → **Release** → *Run workflow* → branch `main`, *Dry run* checked (the default). The log shows the
   commits it analyzed, the next version and the release notes.
-- **Local:** `GITHUB_TOKEN=$(gh auth token) npx semantic-release --dry-run --no-ci` (needs push access).
+- **Local:** `GITHUB_TOKEN=$(gh auth token) pnpm exec semantic-release --dry-run --no-ci` (needs push access).
   `node eng/release.mjs prepare 0.0.0-local.1` runs just the packing step, with package validation; revert
   `src/Directory.Build.props` afterwards.
 

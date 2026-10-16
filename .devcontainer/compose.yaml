@@ -1,0 +1,56 @@
+name: eriklieben-labcoat
+# Dev container + egress firewall. Rules and rationale: DEVCONTAINERS.md in the author's dotfiles.
+# Only the repo is bind-mounted (.git/hooks and .git/config read-only, see init-host.sh); no sockets,
+# no credentials, no capabilities. All traffic leaves through the firewall sidecar's default-deny
+# rules (firewall/allowed-domains.txt: 443/tcp to listed hosts, DNS answered only for them).
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/base:noble@sha256:fafa1247b10c298602e962973bd7c23f5fcd9cba773e0d16a90a445364ce0728
+    user: vscode
+    userns_mode: keep-id
+    security_opt: ["no-new-privileges"]
+    network_mode: service:netns
+    depends_on:
+      firewall:
+        condition: service_healthy
+    command: sleep infinity
+    volumes:
+      - ..:/workspace:z
+      - ${GIT_HOOKS_SRC:?open this through the dev container so init-host.sh writes .devcontainer/.env}:${GIT_HOOKS_DST}:ro
+      - ${GIT_CONFIG_SRC}:${GIT_CONFIG_DST}:ro
+      - dev-home:/home/vscode
+      - dev-claude:/home/vscode/.claude
+      # DNS goes to the firewall sidecar's resolver, which answers only the allowed names.
+      - ./firewall/resolv.conf:/etc/resolv.conf:ro
+
+  # Owns the network namespace the other two join, so the firewall's rules bind the dev container.
+  netns:
+    image: docker.io/library/alpine:3.23@sha256:1f3591b8a02ea153f41c5bba878ad477f63ab3d19349762cb77504db02a23e15
+    command: sleep infinity
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges"]
+
+  firewall:
+    build: ./firewall
+    network_mode: service:netns
+    cap_drop: [ALL]
+    # NET_ADMIN for nftables; the other three let dnsmasq bind :53 and drop to `nobody`.
+    cap_add: [NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID]
+    security_opt: ["no-new-privileges"]
+    read_only: true
+    tmpfs: [/run, /tmp]
+    volumes:
+      - ./firewall:/etc/firewall:ro,z
+    depends_on:
+      - netns
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /run/firewall.ok && nft list table inet egress >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+volumes:
+  dev-home:
+  dev-claude:
