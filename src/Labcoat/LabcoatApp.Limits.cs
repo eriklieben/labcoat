@@ -1,23 +1,27 @@
 namespace Labcoat;
 
 /// <summary>
-/// The run limits of a Labcoat host (RunLimits.cs): projects at once, the hang threshold and the per-test timeout. Null =
-/// the default.
+/// The run limits of a Labcoat host (RunLimits.cs): projects at once, the hang threshold, the per-test timeout and the
+/// <c>--run</c> duration budget. Null = the default.
 /// </summary>
-public sealed record RunLimitOptions(int? MaxParallelProjects = null, TimeSpan? HangThreshold = null, TimeSpan? TestTimeout = null)
+public sealed record RunLimitOptions(int? MaxParallelProjects = null, TimeSpan? HangThreshold = null, TimeSpan? TestTimeout = null,
+    TimeSpan? MaxTestDuration = null)
 {
     public static readonly RunLimitOptions Default = new();
 
     public int EffectiveMaxParallel => MaxParallelProjects ?? RunLimits.DefaultMaxParallel;
     public TimeSpan EffectiveHangThreshold => HangThreshold ?? RunLimits.DefaultHangThreshold;
     public TimeSpan EffectiveTestTimeout => TestTimeout ?? TimeSpan.Zero;
+    /// <summary>The budget of <c>--run</c>: a test that took longer fails the run. Zero = no budget.</summary>
+    public TimeSpan EffectiveMaxTestDuration => MaxTestDuration ?? TimeSpan.Zero;
 }
 
 public static partial class LabcoatApp
 {
     /// <summary>
-    /// maxParallelProjects / hangThreshold / testTimeout: the command line (--max-parallel, --hang-threshold, --test-timeout)
-    /// &gt; LABCOAT_MAX_PARALLEL / LABCOAT_HANG_THRESHOLD / LABCOAT_TEST_TIMEOUT (Labcoat.Aspire.Hosting sets them) &gt; workspace
+    /// maxParallelProjects / hangThreshold / testTimeout / maxTestDuration: the command line (--max-parallel, --hang-threshold,
+    /// --test-timeout, --max-test-duration) &gt; LABCOAT_MAX_PARALLEL / LABCOAT_HANG_THRESHOLD / LABCOAT_TEST_TIMEOUT /
+    /// LABCOAT_MAX_TEST_DURATION (Labcoat.Aspire.Hosting sets them) &gt; workspace
     /// file &gt; user file &gt; the defaults. An invalid environment value is a settings warning.
     /// </summary>
     internal static RunLimitOptions ResolveRunLimits(StartOptions options, LabcoatConfig config, Func<string, string?>? env = null)
@@ -27,7 +31,8 @@ public static partial class LabcoatApp
             ?? config.MaxParallelProjects;
         var hang = options.HangThreshold ?? FromEnv(RunLimits.HangThresholdEnv, RunLimits.ParseDuration, "a duration such as 90s or 2m") ?? config.HangThreshold;
         var timeout = options.TestTimeout ?? FromEnv(RunLimits.TestTimeoutEnv, RunLimits.ParseDuration, "a duration such as 30s or 5m") ?? config.TestTimeout;
-        return new RunLimitOptions(maxParallel, hang, timeout);
+        var budget = options.MaxTestDuration ?? FromEnv(RunLimits.MaxTestDurationEnv, RunLimits.ParseDuration, "a duration such as 2s or 500ms") ?? config.MaxTestDuration;
+        return new RunLimitOptions(maxParallel, hang, timeout, budget);
 
         T? FromEnv<T>(string name, Func<string?, T?> parse, string expected) where T : struct
         {
