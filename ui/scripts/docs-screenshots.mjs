@@ -27,7 +27,7 @@ const { base, stop } = await baseUrlOr(process.argv[2], startApp);
 
 // Thu 8 Oct 2026, 10:24 local time: every "Last run …" / run menu time is the same on each pass
 const CLOCK = new Date(2026, 9, 8, 10, 24, 0);
-const MOCK_ROOT = /\/home\/[^/"`'\s]+\/Repository\/ms-test-explorer/g;
+const MOCK_ROOT = /\/home\/[^/"`'\s]+\/Repository\/labcoat/g;
 
 const browser = await chromium.launch();
 const errors = [];
