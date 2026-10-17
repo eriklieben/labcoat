@@ -276,6 +276,26 @@ const shots = {
     await save(page, "command-palette.png", undefined, { resize: FULL });
   },
 
+  "random-order": async () => {
+    // a random-order run through the palette (the mock picks seed 48213), then the palette again: "Run in random
+    // order" (the "Run again with seed" command shows when the query matches it), with the run overview's "random order, seed" line behind it
+    const page = await openApp("?mock");
+    await prepare(page);
+    await page.keyboard.press("Control+k");
+    await page.waitForTimeout(300);
+    await page.keyboard.type("random order");
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(400);
+    await idle(page);
+    await settle(page, 600);
+    await page.keyboard.press("Control+k");
+    await page.waitForTimeout(300);
+    await page.keyboard.type("random");
+    await settle(page, 600);
+    await save(page, "random-order.png", undefined, { resize: FULL });
+  },
+
   "build-errors": async () => {
     const page = await openApp("?mock");
     await page.locator("button", { hasText: "Show errors" }).first().click();

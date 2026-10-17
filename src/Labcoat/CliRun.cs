@@ -5,7 +5,7 @@ namespace Labcoat;
 /// <summary>An <c>--export format=path</c> target of <c>--run</c>.</summary>
 public sealed record ExportTarget(string Format, string Path);
 
-// --run, --export, --filter, --export-paths (CliRun.cs): the non-interactive mode for CI.
+// --run, --export, --filter, --export-paths, --order, --seed (CliRun.cs): the non-interactive mode for CI.
 public sealed partial class StartOptions
 {
     /// <summary>--run: build, run the tests once, write the exports and exit (no web server, no browser).</summary>
@@ -16,6 +16,11 @@ public sealed partial class StartOptions
     public List<string> Filters { get; } = [];
     /// <summary>--export-paths absolute: absolute source paths in lcov / Cobertura (default: relative to the workspace root).</summary>
     public bool ExportAbsolutePaths { get; private set; }
+
+    /// <summary>--order random: run the tests one at a time in a seeded random order (<see cref="RandomOrder"/>).</summary>
+    public string? Order { get; private set; }
+    /// <summary>--seed: reproduces the order of an earlier --order random run (default: a new seed, printed).</summary>
+    public int? Seed { get; private set; }
 
     private static readonly string[] AllExportFormats = [.. ExportFormats.RunFormats, .. ExportFormats.CoverageFormats];
 
@@ -32,6 +37,14 @@ public sealed partial class StartOptions
                 var filter = args.Value();
                 if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
                 Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
+                return null;
+            case "--order":
+                var (order, orderError) = RandomOrder.ParseOrder(args.Value());
+                Order = order;
+                return orderError is null ? null : "--" + orderError;
+            case "--seed":
+                if (!int.TryParse(args.Value(), out var seed) || seed <= 0) return "--seed needs a positive number, e.g. 12345.";
+                Seed = seed;
                 return null;
             default: // --export-paths
                 var mode = args.Value();
@@ -52,11 +65,15 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--export / --filter / --export-paths only make sense with --run.</summary>
+    /// <summary>--export / --filter / --export-paths / --order / --seed only make sense with --run.</summary>
     private string? ValidateRunOptions() =>
-        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths)
-            ? "--export, --filter and --export-paths need --run."
-            : null;
+        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || Order is not null || Seed is not null)
+            ? "--export, --filter, --export-paths, --order and --seed need --run."
+            : Seed is not null && Order is null
+                ? "--seed needs --order random."
+                : Order is not null && (Coverage || Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format)))
+                    ? "--order random can't be combined with --coverage or an lcov / cobertura --export: random-order runs do not collect coverage."
+                    : null;
 }
 
 /// <summary>
@@ -114,7 +131,10 @@ public static class CliRun
             }
         }
         var wantCoverage = coverage || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
-        var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
+        // The seed is chosen here (not by the explorer) so it is printed before anything can go wrong.
+        int? seed = options.Order is null ? null : options.Seed ?? RandomOrder.NewSeed();
+        if (seed is not null) Console.WriteLine($"  Random order, seed {seed}: the tests run one at a time (reproduce: --order random --seed {seed})");
+        var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger, Order = options.Order, Seed = seed });
         if (request.Status != 202)
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
@@ -155,6 +175,8 @@ public static class CliRun
         var verdict = run.Failed > 0 ? Cli.Red($"{run.Failed} failed") : Cli.Bold("no failures");
         var extra = (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
         Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {HtmlReport.Duration(elapsed.TotalMilliseconds)}");
+        if (run.Seed is { } seed)
+            Console.WriteLine($"  Random order, seed {seed}: " + (run.Failed > 0 ? "reproduce this order" : "passed in this order; if a later run fails, reproduce it") + $" with --order random --seed {seed}");
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
         if (run.Cancelled == true) Console.Error.WriteLine($"{WarningLabel} Run cancelled.");
     }

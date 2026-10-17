@@ -12,6 +12,9 @@ public sealed partial class Explorer
         public required Dictionary<string, HashSet<string>?> Selection { get; set; }
         public bool? Coverage { get; init; }
         public int Iterations { get; init; } = 1;
+        /// <summary>"random" (<see cref="RandomOrder.Random"/>) with its seed, or null = the test framework's own order.</summary>
+        public string? Order { get; init; }
+        public int? Seed { get; init; }
         public string? Trigger { get; set; }
         public AffectedRun? Affected { get; set; }
         public WatchContext? Watch { get; set; }
@@ -30,6 +33,8 @@ public sealed partial class Explorer
             TestCount = IsSubset ? Selection.Values.Sum(ids => ids!.Count) : null,
             Coverage = Coverage,
             Repeat = Iterations > 1 ? Iterations : null,
+            Order = Order,
+            Seed = Seed,
             Trigger = Trigger,
             Requests = Requests,
         };
@@ -99,6 +104,10 @@ public sealed partial class Explorer
         public bool? Coverage { get; init; }
         public string? Trigger { get; init; }
         public int? Repeat { get; init; }
+        /// <summary>"random": run the tests one at a time in a seeded random order (<see cref="RandomOrder"/>).</summary>
+        public string? Order { get; init; }
+        /// <summary>The seed of a random order; a new one is generated when null.</summary>
+        public int? Seed { get; init; }
         public AffectedRun? Affected { get; init; }
         public WatchContext? WatchContext { get; init; }
         public bool Debug { get; init; }
@@ -110,7 +119,7 @@ public sealed partial class Explorer
     /// Validates a run request and queues it. Unknown project → 404; test ids of which none is known → 404 (some unknown →
     /// they are ignored and listed in <see cref="RunRequestResult.UnknownTestIds"/>). At most one request waits while
     /// another operation runs; a further request is merged into it (union of the selected tests, "run all" absorbs
-    /// subsets) when coverage / repeat / debug match, otherwise it replaces the waiting one ("superseded").
+    /// subsets) when coverage / repeat / debug / order + seed match, otherwise it replaces the waiting one ("superseded").
     /// </summary>
     public RunRequestResult RequestRun(string? projectId, IReadOnlyCollection<string>? testIds) =>
         RequestRun(new RunRequestOptions { ProjectId = projectId, TestIds = testIds });
@@ -120,6 +129,12 @@ public sealed partial class Explorer
     {
         var iterations = o.Repeat is null or <= 1 ? 1 : Math.Min(o.Repeat.Value, MaxRepeat);
         if (o.Repeat > MaxRepeat) Log(null, LogLevels.Warning, $"repeat is limited to {MaxRepeat}; running {MaxRepeat} times");
+        var (order, orderError) = RandomOrder.ParseOrder(o.Order);
+        if (orderError is not null) return new RunRequestResult(400, Error: orderError);
+        if (o.Seed is not null && order is null) return new RunRequestResult(400, Error: "seed needs order \"random\".");
+        if (o.Seed is <= 0) return new RunRequestResult(400, Error: "seed must be a positive number.");
+        if (order is not null && o.Debug) return new RunRequestResult(400, Error: "order random can't be combined with debug.");
+        if (order is not null && iterations > 1) return new RunRequestResult(400, Error: "order random can't be combined with repeat.");
         RunRequest req;
         List<string>? unknown;
         RunRequest? superseded;
@@ -139,6 +154,8 @@ public sealed partial class Explorer
                 Selection = selection,
                 Coverage = o.Debug ? false : o.Coverage,
                 Iterations = o.Debug ? 1 : iterations,
+                Order = order,
+                Seed = order is null ? null : o.Seed ?? RandomOrder.NewSeed(),
                 Trigger = TriggerOf(o),
                 Affected = o.Affected,
                 Watch = o.WatchContext,
@@ -251,10 +268,12 @@ public sealed partial class Explorer
 
     private static string DescribeOptions(RunRequest r) =>
         (r.IsSubset ? $"{r.Selection.Values.Sum(s => s!.Count)} tests" : "all tests") +
-        r.Coverage switch { true => ", coverage", false => ", no coverage", null => "" } + (r.Iterations > 1 ? $", repeat {r.Iterations}" : "");
+        r.Coverage switch { true => ", coverage", false => ", no coverage", null => "" } + (r.Iterations > 1 ? $", repeat {r.Iterations}" : "") +
+        (r.Order is not null ? $", random order (seed {r.Seed})" : "");
 
     private static bool CanMerge(RunRequest a, RunRequest b) =>
-        !a.Debug && !b.Debug && a.Coverage == b.Coverage && a.Iterations == b.Iterations;
+        !a.Debug && !b.Debug && a.Coverage == b.Coverage && a.Iterations == b.Iterations &&
+        a.Order == b.Order && a.Seed == b.Seed;
 
     /// <summary>Union of <paramref name="from"/>'s selection into <paramref name="into"/>; "all tests of a project" absorbs subsets.</summary>
     private static void Merge(RunRequest into, RunRequest from)
@@ -315,11 +334,12 @@ public sealed partial class Explorer
 
     /// <summary>Waits until the request with this id is done (tests / embedding; REST callers poll the status).</summary>
     public Task RunAsync(string? projectId, IReadOnlyCollection<string>? testIds, bool? coverage = null, AffectedRun? affected = null,
-        string? trigger = null, int? repeat = null, WatchContext? watchContext = null)
+        string? trigger = null, int? repeat = null, WatchContext? watchContext = null, string? order = null, int? seed = null)
     {
         var r = RequestRun(new RunRequestOptions
         {
             ProjectId = projectId, TestIds = testIds, Coverage = coverage, Trigger = trigger, Repeat = repeat, Affected = affected, WatchContext = watchContext,
+            Order = order, Seed = seed,
         });
         if (r.Status != 202) Log(null, LogLevels.Warning, "Run not started: " + r.Error);
         return r.Completion ?? Task.CompletedTask;

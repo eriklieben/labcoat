@@ -136,7 +136,8 @@ public static partial class LabcoatApp
     {
         var (body, error) = await ReadBody(req);
         if (error is not null) return error;
-        return RunResult(explorer.RequestRun(new() { ProjectId = body?.ProjectId, TestIds = body?.TestIds, Coverage = body?.Coverage, Trigger = "api", Repeat = body?.Repeat }));
+        return RunResult(explorer.RequestRun(new() { ProjectId = body?.ProjectId, TestIds = body?.TestIds, Coverage = body?.Coverage, Trigger = "api", Repeat = body?.Repeat,
+            Order = body?.Order, Seed = body?.Seed }));
     }
 
     private static async Task<IResult> DebugTestsAsync(HttpRequest req, Explorer explorer)

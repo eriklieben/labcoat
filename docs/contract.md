@@ -446,6 +446,8 @@ interface RunSummary {
   // … as above, plus:
   watch?: WatchContext;     // watch-triggered runs only (alongside `affected`, which stays)
   repeat?: RepeatSummary;   // runs started with repeat ≥ 2
+  order?: "random";         // runs started with order "random": the tests ran one at a time in a seeded random order
+  seed?: number;            // the seed of such a run (the one given, else a generated positive number); run again with it to get the same order
   quarantined?: number;     // results of quarantined tests in this run (NOT included in passed/failed/skipped; total still counts them)
 }
 interface WatchContext {
@@ -466,7 +468,7 @@ interface RepeatSummary {
 // ---- ClientCommand gains
 type ClientCommand =
   /* … */
-  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number }   // repeat: 2–50 (values > 50 are clamped)
+  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number; order?: "random"; seed?: number }   // repeat: 2–50 (values > 50 are clamped); order/seed: see "Random order" below
   | { type: "setTracing"; enabled: boolean }
   | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };
 
@@ -545,6 +547,14 @@ interface TelemetryLog {
   last failing repetition) if any repetition failed, else the last outcome; `durationMs` = mean. `RunSummary` counts
   use the aggregated outcomes; `repeat.perTest` has the per-test tallies. History gets ONE entry per test (aggregated
   outcome) with `flaky: true` when it both passed and failed, which makes the test `flaky`.
+- **Random order:** `order: "random"` runs the selected tests one at a time in a seeded random order, to find tests that
+  depend on each other. `seed` (a positive number) reproduces an earlier order; without it a new one is generated. The
+  seed is in `RunSummary.seed` (and `PendingRunInfo.seed`), in the log ("Random order, seed N: M tests, one at a time"),
+  in the JUnit report (`labcoat.randomSeed` property) and in the HTML report header. The same seed gives the same order
+  for the same set of tests on any machine. Why one request per test, and what that costs (fixtures run again, no
+  parallelism): [protocol.md](protocol.md#test-order-research-2026-10). The run does not collect coverage (a coverage
+  request is ignored with a log line). `400` for an `order` other than `"random"`, a `seed` without `order` or `<= 0`,
+  and `order` together with `debug` or `repeat`.
 - **Quarantine (F5):** quarantined tests still run and keep their outcomes, but their results count in
   `RunSummary.quarantined` instead of passed/failed/skipped. Persisted per workspace (`settings.json`); changes broadcast
   `state`. Keys of tests that no longer exist are kept.
@@ -647,6 +657,7 @@ interface PendingRunInfo {
   projectIds?: string[];
   testCount?: number;           // subset only: number of selected tests (after merging)
   coverage?: boolean; repeat?: number;
+  order?: "random"; seed?: number;
   trigger?: "user" | "watch" | "api" | "debug";
   requests: number;             // how many requests were merged into it
 }
@@ -684,7 +695,7 @@ type ClientCommand = /* … */
 | `GET /api/health` | | `200 { status: "ok", version, running }` — cheap liveness (Aspire health check) |
 | `GET /api/summary` | | `200 { version, workspaceName?, tests: { total, passed, failed, skipped, notRun, running, queued, cancelled }, currentRun?, lastRun?, pendingRun?, activeOperation?, watch, coverageEnabled, projects: [{ id, name, status, hostState?, lastError?, tests, targetFramework? }], cancelling? }` (`failed` includes timedOut; `cancelling: true` between a cancel and the end of the operation it stops) |
 | `GET /api/state?lean=1` | | lean snapshot (see "Lean mode"); without `lean` unchanged |
-| `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat? }` | `202 { accepted: true, runId, queued, merged, unknownTestIds? }`; `400` malformed JSON / wrong types; `404 { error, projects }` unknown projectId; `404 { error, unknownTestIds }` when none of the testIds is known (some unknown → they are ignored and listed in the 202) |
+| `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat?, order?, seed? }` | `202 { accepted: true, runId, queued, merged, unknownTestIds? }`; `400` malformed JSON / wrong types; `404 { error, projects }` unknown projectId; `404 { error, unknownTestIds }` when none of the testIds is known (some unknown → they are ignored and listed in the 202) |
 | `GET /api/runs/{runId}/status` | | `200 { runId, state, reason?, run?, supersededBy? }`; state: `queued` → `building` → `running` → `finished` \| `cancelled` \| `aborted` \| `skipped` (nothing could run, e.g. build failed) \| `superseded` (replaced while queued, see `supersededBy`); `404` unknown / older than the last 200 requests |
 | `POST /api/cancel` | (no body) | `202 { accepted: true, cancelledRunning, activeOperation?, clearedQueuedRunId?, clearedQueuedRequests }` |
 | `POST /api/debug` | `{ projectId?, testIds }` | like `/api/run`; `400` without testIds or with tests of several projects |
@@ -700,7 +711,7 @@ type ClientCommand = /* … */
 
 - **Run queue (coalescing).** At most one run request waits while another operation (run, discovery, host restart,
   impact-map pass, watch rebuild) holds the lock. A new request while one is waiting is **merged** into it when coverage,
-  repeat and debug match: the selections are united per project ("all tests of a project" absorbs subsets), identical
+  repeat, debug and order + seed match: the selections are united per project ("all tests of a project" absorbs subsets), identical
   requests simply dedupe; the merged run keeps the first `runId` (`merged: true` in the 202), a user/API trigger wins over
   `watch`. A request with different options **replaces** the waiting one (`superseded`, `supersededBy` = the new id);
   log lines say which. `pendingRun` events / `ExplorerState.pendingRun` / `GET /api/summary` show the queue. Requests

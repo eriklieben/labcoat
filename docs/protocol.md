@@ -266,3 +266,45 @@ frameworks' own routers), a socket side channel (the raw stdout pipe already exi
 streamed lines that are in it are dropped by the UI after the test finished; the rest ("live-only" lines, e.g. xUnit
 console output or MSTest `DisplayMessage`) stay visible for that browser session. `LABCOAT_LIVE_OUTPUT=0` turns the
 feature off (no extra test host arguments / variables, no events).
+
+### Test order (research, 2026-10)
+
+Question: can a run be shuffled with a reproducible seed, to find order-dependent tests? Verified with scratch projects
+(20 or 12 tests in one class, or 5 classes, each test sleeping 260 ms) per framework, driven with a raw MTP server-mode
+client that records the order of the `in-progress` updates: MSTest 4.0.2 (MTP 2.0.2), NUnit 5.0.0 with
+NUnit3TestAdapter 6.3.0, xunit.v3.mtp-v2 4.0.1 and TUnit 1.73.19. `--help` of each test app lists the options below.
+
+**The order of the `tests` array of `testing/runTests` is ignored.** The same tests requested in discovery order,
+reversed and shuffled ran in the same order in every framework: MSTest, NUnit and TUnit (with
+`--maximum-parallel-tests 1`) in discovery order, xUnit v3 in its own fixed order. So Labcoat cannot shuffle by
+ordering the node ids it sends.
+
+| Framework | Command-line / settings option for a random order | Default execution |
+| --- | --- | --- |
+| MSTest | none | Discovery order; parallel only with `[assembly: Parallelize]` |
+| NUnit | none. `NUnit.RandomSeed` (runsettings, `--settings`) only seeds `TestContext.CurrentContext.Random`, not the order | Alphabetical per fixture; `NumberOfTestWorkers` sets the parallelism |
+| xUnit v3 | `--seed <n>` exists ("Set the randomization seed") but changed nothing observable: the same order with seeds 1, 2 and none, with `--parallel none` or not. xUnit's default orderers already sort by a hash of the test's unique id, so its order looks shuffled but is the same on every run | Collections in parallel (`--parallel`) |
+| TUnit | none | Parallel by default (`--maximum-parallel-tests`), so the order varies from run to run and is not reproducible |
+
+So no framework offers a reproducible shuffle through the command line of the test host, and Labcoat does not pass a
+framework option for it.
+
+**What works: one `runTests` request per test.** On the warm host the requests run one after the other, so a run in the
+order of a shuffled list is exact (checked for all four frameworks: 12 requests ran the 12 tests in the requested
+order). Labcoat does this for `order: "random"` (`Explorer.RunInOrderAsync`): the project's tests sorted by id, shuffled
+with the seed (`RandomOrder`, SplitMix64 written out so a seed gives the same order on every machine and .NET version),
+one request each.
+
+Limits, honestly:
+
+- **Fixtures run again for every test.** Each request is a run of its own for the framework: MSTest `[AssemblyInitialize]`,
+  `[ClassInitialize]` / `[ClassCleanup]`, NUnit `[OneTimeSetUp]` / `[OneTimeTearDown]`, TUnit `Before(Assembly)` /
+  `Before(Class)` / `After(Class)` and xUnit class fixtures all ran 12 times for 12 tests (once in a normal run). A suite
+  with an expensive fixture (a container, an AppHost) gets much slower and is not shuffled under the conditions it
+  normally runs in. Test-host-level state (statics, the warm process) survives between the requests, as in any warm run.
+- **No parallelism.** Tests run one at a time, so a shuffled run finds order dependencies but not races, and it is slower
+  than a normal run of a suite that runs in parallel (measured for the 12 tests above: about the same for the sequential
+  MSTest, up to 5x slower for TUnit).
+- **Not combined with** coverage (a one-off host per run; ignored with a log line), debug and repeat runs.
+- Tests that a framework discovers only while running (dynamic data) are not shuffled; a test that was not discovered is
+  not in the run.
