@@ -1,5 +1,5 @@
 {
-  "name": "ms-test-explorer",
+  "name": "labcoat",
   "initializeCommand": "sh .devcontainer/init-host.sh",
   "dockerComposeFile": "compose.yaml",
   "service": "dev",
