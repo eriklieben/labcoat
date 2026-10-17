@@ -15,6 +15,8 @@ namespace Labcoat;
 ///     testcase classname="Namespace.Class" name="display name (data row)" time="seconds"
 ///       failure | error  message type, text = stack trace      (assertion failures vs unexpected exceptions / timeouts)
 ///       skipped message                                        (skipped, not run, cancelled, quarantined failures)
+///       flakyFailure | flakyError message type, stackTrace     (a test that passed on a --retry-failed retry: one per failed attempt)
+///       rerunFailure | rerunError message type, stackTrace     (a test that still failed on a retry: one per rerun)
 ///       system-out / system-err                                (capped; per test case, as Azure reads them)
 /// </code>
 /// Text is cleaned of ANSI sequences and characters XML 1.0 cannot carry; console output is cut to
@@ -112,6 +114,7 @@ public static class JUnitWriter
         yield return ("labcoat.projectId", project.Id);
         if (project.Path is { } path) yield return ("labcoat.project", path);
         if (project.TargetFramework is { } tfm) yield return ("targetFramework", tfm);
+        if (export.Tests.Count(t => t.ProjectId == project.Id && t.IsFlaky) is > 0 and var flaky) yield return ("labcoat.flaky", Int(flaky));
         if (run.Aborted == true) yield return ("labcoat.aborted", run.AbortReason ?? "true");
         if (run.Cancelled == true) yield return ("labcoat.cancelled", "true");
     }
@@ -137,12 +140,33 @@ public static class JUnitWriter
                 w.WriteEndElement();
                 break;
         }
+        WriteRetries(w, t);
         if (output)
         {
             WriteOutput(w, "system-out", t.StdOut);
             WriteOutput(w, "system-err", t.StdErr);
         }
         w.WriteEndElement();
+    }
+
+    /// <summary>
+    /// The failed attempts of a retried test, as Surefire writes them: flakyFailure / flakyError before a pass,
+    /// rerunFailure / rerunError after a failure that stayed.
+    /// </summary>
+    private static void WriteRetries(XmlWriter w, ExportTest t)
+    {
+        if (t.FailedAttempts is not { Count: > 0 } attempts) return;
+        var prefix = t.IsFlaky ? "flaky" : "rerun";
+        foreach (var a in attempts)
+        {
+            w.WriteStartElement(prefix + (a.IsAssertion ? "Failure" : "Error"));
+            var message = Text(ExportText.Cap(ExportText.Clean(a.ErrorMessage), MaxMessageChars));
+            w.WriteAttributeString(MessageAttr, message.Length > 0 ? message : "Failed");
+            w.WriteAttributeString(TypeAttr, Text(a.ErrorType ?? (a.IsAssertion ? "AssertionFailure" : a.Outcome == Outcome.TimedOut ? "Timeout" : "Error")));
+            var trace = string.IsNullOrWhiteSpace(a.StackTrace) ? a.ErrorMessage : a.StackTrace;
+            w.WriteElementString("stackTrace", ExportText.Cap(ExportText.Clean(trace), MaxStackChars));
+            w.WriteEndElement();
+        }
     }
 
     /// <summary>&lt;failure&gt; / &lt;error&gt;: the message as attribute (what reporters show as the title), the stack trace as text.</summary>

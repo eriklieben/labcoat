@@ -48,8 +48,33 @@ public class CliRunTests
         Assert.Contains("--export-paths needs relative or absolute", Error("--run", "--export-paths", "x"));
         Assert.Contains("need --run", Error("--export", "junit=x.xml"));
         Assert.Contains("need --run", Error("--filter", "x"));
+        Assert.Contains("need --run", Error("--retry-failed", "2"));
         Assert.Contains("--run", Cli.Usage);
         Assert.Contains("--export <format>=<file>", Cli.Usage);
+    }
+
+    [TestMethod]
+    public void Retry_failed_option_is_validated()
+    {
+        Assert.AreEqual(0, Ok("--run").RetryFailed);
+        Assert.AreEqual(2, Ok("--run", "--retry-failed", "2").RetryFailed);
+        Assert.AreEqual(10, Ok("--run", "--retry-failed=10").RetryFailed);
+        foreach (var bad in new[] { "0", "11", "-1", "two", "", "1.5" })
+            Assert.Contains("--retry-failed needs a number from 1 to 10", Error("--run", "--retry-failed", bad));
+        Assert.Contains("--retry-failed needs a number", Error("--run", "--retry-failed"));
+        Assert.Contains("--retry-failed <n>", Cli.Usage);
+    }
+
+    [TestMethod]
+    public void A_failure_that_passed_on_a_retry_does_not_fail_the_run()
+    {
+        // CliRun.Merge moves flaky tests from failed to passed in the summary the exit code reads.
+        var run = new RunSummary { RunId = "r", StartedAt = "x", Passed = 3, Failed = 2 };
+        var merged = CliRun.Merge(new RunExport { WorkspaceName = "w", Version = "1", Run = run, Projects = [], Tests = [], GeneratedAt = "x" },
+            new() { [("P", "a")] = [], [("P", "b")] = [] },
+            new() { [("P", "a")] = (new ExportTest { ProjectId = "P", Id = "a", Name = "a" }, 2), [("P", "b")] = (new ExportTest { ProjectId = "P", Id = "b", Name = "b" }, 2) });
+        Assert.AreEqual(CliRun.ExitPassed, CliRun.ExitCode(merged.Run, [], true));
+        Assert.AreEqual(CliRun.ExitFailed, CliRun.ExitCode(run, [], true), "the first run's summary is not changed");
     }
 
     [TestMethod]

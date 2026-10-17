@@ -161,7 +161,7 @@ public static partial class LabcoatApp
         var (body, error) = await ReadBody(req);
         if (error is not null) return error;
         if (body?.ProjectId is null || body.Id is null) return Results.BadRequest(new { error = "projectId and id are required" });
-        explorer.SetQuarantine(body.ProjectId, body.Id, body.Quarantined ?? true);
+        if (explorer.SetQuarantine(body.ProjectId, body.Id, body.Quarantined ?? true) is { } conflict) return Results.Conflict(new { error = conflict });
         return Results.Ok(new { quarantined = explorer.Snapshot().Quarantined });
     }
 

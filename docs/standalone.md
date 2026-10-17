@@ -154,17 +154,19 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 
 | Exit code | Meaning |
 | --- | --- |
-| `0` | No test failed (skipped tests and failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests don't count). |
+| `0` | No test failed (skipped tests, failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests and failures that passed on a [`--retry-failed`](#flaky-tests-and-the-quarantine-file) retry don't count). |
 | `1` | A test failed or timed out, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, or a report could not be written. |
 | `2` | A project did not build or discover, nothing could run, or the command line is invalid. |
 
 | Option | |
 | --- | --- |
-| `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by dorny/test-reporter (`java-junit`), Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
+| `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), `flakyFailure` / `flakyError` (a test that passed on a retry) and `rerunFailure` / `rerunError` (a retry that failed again), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by dorny/test-reporter (`java-junit`), Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
 | `--export html=<file>` | A single static HTML file: summary, the failed tests first (message, expected / actual diff, stack trace, output), then every project and class with durations, and filters. No external requests (its Content-Security-Policy allows nothing else); every test name and output is escaped. Light and dark follow the system. For 20,000 tests passed tests are one line each and details are kept for the first 500 failures. |
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
 | `--export-paths absolute` | Absolute source paths in lcov / Cobertura. The default writes them relative to the workspace root: the git repository root, else the common folder of the inputs and the test projects (and what they reference); files outside it stay absolute. |
+| `--retry-failed <n>` | After the run, rerun only the tests that failed, up to `n` times (1 to 10). See [Flaky tests](#flaky-tests-and-the-quarantine-file). |
+| `--quarantine-file <file>` | A committed list of quarantined tests by name. See [Flaky tests](#flaky-tests-and-the-quarantine-file). |
 | `--filter <pattern>` | Only tests whose display name, `Namespace.Class(.Method)` or project contains the pattern; `*` is a wildcard over the whole name (`*CartTests.Pay*`). Comma-separated; repeatable. |
 
 Coverage counts what the [coverage settings](features.md#which-code-counts) count: the project's settings file, or
@@ -176,6 +178,45 @@ The same files can be downloaded from a running Labcoat: the **Export** items of
 palette ("Export run as JUnit XML / HTML report", "Export coverage as lcov") and the **Export** button of the Coverage
 page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html`, `GET /api/coverage/export?format=lcov|cobertura`,
 see [contract.md](contract.md#export-added)).
+
+### Flaky tests and the quarantine file
+
+`--retry-failed <n>` reruns the failed tests after the run, up to `n` times, each round only the tests that are still
+failing. Labcoat does this itself, with ordinary runs of just those tests (they show up in the run list with the trigger
+"cli-retry"); the Microsoft.Testing.Platform `--retry-failed-tests` extension is not used (see
+[Options that were considered](#options-that-were-considered)).
+
+- A test that fails and then passes is **flaky**: it counts as passed, the run does not fail because of it, and it is
+  flagged: the console says `Flaky: Name failed 1 time and passed on attempt 2` and the summary line counts it, the JUnit
+  file has a `flakyFailure` (or `flakyError`) per failed attempt on the passed `testcase` plus a `labcoat.flaky`
+  property per project, and the HTML report shows a **Flaky** card, a warning banner when nothing else failed and a
+  note on the test's row.
+- A test that never passes stays failed (exit code `1`). Its first failure is the `failure` element, the failures of the
+  retries are `rerunFailure` / `rerunError`.
+- Quarantined tests are not retried. Nothing is retried when the run was cancelled, aborted or a project did not build.
+- The retries start the test hosts again; coverage comes from the first run only.
+
+![HTML report with a flaky test](images/flaky-report.png)
+
+`--quarantine-file <file>` (or `"quarantineFile"` in [.labcoat.json](configuration.md#settings-files); a relative path
+there is relative to that file) names a text file you keep in the repository, so the whole team and CI quarantine the
+same tests:
+
+```text
+# Known flaky, tracked in #1234
+Shop.Orders.OrderTests.Places_order
+Shop.Math.CalculatorTests.Multiply (2,3,7)
+Shop.Slow.*
+Shop.Legacy.LegacyTests
+```
+
+One name per line: `Namespace.Class.Method` (every data row), `Namespace.Class.Display name (1,2)` (one data row),
+`Namespace.Class` (every test of the class), whole names matched case-insensitively, `*` as a wildcard; empty lines and
+lines starting with `#` are ignored. Listed tests behave as the ones quarantined in the UI: they still run, are counted
+separately and a failure does not fail the run. The file is added to the tests quarantined in the UI, never merged into
+it: Labcoat only reads the file, so the UI cannot release a test the file lists (it says which file to edit), and
+quarantining a test in the UI never rewrites your file. A file that does not exist is an error (exit code `2`), because
+ignoring it would let quarantined tests fail the build.
 
 ### GitHub Actions
 

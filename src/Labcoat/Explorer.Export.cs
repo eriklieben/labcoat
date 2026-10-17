@@ -25,7 +25,7 @@ public sealed partial class Explorer
                 if (_lastRun?.RunId != id) return null;
                 details = new RunDetails(_lastRun.Copy(), []);
             }
-            var quarantined = _settings.Quarantined().ToHashSet(StringComparer.Ordinal);
+            var quarantined = QuarantinedKeysLocked().ToHashSet(StringComparer.Ordinal);
             var order = new Dictionary<(string, string), int>(_order.Count);
             for (var i = 0; i < _order.Count; i++) order[_order[i]] = i;
             var tests = details.Results

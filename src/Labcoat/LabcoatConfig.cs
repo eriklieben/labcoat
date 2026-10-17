@@ -281,7 +281,7 @@ public sealed class LabcoatConfig
     private const string TraceFilterKey = "traceFilter";
 
     private static readonly string[] FileKeys = ["$schema", "ui", "watch", CoverageKey, "traces", TraceFilterKey, "port", "affectedBase", "impactMap",
-        "maxParallelProjects", "hangThreshold", "testTimeout"];
+        "maxParallelProjects", "hangThreshold", "testTimeout", "quarantineFile"];
 
     /// <summary>Everything <see cref="Load"/> reads; tests pass their own home / env so they never see the real ones.</summary>
     public sealed record Inputs
@@ -338,6 +338,8 @@ public sealed class LabcoatConfig
     public string? ImpactMap { get; private set; }
     /// <summary>"maxParallelProjects" of the files (the workspace file wins): projects discovered / run at once.</summary>
     public int? MaxParallelProjects { get; private set; }
+    /// <summary>"quarantineFile" of the files (the workspace file wins), as a full path: the shared quarantine list (QuarantineFile.cs).</summary>
+    public string? QuarantineFile { get; private set; }
     /// <summary>"hangThreshold" of the files: a running test is shown as possibly hanging after this long (zero = never).</summary>
     public TimeSpan? HangThreshold { get; private set; }
     /// <summary>"testTimeout" of the files: per-test timeout (zero = off).</summary>
@@ -429,6 +431,9 @@ public sealed class LabcoatConfig
             case "maxParallelProjects":
                 MaxParallelProjects = ReadMaxParallel(value, display) ?? MaxParallelProjects;
                 break;
+            case "quarantineFile":
+                QuarantineFile = ReadQuarantineFile(value, path, display) ?? QuarantineFile;
+                break;
             case "hangThreshold" or "testTimeout":
                 ReadDuration(key, value, display);
                 break;
@@ -463,6 +468,15 @@ public sealed class LabcoatConfig
             throw new ConfigException($"{display}: '{TraceFilterKey}' must be a string such as \"cat:Integration\".");
         if (Labcoat.Testing.TraceFilterSyntax.Validate(filter) is { } error) throw new ConfigException($"{display}: '{TraceFilterKey}': {error}");
         return string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
+    }
+
+    /// <summary>"quarantineFile": a path relative to the settings file that names it; returned as a full path.</summary>
+    private string? ReadQuarantineFile(JsonNode? value, string path, string display)
+    {
+        if (value is JsonValue fv && fv.TryGetValue<string>(out var file) && file.Trim().Length > 0)
+            return Path.GetFullPath(file.Trim(), Path.GetDirectoryName(Path.GetFullPath(path))!);
+        Warnings.Add($"{display}: 'quarantineFile' must be a file path; ignored.");
+        return null;
     }
 
     private int? ReadMaxParallel(JsonNode? value, string display)

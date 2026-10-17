@@ -66,6 +66,9 @@ public static class Cli
           --coverage-include <globs>  Modules or path globs to count although the defaults leave them out
                            (e.g. Labcoat.*). Comma-separated; repeatable.
           --coverage-exclude <globs>  Modules or path globs never to count. Comma-separated; repeatable.
+          --quarantine-file <file>  Shared list of quarantined tests, one name per line (Namespace.Class.Method,
+                           Namespace.Class, '*' wildcards, # comments). They run but do not fail the run,
+                           in addition to the tests quarantined in the UI. Read only.
           --traces         Start with per-test trace collection enabled (only has an effect when hosted by an
                            Aspire AppHost). Off by default; a choice made in the UI is remembered per workspace.
           --trace-filter <expr>  While trace collection is on, trace only the tests that match <expr>, in the
@@ -102,6 +105,9 @@ public static class Cli
                            cobertura collect coverage (like --coverage) and hold this run's coverage.
           --filter <pattern>  Only the tests whose name, Namespace.Class(.Method) or project contains it
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
+          --retry-failed <n>  After the run, rerun only the failed tests, up to n times (1-10). A test that
+                           passes on a retry is reported as flaky and does not fail the run; one that never
+                           passes stays failed. Quarantined tests are not retried.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
 
