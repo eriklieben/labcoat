@@ -177,7 +177,7 @@ describe("search box", () => {
     expect(md.defaultPrevented).toBe(true);
     click(items()[0]);
     expect(filterText()).toBe("is:");
-    expect(items().map((b) => text(b))).toEqual(["is:failed", "is:passed", "is:skipped", "is:flaky", "is:new", "is:slow", "is:notrun", "is:snapshot"]);
+    expect(items().map((b) => text(b))).toEqual(["is:failed", "is:passed", "is:skipped", "is:flaky", "is:new", "is:changed", "is:slow", "is:notrun", "is:snapshot"]);
     click(items()[0]);
     expect(filterText()).toBe("is:failed ");
     expect(i.value).toBe("is:failed ");

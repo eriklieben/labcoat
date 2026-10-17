@@ -1103,7 +1103,7 @@ function snapshotTests(tests: Map<string, TestNode>, details: RunDetails): Map<s
 
 // ---- deep links (F4) --------------------------------------------------------------------------------------
 
-const FILTERS = new Set<StatusFilter>(["all", "failed", "new", "passed", "skipped", "notRun", "flaky"]);
+const FILTERS = new Set<StatusFilter>(["all", "failed", "new", "changed", "passed", "skipped", "notRun", "flaky"]);
 const SORTS: TreeSort[] = ["default", "slowest", "fastest"];
 
 /** `#/tests?t=<projectId>|<testId>&f=failed&run=<runId>` (n=<node key> for non-test nodes). */

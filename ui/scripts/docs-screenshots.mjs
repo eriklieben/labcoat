@@ -215,6 +215,17 @@ const shots = {
     await save(page, "tree-filters.png", { ...pane, height: last.y + last.height + 16 - pane.y });
   },
 
+  "changed-tests": async () => {
+    const page = await openApp("?mock&coverage");
+    await prepare(page);
+    // the Changed chip (the mock's GET /api/changed-tests: the tests of the edited OrderServiceTests.cs)
+    await page.locator(".tree-pane button, lc-tree-pane button", { hasText: /^\s*Changed/ }).first().click();
+    await settle(page, 700);
+    const pane = await boxOf(page, page.locator("lc-tree-pane, .tree-pane"));
+    const last = await page.locator(".tree-row").last().boundingBox();
+    await save(page, "changed-tests.png", { ...pane, height: last.y + last.height + 16 - pane.y });
+  },
+
   "coverage-report": async () => {
     const page = await openApp("?mock&coverage");
     await prepare(page);
