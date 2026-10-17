@@ -43,6 +43,10 @@ public sealed partial class StartOptions
     public string? LogFile { get; set; }
     /// <summary>--diagnostics: print the diagnostics report and exit.</summary>
     public bool Diagnostics { get; set; }
+    /// <summary>--runners: the test runners to use ("dotnet", "vitest", …); null = the default (Runners.cs).</summary>
+    public List<string>? Runners { get; set; }
+    /// <summary>--runner-path: folders with runner packages (repeatable).</summary>
+    public List<string> RunnerPaths { get; } = [];
 
     private static readonly Dictionary<string, string> CliUiFlags = new(StringComparer.Ordinal)
     {
@@ -71,7 +75,7 @@ public sealed partial class StartOptions
         private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
-            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
+            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter", "--runners", "--runner-path",
             "--export", "--filter", "--export-paths", // --run (CliRun.cs)
         };
 
@@ -120,6 +124,14 @@ public sealed partial class StartOptions
             case "--impact-map":
                 ImpactMap = ImpactMapModes.Parse(args.Value());
                 return ErrorUnless(ImpactMap is not null, "--impact-map needs class, test or auto.");
+            case "--runners":
+                Runners = TestRunners.ParseList(args.Value());
+                return ErrorUnless(Runners is not null, "--runners needs runner names (comma-separated), e.g. dotnet,vitest.");
+            case "--runner-path":
+                var runnerPath = args.Value();
+                if (string.IsNullOrWhiteSpace(runnerPath)) return "--runner-path needs a folder.";
+                RunnerPaths.Add(Path.GetFullPath(runnerPath));
+                return null;
             case "--max-parallel":
                 MaxParallel = RunLimits.ParseMaxParallel(args.Value());
                 return ErrorUnless(MaxParallel is not null, $"--max-parallel needs a number from 1 to {RunLimits.MaxParallelLimit}.");
@@ -220,6 +232,8 @@ public sealed class LabcoatAppOptions
     public required IReadOnlyList<string> Paths { get; init; }
     /// <summary>The test projects found for <see cref="Paths"/>.</summary>
     public required IReadOnlyList<string> Projects { get; init; }
+    /// <summary>The test runners in use (Runners.cs).</summary>
+    public TestRunners Runners { get; init; } = TestRunners.DotnetOnly;
     /// <summary>--root directories (absolute).</summary>
     public IReadOnlyList<string> ExtraRoots { get; init; } = [];
     /// <summary>Listen URL; null = leave ASPNETCORE_URLS as configured.</summary>
@@ -275,16 +289,24 @@ public static partial class LabcoatApp
             return 0;
         }
         var paths = options.Paths;
-        // No paths: the test project in the current directory, else the nearest solution walking up, else the current directory.
-        if (paths.Count == 0) paths.Add(Cli.ResolveDefaultPath(Directory.GetCurrentDirectory(), Cli.Warn));
-
-        var startupNotes = new List<string>(); // printed below the banner
-        var projects = FindProjects(paths, startupNotes, out var pathError);
-        if (pathError is not null) return Fail(pathError, usageHint: false, ErrorExitCode(options));
+        var requestedRunners = options.Runners ?? TestRunners.ParseList(Environment.GetEnvironmentVariable(TestRunners.RunnersEnv));
+        // No paths: the test project in the current directory, else the nearest solution walking up, else the current
+        // directory (always the current directory when the .NET runner is off: there is no solution to look for).
+        if (paths.Count == 0)
+            paths.Add(requestedRunners is { } only && !only.Contains(TestRunners.DotnetId)
+                ? Directory.GetCurrentDirectory()
+                : Cli.ResolveDefaultPath(Directory.GetCurrentDirectory(), Cli.Warn));
 
         // Settings files + layered UI defaults (LabcoatConfig.cs): user file < workspace file < AppHost < LABCOAT_UI_SETTINGS < CLI.
         var config = LoadConfig(options, paths, out var configError);
         if (config is null) return Fail(configError!, usageHint: false, ErrorExitCode(options));
+
+        var startupNotes = new List<string>(); // printed below the banner
+        // Test runners (Runners.cs): --runners > LABCOAT_RUNNERS (Aspire WithRunners) > settings files > dotnet + installed runner packages.
+        var runners = ResolveRunners(options, requestedRunners ?? config.Runners, startupNotes, out var runnerError);
+        if (runners is null) return Fail(runnerError!, usageHint: false, ErrorExitCode(options));
+        var projects = FindProjects(paths, runners, startupNotes, out var pathError);
+        if (pathError is not null) return Fail(pathError, usageHint: false, ErrorExitCode(options));
         var watch = options.Watch;
         var coverage = options.Coverage;
         var traces = options.Traces;
@@ -320,6 +342,7 @@ public static partial class LabcoatApp
         {
             Paths = paths,
             Projects = projects,
+            Runners = runners,
             ExtraRoots = options.ExtraRoots,
             Url = url,
             Guard = guard,
@@ -392,11 +415,26 @@ public static partial class LabcoatApp
         return address.Replace("://[::]", Localhost).Replace("://0.0.0.0", Localhost).Replace("://+", Localhost).Replace("://*", Localhost);
     }
 
+    /// <summary>
+    /// The test runners: <paramref name="requested"/> (null = the .NET runner plus every installed runner package). A
+    /// requested runner that isn't installed is fetched from NuGet (RunnerPackages.cs); null + <paramref name="error"/>
+    /// when that fails.
+    /// </summary>
+    private static TestRunners? ResolveRunners(StartOptions options, IReadOnlyList<string>? requested, List<string> startupNotes, out string? error)
+    {
+        var installed = TestRunners.FindPlugins(TestRunners.SearchDirectories(options.RunnerPaths), Cli.Warn);
+        var runners = TestRunners.Resolve(requested, installed,
+            id => RunnerPackages.Fetch(id, Cli.Version, Directory.GetCurrentDirectory(), message => Console.Error.WriteLine(Cli.Dim(message)), Cli.Warn),
+            out error);
+        if (runners is not null && (runners.Plugins.Count > 0 || !runners.IncludesDotnet)) startupNotes.Add($"Test runners: {runners.Describe()}");
+        return runners;
+    }
+
     /// <summary>The test projects of <paramref name="paths"/>; <paramref name="error"/> is the first path error (the others are printed).</summary>
-    private static List<string> FindProjects(List<string> paths, List<string> startupNotes, out string? error)
+    private static List<string> FindProjects(List<string> paths, TestRunners runners, List<string> startupNotes, out string? error)
     {
         var pathErrors = new List<string>();
-        var projects = ProjectDiscovery.FindProjects(paths, Cli.Warn, pathErrors, info: startupNotes.Add);
+        var projects = ProjectDiscovery.FindProjects(paths, Cli.Warn, pathErrors, info: startupNotes.Add, runners: runners);
         error = null;
         if (pathErrors.Count == 0) return projects;
         foreach (var e in pathErrors.Skip(1)) Console.Error.WriteLine($"{Cli.Red("error")} {e}");
@@ -592,11 +630,11 @@ public static partial class LabcoatApp
         if (PathUtil.CommonRoot(o.Paths) is { } inputRoot) sourceRoots.Insert(0, inputRoot);
         var uiDefaultsJson = o.UiDefaults is null ? (JsonElement?)null : JsonSerializer.SerializeToElement(o.UiDefaults);
         return new Explorer(hub, o.Projects, o.AspireDashboardUrl, sourceRoots,
-            o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
+            o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths, runners: o.Runners) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
               TraceFilter = o.TraceFilter,
               ImpactMapMode = o.ImpactMap ?? ImpactMapModes.Default,
               MaxParallelProjects = o.Limits.EffectiveMaxParallel, HangThreshold = o.Limits.EffectiveHangThreshold, TestTimeout = o.Limits.EffectiveTestTimeout,
-              ProjectFinder = warn => ProjectDiscovery.FindProjects(o.Paths, warn), WorkspaceRoots = WorkspaceRootsOf(o.Paths) };
+              ProjectFinder = warn => ProjectDiscovery.FindProjects(o.Paths, warn, runners: o.Runners), WorkspaceRoots = WorkspaceRootsOf(o.Paths) };
     }
 
     // ------------------------------------------------------------------ helpers

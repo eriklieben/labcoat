@@ -68,7 +68,11 @@ public sealed partial class Explorer
     private async Task<List<ProjectEntry>> BuildProjectsAsync(IReadOnlyList<ProjectEntry> projects, CancellationToken ct, bool onlyIfChanged)
     {
         if (projects.Count <= 1) return await BuildOneByOneAsync(projects, ct, onlyIfChanged);
-        var (ready, batch, separate) = PlanBuilds(projects, onlyIfChanged);
+        // Runner packages' projects have nothing to build (Explorer.Runners.cs): ready at once, never in the batch.
+        foreach (var p in projects.Where(p => p.Plugin is not null)) PrepareRunnerProject(p);
+        var dotnet = projects.Where(p => p.Plugin is null).ToList();
+        var (ready, batch, separate) = PlanBuilds(dotnet, onlyIfChanged);
+        ready.UnionWith(projects.Where(p => p.Plugin is not null));
         if (batch.Count > 0) ready.UnionWith(await BuildBatchAsync(batch, ct));
         ready.UnionWith(await BuildOneByOneAsync(separate, ct));
         return projects.Where(ready.Contains).ToList();

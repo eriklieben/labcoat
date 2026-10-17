@@ -24,7 +24,9 @@ public sealed partial class Explorer
             case TestHostExitedException th:
                 list.Add(new ProjectDiagnostic(LogLevels.Error,
                     $"The test host exited{(th.ExitCode is { } code ? $" with code {code}" : "")} before it answered.",
-                    "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
+                    p.Plugin is { } plugin
+                        ? $"Check that the project's dependencies are installed (npm install) and that {plugin.DisplayName} runs in {Path.GetDirectoryName(p.Project.Path)} on its own."
+                        : "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
                     th.StderrTail.Count > 0 ? string.Join('\n', th.StderrTail) : null));
                 break;
             case TimeoutException:
@@ -107,8 +109,8 @@ public sealed partial class Explorer
             string? Fingerprint(string projectId)
             {
                 if (fingerprints.TryGetValue(projectId, out var f)) return f;
-                var target = _projects.FirstOrDefault(p => p.Project.Id == projectId)?.TargetPath;
-                f = target is not null && File.Exists(target) ? OutputFingerprint(target) : null;
+                var project = _projects.FirstOrDefault(p => p.Project.Id == projectId);
+                f = project?.TargetPath is { } target && File.Exists(target) ? CodeStampOf(project) : null;
                 fingerprints[projectId] = f;
                 return f;
             }

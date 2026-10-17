@@ -156,7 +156,7 @@ public sealed partial class Explorer
     private async Task<WarmSession?> EnsureWarmAsync(ProjectEntry p, CancellationToken ct)
     {
         if (p.WarmUnsupported || ColdForVerify(p)) return null; // ColdForVerify: Explorer.Snapshots.cs
-        var hashes = OutputHashes(p.TargetPath!);
+        var hashes = HostHashes(p); // Explorer.Runners.cs
         var fingerprint = FingerprintOf(hashes);
         WarmSession? existing;
         bool tracing;
@@ -340,7 +340,7 @@ public sealed partial class Explorer
     {
         WarmSession? w;
         lock (Sync) w = p.Warm;
-        if (w is not null && p.TargetPath is not null && OutputFingerprint(p.TargetPath) != w.Fingerprint)
+        if (w is not null && p.TargetPath is not null && FingerprintOf(HostHashes(p)) != w.Fingerprint)
             RetireWarm(p, w, "the test app was rebuilt");
     }
 

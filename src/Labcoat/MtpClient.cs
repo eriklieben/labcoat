@@ -85,20 +85,26 @@ public sealed class MtpHost : IAsyncDisposable
     /// <param name="tracingEnabled">Pass the Aspire dashboard's OTLP endpoint as LABCOAT_OTLP_* (see <see cref="Telemetry"/>).</param>
     /// <param name="traceFilter">With tracing on: only the tests matching it are traced (LABCOAT_OTLP_FILTER).</param>
     public static MtpHost Start(string targetPath, IEnumerable<string> extraArgs, Action<string, JsonNode?> onNotification, Action<string, string> log,
+        IReadOnlyDictionary<string, string>? environment = null, bool tracingEnabled = false, string? traceFilter = null) =>
+        Start(new HostCommand(Explorer.DotnetPath, [targetPath], Path.GetDirectoryName(targetPath)!), extraArgs, onNotification, log, environment,
+            tracingEnabled, traceFilter);
+
+    /// <summary>Starts <paramref name="command"/> (a .NET test app, or a runner package's test host) in server mode.</summary>
+    public static MtpHost Start(HostCommand command, IEnumerable<string> extraArgs, Action<string, JsonNode?> onNotification, Action<string, string> log,
         IReadOnlyDictionary<string, string>? environment = null, bool tracingEnabled = false, string? traceFilter = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var psi = new ProcessStartInfo(Explorer.DotnetPath)
+        var psi = new ProcessStartInfo(command.FileName)
         {
-            WorkingDirectory = Path.GetDirectoryName(targetPath)!,
+            WorkingDirectory = command.WorkingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        psi.ArgumentList.Add(targetPath);
+        foreach (var a in command.Arguments) psi.ArgumentList.Add(a);
         psi.ArgumentList.Add("--server");
         psi.ArgumentList.Add("--client-host");
         psi.ArgumentList.Add("localhost");
@@ -143,7 +149,9 @@ public sealed class MtpHost : IAsyncDisposable
             process.Dispose();
             throw;
         }
-        log("info", $"Started test host (pid {process.Id}): dotnet {Path.GetFileName(targetPath)} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
+        var program = command.FileName == Explorer.DotnetPath ? "dotnet" : Path.GetFileNameWithoutExtension(command.FileName);
+        var shown = string.Join(' ', command.Arguments.Select(a => File.Exists(a) ? Path.GetFileName(a) : a));
+        log("info", $"Started test host (pid {process.Id}): {program} {shown} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
         return new MtpHost(process, listener, output, stderr, onNotification, log, sink);
     }
 

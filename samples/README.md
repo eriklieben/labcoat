@@ -26,5 +26,6 @@ your working tree; `git checkout samples` restores them.
 Each project file is standalone (package versions included), so you can copy it as a starting point. CI runs this
 solution through the packaged tool and checks the counts above.
 
-[AspireSample](AspireSample) is an Aspire app with integration tests and two Labcoat resources in its dashboard; see
-its README.
+[AspireSample](AspireSample) is an Aspire app with integration tests and four Labcoat resources in its dashboard: two
+for its .NET suites, one for the Vitest tests of its front end ([AspireSample.Web](AspireSample/AspireSample.Web), run
+`npm install` there once) and one with both. See its README.

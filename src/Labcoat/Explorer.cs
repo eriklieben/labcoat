@@ -72,6 +72,8 @@ public sealed partial class Explorer : IAsyncDisposable
         public DateTime SupportsCoverageStamp;
         public Dictionary<string, string> Properties = new(StringComparer.OrdinalIgnoreCase); // evaluated MSBuild properties (diagnostics)
         public List<string> PackageReferences = [];
+        /// <summary>The runner package of the project (Explorer.Runners.cs); null = a .NET test project.</summary>
+        public RunnerPlugin? Plugin;
     }
 
     private readonly List<string> _inputRoots;
@@ -79,9 +81,11 @@ public sealed partial class Explorer : IAsyncDisposable
     /// <param name="inputRoots">Common root of the CLI input paths (for the source endpoint).</param>
     /// <param name="workspaceName">Display name (ExplorerState.workspaceName); null = derived from the project paths.</param>
     /// <param name="tracingOnStart">Initial trace collection state (<c>--traces</c>); a persisted runtime choice wins.</param>
+    /// <param name="runners">The test runners in use (null = only the .NET runner): which runner package runs a project.</param>
     public Explorer(EventHub hub, IEnumerable<string> projectPaths, string? aspireDashboardUrl, IEnumerable<string>? inputRoots = null,
-        string? workspaceName = null, bool tracingOnStart = false, IEnumerable<string>? inputPaths = null)
+        string? workspaceName = null, bool tracingOnStart = false, IEnumerable<string>? inputPaths = null, TestRunners? runners = null)
     {
+        _runners = runners ?? TestRunners.DotnetOnly;
         projectPaths = projectPaths.ToList();
         _shutdownToken = _shutdown.Token;
         _operation = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token, _shutdownToken);
@@ -101,11 +105,11 @@ public sealed partial class Explorer : IAsyncDisposable
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in projectPaths)
         {
-            var name = Path.GetFileNameWithoutExtension(path);
+            var name = ProjectNameOf(path);
             var id = name;
             var suffix = 2;
             while (!used.Add(id)) id = $"{name}-{suffix++}";
-            _projects.Add(new ProjectEntry(new TestProject { Id = id, Name = name, Path = path }));
+            _projects.Add(NewProjectEntry(path, id));
         }
     }
 
@@ -836,7 +840,7 @@ public sealed partial class Explorer : IAsyncDisposable
     private HashSet<string> TestAssemblyNames()
     {
         lock (Sync)
-            return _projects.Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
+            return _projects.Where(p => p.Plugin is null).Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -865,6 +869,11 @@ public sealed partial class Explorer : IAsyncDisposable
 
     private async Task<bool> BuildAsync(ProjectEntry p, CancellationToken ct, bool onlyIfChanged = false)
     {
+        if (p.Plugin is not null)
+        {
+            PrepareRunnerProject(p); // a runner package's project: nothing to build (Explorer.Runners.cs)
+            return true;
+        }
         if (!await CheckPlatformAsync(p, ct)) return false; // not on Microsoft.Testing.Platform: never built or started
         if (onlyIfChanged && p.LastBuildStartUtc is { } last && p.TargetPath is not null && File.Exists(p.TargetPath)
             && !SourcesChangedSince(p, last))
@@ -951,10 +960,11 @@ public sealed partial class Explorer : IAsyncDisposable
     private static bool SourcesChangedSince(ProjectEntry p, DateTime sinceUtc)
     {
         var dirs = p.WatchDirs.Count > 0 ? p.WatchDirs : [Path.GetDirectoryName(p.Project.Path)!];
-        return dirs.Distinct().Any(dir => SourcesChangedUnder(dir, sinceUtc));
+        var extensions = SourceExtensionsOf(p);
+        return dirs.Distinct().Any(dir => SourcesChangedUnder(dir, sinceUtc, extensions));
     }
 
-    private static bool SourcesChangedUnder(string dir, DateTime sinceUtc)
+    private static bool SourcesChangedUnder(string dir, DateTime sinceUtc, IReadOnlySet<string> extensions)
     {
         var stack = new Stack<string>([dir]);
         while (stack.Count > 0)
@@ -962,7 +972,7 @@ public sealed partial class Explorer : IAsyncDisposable
             var d = stack.Pop();
             try
             {
-                if (Directory.EnumerateFiles(d).Any(f => WatchedExtensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
+                if (Directory.EnumerateFiles(d).Any(f => extensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
                     return true;
                 foreach (var sub in Directory.EnumerateDirectories(d).Where(sub => !IsIgnoredSourceDir(Path.GetFileName(sub))))
                     stack.Push(sub);
@@ -1060,7 +1070,7 @@ public sealed partial class Explorer : IAsyncDisposable
 
     private async Task<bool> EnsureDiscoveredAsync(ProjectEntry p, CancellationToken ct)
     {
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
+        var stamp = OutputStampOf(p);
         if (stamp == p.DiscoveredDllStamp) return true;
         return await DiscoverProjectAsync(p, ct);
     }
@@ -1068,7 +1078,7 @@ public sealed partial class Explorer : IAsyncDisposable
     private async Task<bool> DiscoverProjectAsync(ProjectEntry p, CancellationToken ct)
     {
         SetStatus(p, ProjectStatus.Discovering);
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
+        var stamp = OutputStampOf(p);
         var found = new List<TestNode>();
         var runId = Guid.NewGuid();
         try
@@ -1288,6 +1298,8 @@ public sealed partial class Explorer : IAsyncDisposable
     {
         var p = pr.Project;
         var run = pr.Run;
+        if (p.Plugin is { } plugin)
+            throw new InvalidOperationException($"Debugging {plugin.DisplayName} tests from Labcoat isn't supported yet; run them, or debug them in your editor.");
         await using var host = StartHost(p, extraArgs, onUpdate, new Dictionary<string, string> { [WaitAttachDebuggerEnvVar] = "1" });
         var testIds = subset?.Select(s => s.Item1).ToList() ?? [];
         lock (Sync) Emit(new DebuggerWaitingEvent(p.Project.Id, host.ProcessId, testIds, run.RunId, DebugHints(host.ProcessId)));
@@ -1422,7 +1434,7 @@ public sealed partial class Explorer : IAsyncDisposable
         lock (Sync) tracingEnabled = tracing ?? _tracingEnabled;
         (extraArgs, environment) = LiveHostOptions(p, extraArgs, environment); // Explorer.Live.cs
         extraArgs = WithProjectArguments(p, extraArgs); // TestingPlatformCommandLineArguments (Explorer.Hang.cs)
-        var host = MtpHost.Start(p.TargetPath!, extraArgs, (method, prm) =>
+        var host = MtpHost.Start(HostCommandOf(p), extraArgs, (method, prm) =>
         {
             switch (method)
             {
@@ -1542,6 +1554,7 @@ public sealed partial class Explorer : IAsyncDisposable
     /// <summary>Does the test app support <c>--coverage</c> (Microsoft.Testing.Extensions.CodeCoverage)? Cached per build.</summary>
     private async Task<bool> SupportsCoverageAsync(ProjectEntry p, CancellationToken ct)
     {
+        if (p.Plugin is { } plugin) return plugin.Coverage; // runner.json says so
         var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
         if (p.SupportsCoverage is { } cached && p.SupportsCoverageStamp == stamp) return cached;
         var (_, output) = await RunDotnetAsync([p.TargetPath!, "--help"], Path.GetDirectoryName(p.TargetPath!)!, ct);
@@ -1702,9 +1715,11 @@ public sealed partial class Explorer : IAsyncDisposable
 
     private void OnFileChanged(ProjectEntry p, string path)
     {
-        if (!WatchedExtensions.Contains(Path.GetExtension(path))) return;
+        if (!SourceExtensionsOf(p).Contains(Path.GetExtension(path))) return;
         var sep = Path.DirectorySeparatorChar;
         if (path.Contains($"{sep}bin{sep}") || path.Contains($"{sep}obj{sep}")) return;
+        // runner packages' projects: dependencies and tool caches (node_modules/.vite, .turbo, ...) aren't sources
+        if (path.Contains($"{sep}node_modules{sep}") || path.Contains($"{sep}.")) return;
         lock (Sync)
         {
             if (!_watch) return;
@@ -1812,6 +1827,8 @@ public static partial class MtpMapping
 
         var (ns, cls) = SplitTypeName(Str("location.type"));
         var method = MethodName(Str("location.method"));
+        // Runner packages (docs/runners.md) name the tree levels themselves: a file name or test name has dots and parentheses.
+        if (Str("labcoat.namespace") is { } runnerNs) (ns, cls, method) = (runnerNs, Str("labcoat.class"), Str("labcoat.method"));
         var traits = Traits(node["traits"]);
 
         double? duration = node["time.duration-ms"] is JsonValue d && d.TryGetValue<double>(out var ms) ? Math.Round(ms, 2) : null;

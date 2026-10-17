@@ -22,6 +22,9 @@ public sealed record LiveOutputChunk(string Stream, string Text, bool? Shared = 
 /// <summary>What the test app's output folder says about live output support (<see cref="LiveOutput.Detect"/>).</summary>
 public sealed record LiveOutputSupport(bool XunitLiveOption, bool TUnit)
 {
+    /// <summary>A host that streams by itself (in-progress nodes with the output so far): no options to add, no host lines to attribute.</summary>
+    public static LiveOutputSupport Streaming { get; } = new(false, TUnit: true);
+
     public static readonly LiveOutputSupport None = new(false, false);
 }
 

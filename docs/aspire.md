@@ -41,6 +41,7 @@ builder.AddLabcoat("tests")
        .WithHangThreshold(TimeSpan.FromMinutes(2))  // "possibly hanging" after 2 min (default 60 s; Zero = never)
        .WithTestTimeout(TimeSpan.FromMinutes(5))    // a test running longer times out, its project's run is cancelled
        .WithHostPort(4300)                  // a fixed port instead of a random one
+       .WithRunners("dotnet", "vitest")     // the test runners (see "Vitest tests" below; default: dotnet + referenced runner packages)
        .WithPassThroughEnvironment("OTEL_*"); // keep variables the tests would otherwise not get (see below)
 ```
 
@@ -62,6 +63,7 @@ builder.AddLabcoat("tests", labcoat =>
     labcoat.HangThreshold = TimeSpan.FromMinutes(2); // appsettings.json: "HangThreshold": "2m" (or "00:02:00", seconds)
     labcoat.TestTimeout = TimeSpan.FromMinutes(5);  // appsettings.json: "TestTimeout": "5m"; off by default
     labcoat.PassThroughEnvironment.Add("ASPIRE_ALLOW_UNSECURED_TRANSPORT"); // see "The tests' environment"
+    labcoat.Runners.Add("dotnet");                  // appsettings.json: "Runners": ["dotnet"]; default: dotnet + runner packages
 
     labcoat.Ui.Theme = LabcoatTheme.Aspire;         // Catppuccin, Aspire, GitHub, One, Dracula, Solarized, Gruvbox
     labcoat.Ui.Mode = LabcoatThemeMode.Dark;        // System, Light, Dark
@@ -83,7 +85,38 @@ the AppHost directory, or else the AppHost's parent directory. The solution root
 files the UI may show (for example files from stack traces).
 
 You can add several Labcoat resources, for example one per test suite. The
-[AspireSample](../samples/AspireSample) has two: `tests-passing` and `tests-failing`.
+[AspireSample](../samples/AspireSample) has four: `tests-passing`, `tests-failing`, `tests-vitest` and `tests-combined`.
+
+### Vitest tests
+
+With the `Labcoat.Vitest` package in the AppHost, Labcoat also runs [Vitest](https://vitest.dev) projects: a folder with
+a `vitest.config.*`, or a `package.json` that depends on `vitest` (Node.js 20+ on `PATH`, the project's dependencies
+installed). See [runners.md](runners.md).
+
+```bash
+dotnet add MyApp.AppHost package Labcoat.Vitest
+```
+
+The package copies its runner to `bin/<config>/<tfm>/labcoat/runners/vitest/`, next to Labcoat. A Labcoat resource then
+uses .NET and Vitest; `WithRunners` (or `Runners`) picks per resource:
+
+```csharp
+builder.AddLabcoat("tests-dotnet")                    // .NET only
+       .WithTestProject("../MyApp.Tests")
+       .WithRunners("dotnet");
+
+builder.AddLabcoat("tests-web")                       // Vitest only
+       .WithTestProject("../MyApp.Web")
+       .WithRunners("vitest");
+
+builder.AddLabcoat("tests")                           // both in one tree
+       .WithTestProject("../MyApp.Tests")
+       .WithTestProject("../MyApp.Web")
+       .WithRunners("dotnet", "vitest");
+```
+
+`"mstest"` is another name for `"dotnet"` (which also runs NUnit, xUnit v3 and TUnit projects). A runner named here that
+the AppHost doesn't reference is fetched from NuGet when Labcoat starts; without network access, add the package.
 
 ## The tests' environment
 
