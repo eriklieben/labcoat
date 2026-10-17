@@ -32,9 +32,10 @@ public class CliRunTests
     public void Run_options_parse()
     {
         var o = Ok("--run", "--export", "junit=out/r.xml", "--export=HTML=report.html", "--export", "lcov=cov.info", "--export", "cobertura=c.xml",
-            "--filter", "Cart*, Orders", "--filter=Math", "--export-paths", "absolute", "src");
+            "--export", "markdown=r.md", "--export", "TRX=r.trx", "--export", "sarif=r.sarif", "--filter", "Cart*, Orders", "--filter=Math", "--export-paths", "absolute", "src");
         Assert.IsTrue(o.RunOnce);
-        CollectionAssert.AreEqual(new[] { new ExportTarget("junit", "out/r.xml"), new ExportTarget("html", "report.html"), new ExportTarget("lcov", "cov.info"), new ExportTarget("cobertura", "c.xml") }, o.Exports);
+        CollectionAssert.AreEqual(new[] { new ExportTarget("junit", "out/r.xml"), new ExportTarget("html", "report.html"), new ExportTarget("lcov", "cov.info"), new ExportTarget("cobertura", "c.xml"),
+            new ExportTarget("markdown", "r.md"), new ExportTarget("trx", "r.trx"), new ExportTarget("sarif", "r.sarif") }, o.Exports);
         CollectionAssert.AreEqual(new[] { "Cart*", "Orders", "Math" }, o.Filters);
         Assert.IsTrue(o.ExportAbsolutePaths);
         Assert.IsFalse(Ok("--run", "--export-paths=relative").ExportAbsolutePaths);
@@ -50,6 +51,8 @@ public class CliRunTests
         Assert.Contains("need --run", Error("--filter", "x"));
         Assert.Contains("--run", Cli.Usage);
         Assert.Contains("--export <format>=<file>", Cli.Usage);
+        Assert.Contains("markdown, trx", Cli.Usage);
+        Assert.Contains("$GITHUB_STEP_SUMMARY", Cli.Usage);
     }
 
     [TestMethod]
@@ -93,7 +96,7 @@ public class CliRunTests
 
     // ------------------------------------------------------------------ end to end
 
-    private static readonly string[] IsolatedEnv = ["LABCOAT_HISTORY_DIR", LabcoatConfig.NoUserConfigEnv, "LABCOAT_NAME", "NO_COLOR", "CI"];
+    private static readonly string[] IsolatedEnv = ["LABCOAT_HISTORY_DIR", LabcoatConfig.NoUserConfigEnv, "LABCOAT_NAME", "NO_COLOR", "CI", "GITHUB_ACTIONS", "GITHUB_STEP_SUMMARY"];
 
     private static string RepoRoot()
     {
@@ -135,8 +138,12 @@ public class CliRunTests
             var outDir = Path.Combine(dir.FullName, "out");
             Console.SetOut(console);
 
-            // ---- everything: the sample has deliberate failures → 1
+            // ---- everything: the sample has deliberate failures → 1 (reported to GitHub Actions as well)
+            var summary = Path.Combine(dir.FullName, "step-summary.md");
+            Environment.SetEnvironmentVariable("GITHUB_ACTIONS", "true");
+            Environment.SetEnvironmentVariable("GITHUB_STEP_SUMMARY", summary);
             var code = await LabcoatApp.RunAsync(["--run", "--export", $"junit={outDir}/results.xml", "--export", $"html={outDir}/report.html",
+                "--export", $"markdown={outDir}/report.md", "--export", $"trx={outDir}/results.trx", "--export", $"sarif={outDir}/results.sarif",
                 "--export", $"lcov={outDir}/coverage.info", project], TestContext.CancellationToken);
             var log = console.ToString();
             Assert.AreEqual(CliRun.ExitFailed, code, log);
@@ -150,6 +157,16 @@ public class CliRunTests
             var html = File.ReadAllText(Path.Combine(outDir, "report.html"));
             Assert.Contains("7 tests failed", html);
             Assert.Contains("Multiply_ReturnsProduct (3,3,10)", html);
+            Assert.Contains("## Test results: 7 failed", File.ReadAllText(Path.Combine(outDir, "report.md")));
+            Assert.AreEqual(7, XDocument.Load(Path.Combine(outDir, "results.trx")).Descendants().Count(e => e.Name.LocalName == "UnitTestResult" && (string?)e.Attribute("outcome") == "Failed"));
+            Assert.HasCount(7, System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(outDir, "results.sarif"))).RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().ToList());
+            var annotations = log.Split('\n').Where(l => l.StartsWith("::error ", StringComparison.Ordinal)).ToList();
+            Assert.HasCount(7, annotations);
+            Assert.IsTrue(annotations.All(a => a.Contains("file=") && a.Contains("line=")), "at their source location: " + string.Join("\n", annotations));
+            Assert.Contains("## Test results: 7 failed", File.ReadAllText(summary));
+            Assert.Contains("### Coverage", File.ReadAllText(summary));
+            Environment.SetEnvironmentVariable("GITHUB_ACTIONS", null);
+            Environment.SetEnvironmentVariable("GITHUB_STEP_SUMMARY", null);
             var lcov = File.ReadAllText(Path.Combine(outDir, "coverage.info"));
             Assert.Contains("SF:SampleTests.Lib/Calculator.cs\n", lcov, "relative to the repository root");
             Assert.Contains("end_of_record", lcov);

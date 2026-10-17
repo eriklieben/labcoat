@@ -1,18 +1,21 @@
 /**
- * Export downloads (contract "Export"): a run as JUnit XML or a self-contained HTML report
- * (`GET /api/runs/{runId}/export?format=junit|html`, runId `latest` = the newest stored run) and the coverage report as
+ * Export downloads (contract "Export"): a run as JUnit XML, a self-contained HTML report, Markdown, TRX or SARIF
+ * (`GET /api/runs/{runId}/export?format=junit|html|markdown|trx|sarif`, runId `latest` = the newest stored run) and the coverage report as
  * lcov or Cobertura (`GET /api/coverage/export?format=lcov|cobertura&scope=full|last`). The file is fetched (so a 404
  * becomes a toast, not a downloaded error page) and saved under the name the host's Content-Disposition gives.
  * Used by the run switcher's menu, the command palette and the Coverage page.
  */
 import { toast, type IconName } from "@eriklieben/labcoat-design-system";
 
-export type RunExportFormat = "junit" | "html";
+export type RunExportFormat = "junit" | "html" | "markdown" | "trx" | "sarif";
 export type CoverageExportFormat = "lcov" | "cobertura";
 
 export const RUN_EXPORTS: readonly { format: RunExportFormat; label: string; detail: string }[] = [
   { format: "html", label: "HTML report", detail: "a single file to open in any browser" },
   { format: "junit", label: "JUnit XML", detail: "for CI test reporters" },
+  { format: "markdown", label: "Markdown", detail: "for a PR comment or a step summary" },
+  { format: "trx", label: "TRX", detail: "for Visual Studio and Azure DevOps" },
+  { format: "sarif", label: "SARIF", detail: "failures as results, for code scanning" },
 ];
 
 export const COVERAGE_EXPORTS: readonly { format: CoverageExportFormat; label: string; detail: string }[] = [
@@ -84,9 +87,17 @@ export async function download(url: string, what: string, fallbackName: string):
   }
 }
 
+const RUN_EXPORT_EXTENSIONS: Record<RunExportFormat, string> = {
+  junit: "junit.xml",
+  html: "html",
+  markdown: "md",
+  trx: "trx",
+  sarif: "sarif",
+};
+
 export function exportRun(runId: string | undefined, format: RunExportFormat): Promise<boolean> {
   const label = RUN_EXPORTS.find((x) => x.format === format)?.label ?? format;
-  const ext = format === "junit" ? "junit.xml" : "html";
+  const ext = RUN_EXPORT_EXTENSIONS[format];
   return download(runExportUrl(runId, format), `the run as ${label}`, `labcoat-run.${ext}`);
 }
 

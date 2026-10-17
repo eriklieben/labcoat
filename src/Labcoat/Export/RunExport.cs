@@ -18,6 +18,12 @@ public sealed record ExportTest
     public string? StdErr { get; init; }
     /// <summary>The test is quarantined: a failure does not fail the run (RunSummary.quarantined).</summary>
     public bool Quarantined { get; init; }
+    /// <summary>
+    /// Where a failure points to: the file ('/' separators, relative to the workspace root when under it) and line of the
+    /// first stack frame in the workspace, else of the test's declaration. Null when unknown.
+    /// </summary>
+    public string? SourceFile { get; init; }
+    public int? SourceLine { get; init; }
 
     /// <summary>"Namespace.Class", the class alone, or "" when the framework reported neither.</summary>
     public string ClassFullName
@@ -118,24 +124,32 @@ public static class ExportFormats
 {
     public const string JUnit = "junit";
     public const string Html = "html";
+    public const string Markdown = "markdown";
+    public const string Trx = "trx";
+    public const string Sarif = "sarif";
     public const string Lcov = "lcov";
     public const string Cobertura = "cobertura";
 
-    public static readonly string[] RunFormats = [JUnit, Html];
+    public static readonly string[] RunFormats = [JUnit, Html, Markdown, Trx, Sarif];
     public static readonly string[] CoverageFormats = [Lcov, Cobertura];
 
     public static string ContentType(string format) => format switch
     {
-        JUnit or Cobertura => "application/xml; charset=utf-8",
+        JUnit or Cobertura or Trx => "application/xml; charset=utf-8",
+        Sarif => "application/sarif+json; charset=utf-8",
+        Markdown => "text/markdown; charset=utf-8",
         Html => "text/html; charset=utf-8",
         _ => "text/plain; charset=utf-8",
     };
 
-    /// <summary>"junit.xml", "html", "info" (lcov) or "cobertura.xml".</summary>
+    /// <summary>"junit.xml", "html", "md", "trx", "sarif", "info" (lcov) or "cobertura.xml".</summary>
     public static string Extension(string format) => format switch
     {
         JUnit => "junit.xml",
         Html => "html",
+        Markdown => "md",
+        Trx => "trx",
+        Sarif => "sarif",
         Lcov => "info",
         _ => "cobertura.xml",
     };

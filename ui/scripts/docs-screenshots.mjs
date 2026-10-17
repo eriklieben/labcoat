@@ -276,6 +276,18 @@ const shots = {
     await save(page, "command-palette.png", undefined, { resize: FULL });
   },
 
+  "export-menu": async () => {
+    const page = await openApp("?mock");
+    await prepare(page);
+    await page.locator("lc-run-switcher button").first().click();
+    await page.getByText("Export as SARIF").first().waitFor();
+    await settle(page);
+    const menu = await boxOf(page, page.locator(".run-menu-body").first(), 16);
+    // down to the first two runs below the export entries (the rest of the run list is cut off)
+    const sarif = await page.getByText("Export as SARIF").first().boundingBox();
+    await save(page, "export-menu.png", { ...menu, height: Math.min(menu.height, sarif.y + sarif.height + 150 - menu.y) });
+  },
+
   "build-errors": async () => {
     const page = await openApp("?mock");
     await page.locator("button", { hasText: "Show errors" }).first().click();

@@ -172,6 +172,8 @@ public class FullCoverageTests
         Assert.IsNull(store.RefreshStale());
 
         ws.Write("src/Calc.cs", original.Replace("calc 3", "calc 9"));   // same length, other content
+        // a coarse file system clock (Windows) can give this write the very time of the full run: the hash is only checked when the time differs
+        System.IO.File.SetLastWriteTimeUtc(ws.Path("src/Calc.cs"), DateTime.UtcNow.AddMinutes(10));
         var report = store.RefreshStale();
         Assert.IsTrue(File(report!, "Calc.cs").Stale);
         Assert.AreEqual("run-full", report!.RunId, "a staleness update keeps the run id");
