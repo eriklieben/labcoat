@@ -5,7 +5,7 @@ using System.Xml;
 namespace Labcoat;
 
 /// <summary>
-/// Writes a run as JUnit XML, the de-facto CI test report format (GitHub dorny/test-reporter "java-junit", Azure
+/// Writes a run as JUnit XML, the de-facto CI test report format (Azure
 /// Pipelines PublishTestResults "JUnit", GitLab <c>artifacts:reports:junit</c>, Jenkins). Valid against the Jenkins
 /// xunit plugin's junit-10.xsd (the Surefire schema; tests/Labcoat.Tests/Fixtures/JUnit):
 /// <code>

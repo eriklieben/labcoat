@@ -160,7 +160,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 
 | Option | |
 | --- | --- |
-| `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by dorny/test-reporter (`java-junit`), Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
+| `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
 | `--export html=<file>` | A single static HTML file: summary, the failed tests first (message, expected / actual diff, stack trace, output), then every project and class with durations, and filters. No external requests (its Content-Security-Policy allows nothing else); every test name and output is escaped. Light and dark follow the system. For 20,000 tests passed tests are one line each and details are kept for the first 500 failures. |
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
@@ -185,7 +185,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write          # dorny/test-reporter creates a check run
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -204,13 +203,6 @@ jobs:
         with:
           name: labcoat-report
           path: out/report.html
-      - name: Publish test results
-        if: ${{ !cancelled() }}
-        uses: dorny/test-reporter@v2
-        with:
-          name: Tests
-          path: out/results.xml
-          reporter: java-junit
 ```
 
 `if: ${{ !cancelled() }}` keeps the reports when tests failed (the Test step then fails with exit code 1). On Azure
