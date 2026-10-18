@@ -1,6 +1,6 @@
-name: eriklieben-labcoat
+name: ${DC_PROJECT:-eriklieben-labcoat}
 # Dev container + egress firewall. Rules and rationale: DEVCONTAINERS.md in the author's dotfiles.
-# Only the repo is bind-mounted (.git/hooks and .git/config read-only, see init-host.sh); no sockets,
+# Only the repo is bind-mounted (git dir mounted; hooks and config read-only, see init-host.sh); no sockets,
 # no credentials, no capabilities. All traffic leaves through the firewall sidecar's default-deny
 # rules (firewall/allowed-domains.txt: 443/tcp to listed hosts, DNS answered only for them).
 services:
@@ -16,8 +16,10 @@ services:
     command: sleep infinity
     volumes:
       - ..:/workspace:z
+      - ${GIT_COMMON_SRC:?open this through the dev container so init-host.sh writes .devcontainer/.env}:${GIT_COMMON_DST}:z
       - ${GIT_HOOKS_SRC:?open this through the dev container so init-host.sh writes .devcontainer/.env}:${GIT_HOOKS_DST}:ro
       - ${GIT_CONFIG_SRC}:${GIT_CONFIG_DST}:ro
+      - ${GIT_WT_SRC}:${GIT_WT_DST}:ro
       - dev-home:/home/vscode
       - dev-claude:/home/vscode/.claude
       # DNS goes to the firewall sidecar's resolver, which answers only the allowed names.
