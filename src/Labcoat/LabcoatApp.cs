@@ -72,7 +72,7 @@ public sealed partial class StartOptions
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
             "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
-            "--export", "--filter", "--export-paths", // --run (CliRun.cs)
+            "--export", "--filter", "--export-paths", "--min-coverage", "--min-diff-coverage", // --run (CliRun.cs)
         };
 
         private int _index = -1;
@@ -135,7 +135,7 @@ public sealed partial class StartOptions
             case "--root": return AddRoot(args.Value());
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
-            case "--run" or "--export" or "--filter" or "--export-paths": return ApplyRunOption(a, args); // CliRun.cs
+            case "--run" or "--export" or "--filter" or "--export-paths" or "--min-coverage" or "--min-diff-coverage": return ApplyRunOption(a, args); // CliRun.cs
             case "--log-file":
                 LogFile = args.Value();
                 return ErrorUnless(!string.IsNullOrWhiteSpace(LogFile), "--log-file needs a file (or 'auto').");
