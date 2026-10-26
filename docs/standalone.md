@@ -210,6 +210,131 @@ Pipelines publish the same file with `PublishTestResults@2` (`testResultsFormat:
 out/results.xml`) and the coverage with `PublishCodeCoverageResults@2` (`summaryFileLocation: out/coverage.xml` from
 `--export cobertura=out/coverage.xml`).
 
+### Running only the affected tests in CI
+
+`--affected [working|branch|<range>]` runs only the tests the changes in git affect, with the same bases as **Run
+affected** in the UI ([features.md](features.md#run-affected-tests)): `working` is the uncommitted changes, `branch`
+(the default) everything since the branch left its base branch (`--affected-base`, default `origin/HEAD`, else
+`origin/main` / `master`), and a commit range such as `origin/main..HEAD` (`--affected=<ref>` for one commit).
+
+```sh
+dotnet labcoat --run --affected --export junit=out/results.xml MyApp.slnx
+```
+
+Labcoat prints the plan before it runs: the changed files, the tests each one selects and how precise that is. The
+selected tests then run like any `--run` (`--filter` narrows them further: only tests matching both run).
+
+```
+  Affected (branch vs origin/main, merge base 4f2a9c1): 2 changed files -> 6 of 17 tests in 1 project
+    SampleTests.Lib/Calculator.cs: impact map (class-level data, method Subtract) -> 6 tests
+    README.md: not code, no tests
+```
+
+When nothing is affected Labcoat says so, writes the `--export` files (zero tests, empty coverage) and exits `0`. A
+base git cannot answer (not a repository, unknown ref, no base branch) exits `2`; the other exit codes are the ones of
+`--run`.
+
+Without more, a changed **test file** selects exactly its tests, but a changed **product file** selects all tests of
+the projects that contain or reference it: a fresh CI runner has no [impact map](features.md#the-impact-map). To make
+product files precise, build the map on your main branch, keep it as a file and give it to the pull request jobs:
+
+| Option | |
+| --- | --- |
+| `--impact-map-file <file>` | With `--affected`: the map to load before planning. With `--build-impact-map`: where to save it (atomically; a `.gz` file is compressed). A missing file is fine (the first run, or a cache miss: project-level precision), an unusable one is ignored with a warning. |
+| `--build-impact-map` | Runs the impact-map pass after the run (`--impact-map class`, the default: one coverage run per test class; `--impact-map test`: one per test, exact but slower) and saves the map. Together with `--affected` it builds the map for the projects that need it before planning. |
+
+```yaml
+# .github/workflows/impact-map.yml: on main, on every push and nightly
+name: impact-map
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"
+jobs:
+  impact-map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - name: Test and build the impact map
+        run: dotnet labcoat --run MyApp.slnx --build-impact-map --impact-map-file impact.json
+      - uses: actions/cache/save@v4
+        if: ${{ !cancelled() }}      # failing tests must not lose the map
+        with:
+          path: impact.json
+          key: impact-map-${{ github.sha }}
+```
+
+```yaml
+# .github/workflows/pull-request.yml
+name: pull-request
+on: pull_request
+jobs:
+  affected-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0             # the merge base with the base branch needs the history
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - uses: actions/cache/restore@v4
+        with:
+          path: impact.json
+          key: impact-map-none       # never hits: restore-keys takes the newest map of main
+          restore-keys: impact-map-
+      - name: Affected tests
+        run: >
+          dotnet labcoat --run MyApp.slnx --affected branch --affected-base origin/main
+          --impact-map-file impact.json --export junit=out/results.xml
+```
+
+Caches written on the default branch can be restored by pull request jobs, which is what makes this work.
+
+**What the map file holds.** A small versioned JSON file (`"format": "labcoat-impact-map"`, `"version": 1`; a file of a
+newer version than the running Labcoat reads is ignored with a warning). It is keyed on stable names, never on test ids
+or absolute paths, so a map built on one machine fits another checkout:
+
+| Key | |
+| --- | --- |
+| `labcoat`, `builtAt`, `commit`, `mode` | Who built it, when, at which commit and with which `--impact-map` granularity. |
+| `files`, `hashes` | The source files that tests executed, relative to the repository root with `/` separators, and a hash of each file's text (line endings ignored) when the coverage was recorded. |
+| `names`, `spans`, `profiles` | The executed methods as (file, first line, last line, name), and the list of methods per profile. Tests that executed the same methods share a profile, so a class-level map of 20,000 tests in 1,000 classes is about 1 MB and a per-test map of 20,000 tests about 3 MB (synthetic suites of 40 methods per test). |
+| `projects` | Per test project (path relative to the repository root), its classes and for each test: method, display name (when it differs), profile and whether the data is exact (per-test) or shared by its class. |
+
+When it is loaded, entries are matched to the discovered tests by project path, `Namespace.Class`, method and display
+name; entries of tests or projects that no longer exist are ignored, and a data row whose display name changed shares
+the data of its method. The map may be older than the branch, and Labcoat makes up for that:
+
+- a changed file whose text at the merge base differs from the text the map was recorded with (it changed on main after
+  the map was built, so the map's line numbers no longer fit) is handled like a file without impact data: all tests of
+  its projects, with a warning;
+- tests the map has no data for (added after it was built) run whenever a changed product file selects tests of their
+  project;
+- what the pull request itself changes is, by definition, in the diff.
+
+**Limits.**
+
+- Precision is as good as the data: with `--impact-map class` (the default) changing `Calculator.Subtract` selects all
+  of `CalculatorTests` (6 of the sample's 17 tests); `--impact-map test` on the main job selects only the tests that run
+  the changed method, at the price of one coverage process per test when the map is built. The UI refines classes per
+  test in the background; `--run --affected` does not start coverage processes next to the run.
+- Without a map file, or for a product file no test in the map executed (a new file, code that only runs at startup, a
+  project without `Microsoft.Testing.Extensions.CodeCoverage`), a changed product file selects all tests of the projects
+  that contain or reference it. Changes that tests reach without executing C# (configuration, embedded resources,
+  generated code) are only seen through the project they belong to.
+- The map is as old as its last build: a pull request that touches code which main changed after the map was built gets
+  the project-level fallback for exactly those files.
+- Building the map costs a coverage process per class (or test) on top of the normal run, about the numbers in
+  [The impact map](features.md#the-impact-map). That is why it belongs on main, nightly or on push, and not on every
+  pull request.
+
 ## Recommended setup
 
 1. **Trying it:** `dnx Labcoat` in the repository.

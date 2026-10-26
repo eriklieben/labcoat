@@ -53,6 +53,42 @@ public class CliRunTests
     }
 
     [TestMethod]
+    public void Affected_and_impact_map_options_parse_and_validate()
+    {
+        Assert.IsNull(Ok("--run").Affected);
+        Assert.AreEqual(new AffectedSelector("branch", null), Ok("--run", "--affected").Affected);
+        Assert.AreEqual(new AffectedSelector("branch", null), Ok("--run", "--affected", "branch").Affected);
+        Assert.AreEqual(new AffectedSelector("working", null), Ok("--run", "--affected", "working").Affected);
+        Assert.AreEqual(new AffectedSelector("working", null), Ok("--run", "--affected=uncommitted").Affected);
+        Assert.AreEqual(new AffectedSelector("range", "origin/main..HEAD"), Ok("--run", "--affected", "origin/main..HEAD").Affected);
+        Assert.AreEqual(new AffectedSelector("range", "abc1234"), Ok("--run", "--affected=abc1234").Affected);
+        // a path after a bare --affected stays a path
+        var withPath = Ok("--run", "--affected", "src/MyApp.slnx");
+        Assert.AreEqual(new AffectedSelector("branch", null), withPath.Affected);
+        CollectionAssert.AreEqual(new[] { "src/MyApp.slnx" }, withPath.Paths);
+        Assert.Contains("--affected needs", Error("--run", "--affected=--bad"));
+
+        var o = Ok("--run", "--affected", "--impact-map-file", "ci/impact.json");
+        Assert.AreEqual("ci/impact.json", o.ImpactMapFile);
+        Assert.IsFalse(o.BuildImpactMap);
+        var build = Ok("--run", "--build-impact-map", "--impact-map-file=impact.json.gz");
+        Assert.AreEqual((true, "impact.json.gz"), (build.BuildImpactMap, build.ImpactMapFile));
+        Assert.IsTrue(Ok("--run", "--affected", "--build-impact-map").BuildImpactMap, "build in this process, no file");
+
+        Assert.Contains("need --run", Error("--affected"));
+        Assert.Contains("need --run", Error("--impact-map-file", "x.json"));
+        Assert.Contains("need --run", Error("--build-impact-map"));
+        Assert.Contains("--impact-map-file needs a file", Error("--run", "--impact-map-file", " ", "--affected"));
+        Assert.Contains("--impact-map-file needs a file", Error("--run", "--impact-map-file"));
+        Assert.Contains("is a directory", Error("--run", "--affected", "--impact-map-file", Path.GetTempPath()));
+        Assert.Contains("--build-impact-map needs --impact-map-file", Error("--run", "--build-impact-map"));
+        Assert.Contains("--impact-map-file needs --affected", Error("--run", "--impact-map-file", "x.json"));
+        Assert.Contains("--affected [", Cli.Usage);
+        Assert.Contains("--impact-map-file <file>", Cli.Usage);
+        Assert.Contains("--build-impact-map", Cli.Usage);
+    }
+
+    [TestMethod]
     public void Filters_match_names_classes_methods_and_projects()
     {
         TestNode N(string id, string name, string? ns, string? cls, string? method, string project = "P") =>
