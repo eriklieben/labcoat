@@ -11,7 +11,7 @@ link the issue or discussion where it was agreed on: pull requests without that 
 ## Checklist
 
 - [ ] `dotnet build Labcoat.slnx -warnaserror` and `dotnet test --solution Labcoat.slnx` pass
-- [ ] UI changes: `npm run typecheck`, `npm run build` and the relevant `npm run check:*` scripts pass (in `ui/`)
+- [ ] UI changes: `pnpm run typecheck`, `pnpm run build` and the relevant `pnpm run check:*` scripts pass (in `ui/`)
 - [ ] UI changes: checked in light and dark mode; screenshots below
 - [ ] Docs updated (README, `docs/`, package READMEs) when behavior or options changed
 - [ ] The PR title follows the [commit message format](../CONTRIBUTING.md#commit-messages-and-releases) (`feat(ui): ...`, `fix(host): ...`; it becomes the changelog entry)

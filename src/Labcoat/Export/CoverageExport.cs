@@ -151,7 +151,7 @@ public static class CoverageExport
     }
 
     /// <summary>"Dir.Sub.File" for a relative path, the file name for an absolute one (Cobertura has no class names here).</summary>
-    private static string ClassName(string path) =>
+    internal static string ClassName(string path) =>
         Path.IsPathRooted(path) ? Path.GetFileNameWithoutExtension(path) : Path.ChangeExtension(path, null).Replace('/', '.').Replace('\\', '.');
 
     private static void WriteLine(XmlWriter w, CoverageLineHit l)
@@ -191,7 +191,7 @@ public static class CoverageExport
     private static IEnumerable<FileCoverage> Files(CoverageReport report) =>
         report.Files.OrderBy(f => f.Module, StringComparer.Ordinal).ThenBy(f => f.Path, StringComparer.Ordinal);
 
-    private static string Rate(int covered, int valid) =>
+    internal static string Rate(int covered, int valid) =>
         (valid <= 0 ? 1.0 : (double)covered / valid).ToString("0.####", CultureInfo.InvariantCulture);
 
     private static long Timestamp(string iso) =>

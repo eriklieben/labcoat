@@ -97,3 +97,10 @@ $RECYCLE.BIN/
 
 # Claude Code local settings and memory: never committed
 .claude/
+
+# dev container: local-only files
+.devcontainer/.env
+.devcontainer/.env.*
+.devcontainer/**/*.local.*
+# pnpm store (kept in the dev container's home volume)
+.pnpm-store/

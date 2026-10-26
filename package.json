@@ -1,5 +1,6 @@
 {
   "name": "labcoat-repo",
+  "packageManager": "pnpm@12.4.2",
   "private": true,
   "license": "MIT",
   "description": "Release and commit tooling for the Labcoat repository (semantic-release, commitlint). The web UI lives in ui/ (its own npm workspace).",

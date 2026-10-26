@@ -9,7 +9,7 @@ contract is the class names in the stylesheets, so components keep the DOM struc
 ## Layout
 
 ```
-ui/                                 npm workspace root (Vite app; `npm run build` → ../src/Labcoat/wwwroot)
+ui/                                 npm workspace root (Vite app; `pnpm run build` → ../src/Labcoat/wwwroot)
   design-system/                    @eriklieben/labcoat-design-system (private, TS source, no build step)
     src/core/                       scheduler.ts, reactive.ts, h.ts, element.ts ← the foundation
     src/tokens/                     tokens.css (fonts, type scale, sizes, radii, z, motion, derived tokens), base.css, motion.css
@@ -27,8 +27,8 @@ ui/                                 npm workspace root (Vite app; `npm run build
                                     patterns + overrides of DS primitives [@layer app.components]
     components/<name>.css           a component's CSS, next to it and imported by its .ts, wrapped in @layer app.components;
                                     --lc-* tokens only, no [data-theme] selectors (see "CSS cascade layers" below)
-  scripts/                          checks run with `npm run check:*` (see CONTRIBUTING.md); lib/dev-server.mjs starts Vite for them
-  bench/                            Vitest micro-benchmarks (`npm run bench`, vitest.bench.config.ts; not part of `npm test`)
+  scripts/                          checks run with `pnpm run check:*` (see CONTRIBUTING.md); lib/dev-server.mjs starts Vite for them
+  bench/                            Vitest micro-benchmarks (`pnpm run bench`, vitest.bench.config.ts; not part of `pnpm test`)
 ```
 
 Imports: app code imports from `@eriklieben/labcoat-design-system` (or `/core`, `/components`). Never import
@@ -40,7 +40,7 @@ there. Available: `icon`, `statusIcon`, `button`, `iconButton`, `chip`, `badge`,
 `switchControl`, `segmented`, `tabs`/`tabPanel`/`tabPill`, `menu`/`menuButton`, `popover`, `tooltip`, `messageBar`,
 `meter`/`progressBar`, `codeBlock`, `emptyState`, `propertyGrid`, `splitPane`/`splitter`, `dialog`, `kbd`, `copyButton`,
 `collapsible`/`disclosure`, `skeleton`, `toast` and the motion helpers (`ui/MOTION.md`) (see the table at
-the top of `design-system/README.md` and the gallery: `npm run gallery -w design-system`, port 5200).
+the top of `design-system/README.md` and the gallery: `pnpm run gallery -w design-system`, port 5200).
 
 ## Reactivity (`design-system/src/core/reactive.ts`)
 
@@ -75,7 +75,7 @@ we still need our own scheduler). Our scheduler's rules:
   effects run halfway through its own body, and no update is lost.
 - An effect whose dependency changed during its own run (it wrote something it had already read) is re-queued and re-runs
   until stable; more than 100 runs in one flush is reported with `console.error` and stopped (a self-invalidating effect).
-- Computeds stay lazy and glitch-free. Regression tests: `npm run check:reactive` (design-system/test/).
+- Computeds stay lazy and glitch-free. Regression tests: `pnpm run check:reactive` (design-system/test/).
 
 **Ownership.** Every effect registers with the current *owner*; disposing an owner disposes everything created
 under it. Each effect run gets a fresh child owner, so whatever a run created (child effects, regions, list rows,
@@ -192,7 +192,7 @@ like `requestStatusFilter()` / `onStatusFilterRequest()` in `tree.ts` (register 
    `title`/`aria-*`. `{cond && <X/>}` → `show(...)`; `.map` with keys → `list(...)`; static `.map` → plain array.
 5. Replace the slot in `app.ts` (`todo("…")`) with `h("lc-<name>", { …props as accessors… })`. Each slot has a
    comment listing the props the React version received.
-6. Verify: `npx tsc --noEmit`, `npm run build`, `npm run check:leaks` (counts must stay flat), `npm run check:perf`
+6. Verify: `pnpm exec tsc --noEmit`, `pnpm run build`, `pnpm run check:leaks` (counts must stay flat), `pnpm run check:perf`
    (no long tasks).
 
 Before (React):
@@ -282,7 +282,7 @@ listeners, ResizeObserver, virtualization, keyed rows with per-row bindings, key
 - Measured (phase 1, ?mock=large, expand-all 2280 rows): no long tasks (> 50 ms) while scrolling, filtering,
   collapsing or during a full 2000-test run; rAF frame p95 ≈ 19 ms while scrolling 240 px/frame; ~31 rows in DOM;
   effect/owner counts flat across 5 rounds of expand/scroll/filter/collapse/page switches.
-- **At 20,000 tests** (`?mock=huge`, `npm run check:perf:huge`, budgets in `ui/perf-budgets.json`): anything that is
+- **At 20,000 tests** (`?mock=huge`, `pnpm run check:perf:huge`, budgets in `ui/perf-budgets.json`): anything that is
   O(tests) per published frame shows up. Keep it out of the per-frame path or throttle it (the run overview snapshots
   at 2 Hz while a run is live). Iterate the tests `Map` instead of copying it into an array; build a `testKey()` string
   only when needed (e.g. only when something is quarantined). The incremental tree builder (`createTreeBuilder` in
@@ -290,32 +290,32 @@ listeners, ResizeObserver, virtualization, keyed rows with per-row bindings, key
   `projectStatus` event); a run start / finish (every test's pending flag flips, no delta) is one copy-on-write walk
   (`patchAll`: new leaves and ancestors, ~35 ms at 20k in Node vs ~180 ms for a full build). Leaf `counts` are shared
   frozen objects (never mutate them); a leaf's `tkey` is its testKey string (reuse it for map lookups).
-- Soak: `npm run check:soak` (watch-run session on the mock): heap, DOM nodes, listeners and effect/owner counts must
+- Soak: `pnpm run check:soak` (watch-run session on the mock): heap, DOM nodes, listeners and effect/owner counts must
   stay flat after warm-up.
-- Micro-benchmarks: `npm run bench` (Vitest bench + happy-dom, `bench/*.bench.ts`, `vitest.bench.config.ts`) times the
+- Micro-benchmarks: `pnpm run bench` (Vitest bench + happy-dom, `bench/*.bench.ts`, `vitest.bench.config.ts`) times the
   hot paths in isolation: reactive propagation / batch / flush, `h()` and `list()` reconciliation, tree build / patch /
   flatten, the filter pass, `Store.apply`, diffs and the live console's ANSI / buffer code. Use it for before/after
-  comparisons of one change (`npm run bench:ci` + `npm run bench:compare -- base.json bench-results/ui-bench.json`, see
+  comparisons of one change (`pnpm run bench:ci` + `pnpm run bench:compare base.json bench-results/ui-bench.json`, see
   CONTRIBUTING.md "Benchmarks → UI (Vitest bench)"); DOM-heavy numbers are happy-dom's, not the browser's.
 
 ## Testing
 
-- `npx tsc --noEmit` (strict) and `npm run build` must be clean.
-- Unit tests: `npm test` (Vitest + happy-dom, `vitest.config.ts`). Tests live in `ui/test/`: `test/design-system/**` and
+- `pnpm exec tsc --noEmit` (strict) and `pnpm run build` must be clean.
+- Unit tests: `pnpm test` (Vitest + happy-dom, `vitest.config.ts`). Tests live in `ui/test/`: `test/design-system/**` and
   `test/app/**` mirror the source trees; `test/setup.ts` stubs what happy-dom lacks (WAAPI `animate`, `matchMedia`,
   `startViewTransition`, observers, canvas, `WebSocket`, clipboard; `fetch` rejects unless a test stubs it) and
   `test/helpers/` has the controls (`setMedia`, `finishAnimations`, `triggerResize`, `FakeWebSocket`) and app fixtures
-  (`makeStore()` with a `FakeTransport`, `flushFrame()` for the once-per-frame publish). `npm run test:coverage` fails
+  (`makeStore()` with a `FakeTransport`, `flushFrame()` for the once-per-frame publish). `pnpm run test:coverage` fails
   under 85 % lines / statements / functions (overall and per package). The Playwright checks below are the e2e layer.
-- Dev: `npm run dev` (port 5174) or `npx vite --port <n> --strictPort`, open `/?mock`, `/?mock=large`,
+- Dev: `pnpm run dev` (port 5174) or `pnpm exec vite --port <n> --strictPort`, open `/?mock`, `/?mock=large`,
   `/?mock&coverage`.
 - Real backend: `LABCOAT_HISTORY_DIR=$(mktemp -d) LABCOAT_ALLOWED_ORIGINS=http://localhost:5174 dotnet run --project
   src/Labcoat -- samples/Samples.slnx --no-open --port 4370`, then `MSTEST_EXPLORER_URL=http://localhost:4370 npm run
   dev` (the dev server proxies /api and /ws; the allowed origin lets the proxied page send commands).
-- Checks: `npm run check:reactive`, `check:a11y`, `check:keyboard`, `check:leaks` (effect/owner counts must stay
+- Checks: `pnpm run check:reactive`, `check:a11y`, `check:keyboard`, `check:leaks` (effect/owner counts must stay
   flat), `check:perf` (no long tasks). Each starts its own dev server.
-- CSS refactors: `npm run check:styles` (below).
-- Themes: `npm run check:themes` (WCAG contrast of every family × mode); look at the families in light and
+- CSS refactors: `pnpm run check:styles` (below).
+- Themes: `pnpm run check:themes` (WCAG contrast of every family × mode); look at the families in light and
   dark (`localStorage["mste.themeFamily"] = "dracula"`, or `node scripts/themes-app-shots.mjs <url> <out>`); the
   screenshot / axe scripts loop over every family (`LC_FAMILIES=a,b` limits). Component CSS uses `--lc-*` tokens
   only; status colors as text use `--lc-status-*-text` (see `design-system/README.md`).
@@ -359,15 +359,15 @@ Rules:
   segments, the pressed quarantine button keeps the toggle's hover, and the Run all / Stop crossfade (`.run-slot > .btn`)
   moved next to the shared `.btn` timing it replaces.
 
-## Style regressions (`npm run check:styles`)
+## Style regressions (`pnpm run check:styles`)
 
-For CSS refactors and reviews, not every commit (it takes about 2 minutes and is not part of `npm run check`): **freeze
+For CSS refactors and reviews, not every commit (it takes about 2 minutes and is not part of `pnpm run check`): **freeze
 a baseline before the change, then compare.**
 
 ```
-npm run check:styles -- --update    # before: writes ui/.styles-baseline/baseline (gitignored, local only)
+pnpm run check:styles --update    # before: writes ui/.styles-baseline/baseline (gitignored, local only)
 # ... change the CSS ...
-npm run check:styles                # after: prints the differences, exit 1 when anything changed
+pnpm run check:styles                # after: prints the differences, exit 1 when anything changed
 ```
 
 `scripts/check-styles.mjs` takes the app (`?mock&coverage&snapshots`) in six screens (main, selected snapshot test,

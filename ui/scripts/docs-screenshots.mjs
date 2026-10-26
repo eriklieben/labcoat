@@ -27,7 +27,7 @@ const { base, stop } = await baseUrlOr(process.argv[2], startApp);
 
 // Thu 8 Oct 2026, 10:24 local time: every "Last run …" / run menu time is the same on each pass
 const CLOCK = new Date(2026, 9, 8, 10, 24, 0);
-const MOCK_ROOT = /\/home\/[^/"`'\s]+\/Repository\/ms-test-explorer/g;
+const MOCK_ROOT = /\/home\/[^/"`'\s]+\/Repository\/labcoat/g;
 
 const browser = await chromium.launch();
 const errors = [];
@@ -213,6 +213,17 @@ const shots = {
     const pane = await boxOf(page, page.locator("lc-tree-pane, .tree-pane"));
     const last = await page.locator(".tree-row").last().boundingBox();
     await save(page, "tree-filters.png", { ...pane, height: last.y + last.height + 16 - pane.y });
+  },
+
+  "changed-tests": async () => {
+    const page = await openApp("?mock&coverage");
+    await prepare(page);
+    // the Changed chip (the mock's GET /api/changed-tests: the tests of the edited OrderServiceTests.cs)
+    await page.locator(".tree-pane button, lc-tree-pane button", { hasText: /^\s*Changed/ }).first().click();
+    await settle(page, 700);
+    const pane = await boxOf(page, page.locator("lc-tree-pane, .tree-pane"));
+    const last = await page.locator(".tree-row").last().boundingBox();
+    await save(page, "changed-tests.png", { ...pane, height: last.y + last.height + 16 - pane.y });
   },
 
   "coverage-report": async () => {

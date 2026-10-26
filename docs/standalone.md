@@ -160,7 +160,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 
 | Option | |
 | --- | --- |
-| `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by dorny/test-reporter (`java-junit`), Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
+| `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
 | `--export html=<file>` | A single static HTML file: summary, the failed tests first (message, expected / actual diff, stack trace, output), then every project and class with durations, and filters. No external requests (its Content-Security-Policy allows nothing else); every test name and output is escaped. Light and dark follow the system. For 20,000 tests passed tests are one line each and details are kept for the first 500 failures. |
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
@@ -193,6 +193,55 @@ palette ("Export run as JUnit XML / HTML report", "Export coverage as lcov") and
 page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html`, `GET /api/coverage/export?format=lcov|cobertura`,
 see [contract.md](contract.md#export-added)).
 
+### Sharding
+
+`--shard <i>/<n>` runs shard *i* of *n* (1-based) of the tests, so a matrix of CI jobs can run one suite in parallel. Every shard builds and
+discovers all test projects, works out the same split on its own and runs only its part.
+
+| Option | |
+| --- | --- |
+| `--shard <i>/<n>` | Run this shard. A shard without tests (more shards than classes) writes empty reports and exits `0`. Applies after `--filter`. |
+| `--shard-by class\|test\|project` | What is split. `class` (default) keeps a class together, so a class fixture or a started app runs once; `test` splits finer for a suite with a few huge classes; `project` keeps whole projects together. |
+| `--shard-timings <file>` | The JUnit XML of an earlier run (`--export junit`) that balances the shards by duration. Repeatable and comma-separated; a name with `*` or `?` in its last segment (`timings/*/results.xml`) matches several files. A named file that does not exist is an error; a pattern that matches nothing is a warning and the tests are dealt out by name. |
+
+Without timings the classes are sorted by name and dealt out one by one: even in count, not in duration. With timings the
+longest class goes first to the shard with the least work so far, and a class without a timing counts as the median one.
+
+Every shard must see the same test list and the same timing files: that is what makes the shards add up to the whole
+suite. Labcoat's own history is therefore not used, as it differs per machine. Each shard prints a split id
+(`split 9f3a1c`); when the ids of the shards differ, they did not see the same input. The reports of the shards are
+separate: publish one JUnit file per shard (or merge them), and merge the lcov files before a coverage service reads them.
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - name: Test
+        run: >
+          dotnet labcoat --run MyApp.slnx
+          --shard ${{ matrix.shard }}/4
+          --shard-timings "timings/*.xml"
+          --export junit=out/results-${{ matrix.shard }}.xml
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: junit-${{ matrix.shard }}
+          path: out/results-${{ matrix.shard }}.xml
+```
+
+Download the JUnit artifacts of the last green run into `timings/` in every job (for example with `actions/cache` or
+`gh run download`) to get balanced shards.
+
 ### GitHub Actions
 
 ```yaml
@@ -201,7 +250,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      checks: write          # dorny/test-reporter creates a check run
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -220,19 +268,83 @@ jobs:
         with:
           name: labcoat-report
           path: out/report.html
-      - name: Publish test results
-        if: ${{ !cancelled() }}
-        uses: dorny/test-reporter@v2
-        with:
-          name: Tests
-          path: out/results.xml
-          reporter: java-junit
 ```
 
 `if: ${{ !cancelled() }}` keeps the reports when tests failed (the Test step then fails with exit code 1). On Azure
 Pipelines publish the same file with `PublishTestResults@2` (`testResultsFormat: JUnit`, `testResultsFiles:
 out/results.xml`) and the coverage with `PublishCodeCoverageResults@2` (`summaryFileLocation: out/coverage.xml` from
 `--export cobertura=out/coverage.xml`).
+
+### Merging shard reports
+
+When the tests of a run are split over several jobs (each job runs part of them with `--run --filter ...`), each job
+writes its own report files. `labcoat merge` combines them into one set, in a last job that builds nothing and runs
+nothing:
+
+```sh
+dotnet labcoat merge --export junit=out/results.xml --export lcov=out/coverage.info --export cobertura=out/coverage.xml \
+  shards/results-*.xml shards/coverage-*.info
+```
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | No merged test failed or errored. |
+| `1` | A merged test failed or errored, or a report could not be written. |
+| `2` | The command line is invalid, or an input is missing or unreadable (nothing is written). |
+
+- **Inputs:** JUnit XML, lcov and Cobertura files, told apart by their content, not their name. Pass the paths (a
+  list your shell expanded) or a pattern with `*` / `?` in the file name part, for shells that don't expand it
+  (`shards/results-*.xml`; the folders cannot have wildcards, and a pattern never matches the files being written). A
+  named file that doesn't exist, a pattern that matches nothing and a file that is not one of these reports are errors.
+- **`--export junit=<file>`:** the suites of all inputs; a suite of the same name in several inputs becomes one. A
+  test that appears twice (same suite, `classname` and `name`, e.g. a shard that was run again) keeps the last one and
+  prints a warning. The totals are recomputed from the test cases. The first suite's properties are kept, plus
+  `labcoat.mergedFrom` (how many reports the suite came from). The file is valid against the same `junit-10.xsd` as
+  `--run`'s.
+- **`--export lcov=<file>` / `--export cobertura=<file>`:** the union of the source files of all lcov and Cobertura
+  inputs (they can be mixed, and either format can be written). Files are matched by their path as written, so every
+  shard should write the same relative paths (Labcoat's default). Per file the hit counts of each line and branch are
+  summed, and the line and branch totals and rates are recomputed. Cobertura only has branch counts per line, so its
+  branches are taken as the first ones of the line. Function records of lcov (`FN`, `FNDA`) and Cobertura `methods`
+  are not kept.
+- **Summary:** the console shows the merged tests (failed, passed, skipped) and, when there is coverage, the line and
+  branch percentages. A coverage gate can build on the same totals later; `merge` does not enforce a threshold.
+
+A GitHub Actions merge job. Each test job uploads its report files (`results-1.xml`, `coverage-1.info`, ... with
+unique names) as the artifact `shard-<n>`:
+
+```yaml
+  merge:
+    needs: test                # the matrix job that runs one shard per job and uploads its reports
+    if: ${{ !cancelled() }}    # also when a shard failed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+          merge-multiple: true      # all files into shards/
+      - name: Merge
+        run: >
+          dotnet labcoat merge
+          --export junit=out/results.xml
+          --export lcov=out/coverage.info
+          --export cobertura=out/coverage.xml
+          "shards/results-*.xml" "shards/coverage-*.info"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: merged-reports
+          path: out/
+```
+
+The Merge step fails (exit code 1) when a merged test failed, so the job is red like an unsplit run. Quote the
+patterns so the runner passes them on instead of expanding them (or leave them unquoted: both work).
 
 ## Recommended setup
 

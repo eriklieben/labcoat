@@ -35,7 +35,7 @@ export async function install(page) {
       const q = s.quarantined?.length ? new Set(s.quarantined) : undefined;
       const full = T.regroup(T.buildTree(s.projects, s.tests, s.pending, q), groupOf());
       const rk = tp.ranks.peek();
-      const exp = T.flatten(full, tp.isExpanded, tp.text.peek(), tp.status.peek(), tp.flat.peek(), { newKeys: tp.newKeys.peek(), rank: rk?.rank, flatRank: rk?.flatRank });
+      const exp = T.flatten(full, tp.isExpanded, tp.text.peek(), tp.status.peek(), tp.flat.peek(), { newKeys: tp.newKeys.peek(), changedKeys: tp.changedKeys.peek(), rank: rk?.rank, flatRank: rk?.flatRank });
       if (exp.length !== rows.length || exp.some((r, i) => rowSig(r) !== rowSig(rows[i]))) {
         const i = exp.findIndex((r, j) => !rows[j] || rowSig(r) !== rowSig(rows[j]));
         const parentKey = (exp[i] ?? rows[i])?.node.parent?.key;

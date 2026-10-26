@@ -23,6 +23,10 @@ public class GitApiTests
         var git = await h.GetJson("/api/git");
         Assert.IsFalse(git["available"]!.GetValue<bool>());
 
+        var changed = await h.GetJson("/api/changed-tests");
+        Assert.IsFalse(changed["available"]!.GetValue<bool>());
+        Assert.IsEmpty(changed["tests"]!.AsArray());
+
         using var res = await h.Client.GetAsync("/api/affected?base=working", TestContext.CancellationToken);
         Assert.AreEqual(409, (int)res.StatusCode);
         Assert.AreEqual("notGitRepo", (await ApiHost.Json(res))!["code"]!.GetValue<string>());
@@ -66,6 +70,10 @@ public class GitApiTests
         Assert.IsNull(plan["selection"]); // internal
         var git = await h.GetJson("/api/git");
         Assert.AreEqual(("main", 1), (git["branch"]!.GetValue<string>(), git["dirty"]!.GetValue<int>()));
+
+        var changedTests = await h.GetJson("/api/changed-tests");
+        Assert.IsTrue(changedTests["available"]!.GetValue<bool>());
+        Assert.IsEmpty(changedTests["tests"]!.AsArray()); // the edit is on line 1, the seeded tests start at line 10
 
         using (var unknown = await h.Client.GetAsync("/api/affected?base=branch&ref=nope", TestContext.CancellationToken))
             Assert.AreEqual(404, (int)unknown.StatusCode);

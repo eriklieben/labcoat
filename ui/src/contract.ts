@@ -610,6 +610,16 @@ export interface AffectedPlan {
   impactMap?: ImpactMapInfo;
   warnings?: string[];
 }
+/** GET /api/changed-tests: the tests added or modified on the current branch. */
+export interface ChangedTests {
+  /** false outside a git repository (see `error`): `tests` is empty */
+  available: boolean;
+  error?: string;
+  /** "branch" (merge base with the base branch → working tree) or "working" (no base branch: uncommitted changes) */
+  base?: "branch" | "working";
+  ref?: string;
+  tests: { projectId: string; id: string }[];
+}
 export interface AffectedRun {
   /** strategy "git" only */
   base?: AffectedBase;

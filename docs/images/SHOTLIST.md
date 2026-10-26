@@ -10,11 +10,11 @@ All images except `aspire-trace-dashboard.png` come from one script, `ui/scripts
 
 ```sh
 cd ui
-npm run screenshots:docs                                   # starts a Vite dev server with the current ui/src
-npm run screenshots:docs -- http://127.0.0.1:5370/         # or use a running server (e.g. `npx vite preview`)
-LC_SHOTS=hero-dark,themes npm run screenshots:docs         # only some images ("themes" = all theme images)
-LABCOAT_CHECK_PORT=5470 npm run screenshots:docs           # the dev server's first port to try (default 5300)
-LC_ASPIRE_DASHBOARD=http://localhost:15179/ npm run screenshots:docs   # also aspire-dashboard.png (AppHost running)
+pnpm run screenshots:docs                                   # starts a Vite dev server with the current ui/src
+pnpm run screenshots:docs http://127.0.0.1:5370/         # or use a running server (e.g. `pnpm exec vite preview`)
+LC_SHOTS=hero-dark,themes pnpm run screenshots:docs         # only some images ("themes" = all theme images)
+LABCOAT_CHECK_PORT=5470 pnpm run screenshots:docs           # the dev server's first port to try (default 5300)
+LC_ASPIRE_DASHBOARD=http://localhost:15179/ pnpm run screenshots:docs   # also aspire-dashboard.png (AppHost running)
 ```
 
 What the script does, so the images stay comparable:
@@ -44,6 +44,7 @@ What the script does, so the images stay comparable:
 | `failure-diff.png` | README highlights, features | As the hero, but select `Serialize_ProducesExpectedJson` (JSON diff). | The detail pane only (right column), from the test title to the end of the diff |
 | `failure-stack.png` | features | Mock `?mock&coverage`. Select `Cache_RoundTripsValue`, click the `CacheService.cs:27` frame in **Stack trace**: the source viewer switches to `CacheService.cs` with the error line marked. Viewport 1440 x 1500. | Detail pane, from **Source** to the end of **Stack trace** |
 | `tree-filters.png` | features | After **Run all**, click the **Failed** chip and type `proj:Sample` in the filter box: flat list of the 8 failing tests, chips showing counts. | Tree pane, down to just below the last row |
+| `changed-tests.png` | features | After **Run all**, click the **Changed** chip (the mock reports the tests of `OrderServiceTests.cs` as changed on the branch): flat list of the changed tests, chips showing counts. | Tree pane, down to just below the last row |
 | `watch.png` | features | Mock `?mock&coverage`. After **Run all**, turn on **Watch**; the mock's simulated file change (~3 s later) rebuilds and runs the affected tests. Capture after that run: the watch strip shows "CalculatorTests.cs saved → build … → 6 affected → …" (the six tests in CalculatorTests.cs: the "tests in the changed test file" strategy). | Toolbar + watch strip + top of the tree |
 | `coverage-report.png` | README highlights, features | Mock `?mock&coverage`. **Run all**, open **Coverage** in the left rail, click `OrderService.cs`: the source viewer shows covered, partial and uncovered lines. | Full window |
 | `coverage-line-tests.png` | features | Mock `?mock&coverage`, viewport 1440 x 1300. On the coverage page with `OrderService.cs` open, click the hit count of line 23 (`CalculateTotal`): the popover lists the tests that cover it. | Left part of the source viewer around the popover |

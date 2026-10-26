@@ -239,7 +239,7 @@ export function leaves(n: TreeNode, out: TestNode[] = []): TestNode[] {
   return out;
 }
 
-export type StatusFilter = "all" | "failed" | "new" | "passed" | "skipped" | "notRun" | "flaky";
+export type StatusFilter = "all" | "failed" | "new" | "changed" | "passed" | "skipped" | "notRun" | "flaky";
 
 const STATUS_FILTER_EVENT = "labcoat:status-filter";
 
@@ -256,7 +256,7 @@ export function onStatusFilterRequest(handler: (f: StatusFilter) => void): () =>
 
 export function matchesStatus(o: Outcome, f: StatusFilter) {
   if (f === "all") return true;
-  if (f === "flaky" || f === "new") return false; // decided per test (TestNode.flaky / new failure keys), see flatten
+  if (f === "flaky" || f === "new" || f === "changed") return false; // decided per test (TestNode.flaky / new failure / changed keys), see flatten
   const b = bucket(o);
   if (f === "notRun") return b === "notRun" || b === "queued" || b === "running";
   return b === f;
@@ -299,6 +299,8 @@ export function flatten(
   opts: {
     /** testKeys of new failures (status "new") */
     newKeys?: ReadonlySet<string>;
+    /** testKeys of tests changed on the branch (status "changed") */
+    changedKeys?: ReadonlySet<string>;
     /** sibling order (duration sorts): rank per node key; leaves without a rank keep default order at the end */
     rank?: ReadonlyMap<string, number>;
     /** flat list order (duration sorts) */
@@ -307,7 +309,7 @@ export function flatten(
     pass?: FilterPass;
   } = {},
 ): Row[] {
-  const p = opts.pass?.roots === roots && opts.pass.text === text && opts.pass.status === status ? opts.pass : filterPass(roots, text, status, opts.newKeys);
+  const p = opts.pass?.roots === roots && opts.pass.text === text && opts.pass.status === status ? opts.pass : filterPass(roots, text, status, opts.newKeys, undefined, opts.changedKeys);
   const filtering = p.filtering;
   const rows: Row[] = [];
   // vis: matching leaves beneath a node (absent = 0); -1 = an empty node kept visible
@@ -391,6 +393,8 @@ export interface FilterPass {
   readonly status: StatusFilter;
   /** the new-failure keys the pass used (undefined unless the status or the query needs them) */
   readonly newKeys: ReadonlySet<string> | undefined;
+  /** the changed-test keys the pass used (undefined unless the status or the query needs them) */
+  readonly changedKeys: ReadonlySet<string> | undefined;
   /** the text or the status narrows the tree */
   readonly filtering: boolean;
   /** matching leaves (text + status) beneath each node: 1 for a leaf, absent = 0; -1 = an empty broken project kept visible */
@@ -408,11 +412,15 @@ export interface FilterPass {
 /** Does the status chip or the query read the new-failure keys? (Otherwise a pass does not depend on them.) */
 export const needsNewKeys = (text: string, status: StatusFilter) => status === "new" || /\bis:[a-z|,]*n/i.test(text);
 
+/** Does the status chip or the query read the changed-test keys? */
+export const needsChangedKeys = (text: string, status: StatusFilter) => status === "changed" || /\bis:[a-z|,]*c/i.test(text);
+
 /** The status chip's rule for a test leaf. */
-function statusMatcher(status: StatusFilter, newKeys: ReadonlySet<string> | undefined): ((n: TreeNode) => boolean) | undefined {
+function statusMatcher(status: StatusFilter, newKeys: ReadonlySet<string> | undefined, changedKeys: ReadonlySet<string> | undefined): ((n: TreeNode) => boolean) | undefined {
   if (status === "all") return undefined;
   if (status === "flaky") return (n) => !!n.test!.flaky;
   if (status === "new") return (n) => !!newKeys?.has(testKey(n.test!));
+  if (status === "changed") return (n) => !!changedKeys?.has(testKey(n.test!));
   if (status === "failed") return (n) => n.counts.failed > 0;
   return (n) => matchesStatus(n.test!.outcome, status);
 }
@@ -422,10 +430,18 @@ function statusMatcher(status: StatusFilter, newKeys: ReadonlySet<string> | unde
  * keys whose query this one implies, e.g. "ord" → "order", or the same text with another status chip) only the
  * leaves that matched the base's text are tested again (incremental narrowing); otherwise every leaf once.
  */
-export function filterPass(roots: readonly TreeNode[], text: string, status: StatusFilter, newKeys?: ReadonlySet<string>, base?: FilterPass): FilterPass {
+export function filterPass(
+  roots: readonly TreeNode[],
+  text: string,
+  status: StatusFilter,
+  newKeys?: ReadonlySet<string>,
+  base?: FilterPass,
+  changedKeys?: ReadonlySet<string>,
+): FilterPass {
   if (!needsNewKeys(text, status)) newKeys = undefined;
+  if (!needsChangedKeys(text, status)) changedKeys = undefined;
   const terms = parseQuery(text);
-  const match = compileTerms(terms, { newKeys });
+  const match = compileTerms(terms, { newKeys, changedKeys });
   const filtering = !!match || status !== "all";
 
   if (!filtering) {
@@ -434,7 +450,7 @@ export function filterPass(roots: readonly TreeNode[], text: string, status: Sta
     for (const r of roots) addCounts(counts, r.counts);
     let all: TestNode[] | undefined;
     return {
-      roots, text, status, newKeys, filtering, vis: new Map(), counts, textLeaves: undefined, terms,
+      roots, text, status, newKeys, changedKeys, filtering, vis: new Map(), counts, textLeaves: undefined, terms,
       get tests() {
         all ??= matchingTestsOf(roots);
         return all;
@@ -442,10 +458,10 @@ export function filterPass(roots: readonly TreeNode[], text: string, status: Sta
     };
   }
 
-  const acc = new PassAccumulator(match, statusMatcher(status, newKeys));
-  if (match && base?.textLeaves && base.roots === roots && base.newKeys === newKeys && implies(terms, base.terms)) acc.narrow(base.textLeaves, base.text === text);
+  const acc = new PassAccumulator(match, statusMatcher(status, newKeys, changedKeys));
+  if (match && base?.textLeaves && base.roots === roots && base.newKeys === newKeys && base.changedKeys === changedKeys && implies(terms, base.terms)) acc.narrow(base.textLeaves, base.text === text);
   else for (const r of roots) acc.visit(r);
-  return { roots, text, status, newKeys, filtering, vis: acc.vis, counts: acc.counts, tests: acc.tests, textLeaves: acc.textLeaves, terms };
+  return { roots, text, status, newKeys, changedKeys, filtering, vis: acc.vis, counts: acc.counts, tests: acc.tests, textLeaves: acc.textLeaves, terms };
 }
 
 /** What a filtering pass collects while it walks the leaves (filterPass). */
@@ -531,10 +547,11 @@ function matchingTestsOf(roots: readonly TreeNode[]): TestNode[] {
  */
 export function createFilterCache(size = 6) {
   let recent: FilterPass[] = [];
-  return (roots: readonly TreeNode[], text: string, status: StatusFilter, newKeys?: ReadonlySet<string>): FilterPass => {
+  return (roots: readonly TreeNode[], text: string, status: StatusFilter, newKeys?: ReadonlySet<string>, changedKeys?: ReadonlySet<string>): FilterPass => {
     if (!needsNewKeys(text, status)) newKeys = undefined;
+    if (!needsChangedKeys(text, status)) changedKeys = undefined;
     if (recent.length && recent[0].roots !== roots) recent = recent.filter((p) => p.roots === roots);
-    const hit = recent.findIndex((p) => p.text === text && p.status === status && p.newKeys === newKeys);
+    const hit = recent.findIndex((p) => p.text === text && p.status === status && p.newKeys === newKeys && p.changedKeys === changedKeys);
     if (hit >= 0) {
       const p = recent[hit];
       if (hit) {
@@ -547,8 +564,8 @@ export function createFilterCache(size = 6) {
     const terms = parseQuery(text);
     let base: FilterPass | undefined;
     for (const p of recent)
-      if (p.textLeaves && p.newKeys === newKeys && (!base || p.textLeaves.length < base.textLeaves!.length) && implies(terms, p.terms)) base = p;
-    const p = filterPass(roots, text, status, newKeys, base);
+      if (p.textLeaves && p.newKeys === newKeys && p.changedKeys === changedKeys && (!base || p.textLeaves.length < base.textLeaves!.length) && implies(terms, p.terms)) base = p;
+    const p = filterPass(roots, text, status, newKeys, base, changedKeys);
     recent.unshift(p);
     if (recent.length > size) recent.length = size;
     return p;
@@ -982,22 +999,22 @@ export function sortRanks(roots: TreeNode[], mode: TreeSort): { rank: Map<string
 }
 
 /** The tests the tree shows for a filter (search text + status chip): "Run N matching". */
-export function matchingTests(roots: readonly TreeNode[], text: string, status: StatusFilter, newKeys?: ReadonlySet<string>): TestNode[] {
-  return filterPass(roots, text, status, newKeys).tests;
+export function matchingTests(roots: readonly TreeNode[], text: string, status: StatusFilter, newKeys?: ReadonlySet<string>, changedKeys?: ReadonlySet<string>): TestNode[] {
+  return filterPass(roots, text, status, newKeys, undefined, changedKeys).tests;
 }
 
 // ---- search syntax ----------------------------------------------------------------------------------------------
 
 /** Search tokens of the tree filter (also the syntax hint). Free text matches name, class, namespace, project, traits. */
 export const QUERY_TOKENS: { token: string; example: string; what: string }[] = [
-  { token: "is:", example: "is:failed", what: "failed · passed · skipped · flaky · new · slow · notrun · snapshot" },
+  { token: "is:", example: "is:failed", what: "failed · passed · skipped · flaky · new · changed · slow · notrun · snapshot" },
   { token: "cat:", example: "cat:Integration", what: "a trait value (TestCategory, …)" },
   { token: "trait:", example: "trait:Owner=web-team", what: "a trait key (=value)" },
   { token: "msg:", example: "msg:timeout", what: "text in the error message, stack trace or output" },
   { token: "proj:", example: "proj:Inventory", what: "project name" },
 ];
 
-const IS_VALUES = ["failed", "passed", "skipped", "flaky", "new", "slow", "notrun", "running", "snapshot"] as const;
+const IS_VALUES = ["failed", "passed", "skipped", "flaky", "new", "changed", "slow", "notrun", "running", "snapshot"] as const;
 
 /** Split on whitespace, keeping "quoted values" (also after a token prefix: msg:"no such host"). */
 function words(text: string): string[] {
@@ -1034,7 +1051,7 @@ const isSpace = (ch: string) => /\s/.test(ch);
  * `is:failed|flaky` (alternatives with | or ,), `cat:<trait value>`, `trait:key=value`, `msg:<text>`, `proj:<name>`,
  * free text (each word in the test's search text). Unknown prefixes are free text.
  */
-export function compileQuery(text: string, ctx: { newKeys?: ReadonlySet<string> } = {}): ((n: TreeNode) => boolean) | undefined {
+export function compileQuery(text: string, ctx: { newKeys?: ReadonlySet<string>; changedKeys?: ReadonlySet<string> } = {}): ((n: TreeNode) => boolean) | undefined {
   return compileTerms(parseQuery(text), ctx);
 }
 
@@ -1077,7 +1094,7 @@ export function implies(terms: readonly QueryTerm[], base: readonly QueryTerm[])
   );
 }
 
-function compileTerms(terms: readonly QueryTerm[], ctx: { newKeys?: ReadonlySet<string> } = {}): ((n: TreeNode) => boolean) | undefined {
+function compileTerms(terms: readonly QueryTerm[], ctx: { newKeys?: ReadonlySet<string>; changedKeys?: ReadonlySet<string> } = {}): ((n: TreeNode) => boolean) | undefined {
   const preds: ((n: TreeNode, t: TestNode) => boolean)[] = [];
   for (const { kind, v } of terms) {
     if (kind === "text") {
@@ -1095,6 +1112,7 @@ function compileTerms(terms: readonly QueryTerm[], ctx: { newKeys?: ReadonlySet<
             if (x === "flaky") return !!t.flaky;
             if (x === "snapshot") return !!t.hasSnapshotMismatch; // Verify snapshot mismatch pending
             if (x === "new") return !!ctx.newKeys?.has(testKey(t));
+            if (x === "changed") return !!ctx.changedKeys?.has(testKey(t)); // added or edited on the branch (git)
             if (x === "slow") return slowFactor(t) !== undefined;
             if (x === "notrun") return bucket(t.outcome) === "notRun";
             if (x === "running") return t.outcome === "running" || t.outcome === "queued";

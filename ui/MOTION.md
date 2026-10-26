@@ -2,7 +2,7 @@
 
 Micro-animations that orient (where did this come from), confirm (the action registered) or connect two states. If
 an animation does none of these it doesn't ship. Spec and rationale: the motion proposals (P1–P19); live demos with a
-motion switch: the design-system gallery, section **Foundations → Motion** (`npm run gallery -w design-system`).
+motion switch: the design-system gallery, section **Foundations → Motion** (`pnpm run gallery -w design-system`).
 
 ## Rules
 

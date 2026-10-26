@@ -28,6 +28,20 @@ public sealed record GitInfo
     public string? AffectedBase { get; init; }
 }
 
+/// <summary>GET /api/changed-tests</summary>
+public sealed record ChangedTests
+{
+    /// <summary>False outside a repository (or when it can't answer): <see cref="Error"/> says why, <see cref="Tests"/> is empty.</summary>
+    public bool Available { get; init; }
+    public string? Error { get; init; }
+    /// <summary>"branch" (merge base with the base branch → working tree) or "working" (HEAD → working tree, no base branch).</summary>
+    public string? Base { get; init; }
+    public string? Ref { get; init; }
+    public required List<ChangedTest> Tests { get; init; }
+}
+
+public sealed record ChangedTest(string ProjectId, string Id);
+
 /// <summary>GET /api/affected</summary>
 public sealed record AffectedPlan
 {
@@ -572,6 +586,94 @@ public sealed partial class Explorer
             return info;
         }
         finally { _gitInfoLock.Release(); }
+    }
+
+    private sealed record ChangedCacheEntry(DateTime At, int Tests, ChangedTests Result);
+    private volatile ChangedCacheEntry? _changedCache;
+    private readonly SemaphoreSlim _changedLock = new(1, 1);
+
+    /// <summary>
+    /// GET /api/changed-tests: the tests added or modified on the current branch, i.e. whose own lines (the method's extent, see IsChanged)
+    /// overlap a changed range of their source file, or that sit in a newly added file. Same changes as Run affected's
+    /// "branch" base (merge base with the base branch → working tree, untracked files included), else the uncommitted
+    /// changes when there is no base branch. Cached ~2 s (and per discovered test count); outside a repository: Available false.
+    /// </summary>
+    public async Task<ChangedTests> ChangedTestsAsync(CancellationToken ct = default)
+    {
+        await _changedLock.WaitAsync(ct);
+        try
+        {
+            int count;
+            lock (Sync) count = _order.Count;
+            if (_changedCache is { } c && c.Tests == count && DateTime.UtcNow - c.At < TimeSpan.FromSeconds(2)) return c.Result;
+            var result = await ComputeChangedTestsAsync(ct);
+            _changedCache = new ChangedCacheEntry(DateTime.UtcNow, count, result);
+            return result;
+        }
+        finally { _changedLock.Release(); }
+    }
+
+    /// <summary>Drops the cached answer of <see cref="ChangedTestsAsync"/> (the next call asks git again).</summary>
+    internal void InvalidateChangedTests() => _changedCache = null;
+
+    private async Task<ChangedTests> ComputeChangedTestsAsync(CancellationToken ct)
+    {
+        GitRepo repo;
+        var kind = AffectedBases.Branch;
+        GitChanges changes;
+        try
+        {
+            repo = await RepoAsync(ct);
+            try { changes = await repo.ChangesAsync(kind, null, AffectedBase, ct); }
+            catch (AffectedException ex) when (ex.Code is "noBase" or "noCommits" or "unknownRef")
+            {
+                kind = AffectedBases.Working;
+                changes = await repo.ChangesAsync(kind, null, AffectedBase, ct);
+            }
+        }
+        catch (AffectedException ex) { return new ChangedTests { Available = false, Error = ex.Message, Tests = [] }; }
+
+        var tests = new List<ChangedTest>();
+        var candidates = new List<(TestNode Test, GitChange Change)>();
+        lock (Sync)
+        {
+            var byFile = new Dictionary<string, List<TestNode>>(PathComparer);
+            foreach (var k in _order)
+            {
+                if (_tests[k].FilePath is not { } fp) continue;
+                var f = PathUtil.CanonicalizeOrSelf(fp);
+                if (!byFile.TryGetValue(f, out var list)) byFile[f] = list = [];
+                list.Add(_tests[k]);
+            }
+            foreach (var change in changes.Files.Where(c => c.Status != "deleted"))
+            {
+                var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, change.Path.Replace('/', Path.DirectorySeparatorChar)));
+                if (byFile.TryGetValue(abs, out var inFile)) candidates.AddRange(inFile.Select(t => (t, change)));
+            }
+        }
+        // outside the lock: reading the sources of tests without a usable line range (TestSourceRange.cs)
+        var seen = new HashSet<(string, string)>();
+        foreach (var (t, change) in candidates)
+            if (IsChanged(t, change) && seen.Add((t.ProjectId, t.Id))) tests.Add(new ChangedTest(t.ProjectId, t.Id));
+        return new ChangedTests { Available = true, Base = kind, Ref = changes.Ref, Tests = tests };
+    }
+
+    /// <summary>
+    /// A test of a changed file is changed when the file is new or its line range overlaps a changed range. The range is
+    /// the reported Line..LineEnd (TUnit); frameworks that report one line (MSTest, xUnit) or none (NUnit) get the method's
+    /// extent from the source file (<see cref="TestSourceRange"/>), else the reported line, else the whole file counts.
+    /// </summary>
+    internal static bool IsChanged(TestNode test, GitChange change)
+    {
+        if (change.Status is "added" or "untracked") return true;
+        if (change.Lines is not { } spans) return change.Status is not ("renamed" or "copied"); // a pure rename changed no line
+        (int Start, int End)? range = test.Line is { } l && test.LineEnd is { } e && e > l ? (l, e) : TestSourceRange.Find(test.FilePath, test.Line, test.MethodName);
+        if (range is not { } r)
+        {
+            if (test.Line is not { } only) return true;
+            r = (only, only);
+        }
+        return spans.Any(s => s.Start <= r.End && r.Start <= s.End);
     }
 
     /// <summary>Normalizes a base name; throws 400 badBase / badRef.</summary>

@@ -62,6 +62,7 @@ import {
   fqName,
   GROUP_LABELS,
   leaves,
+  needsChangedKeys,
   needsNewKeys,
   onStatusFilterRequest,
   QUERY_TOKENS,
@@ -75,6 +76,7 @@ import {
   type TreeNode,
   type TreeSort,
 } from "../tree";
+import { changedKeys, watchChanged } from "./changed-tests";
 import { newFailureKeys } from "./run-diff";
 import { formatDuration, loadPref, savePref } from "../util";
 import { getStore, openInEditor, testKey } from "../store";
@@ -93,6 +95,7 @@ const CHIPS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "failed", label: "Failed" },
   { id: "new", label: "New" },
+  { id: "changed", label: "Changed" },
   { id: "passed", label: "Passed" },
   { id: "skipped", label: "Skipped" },
   { id: "notRun", label: "Not run" },
@@ -105,7 +108,7 @@ export const statusFilter = signal<StatusFilter>(loadPref<StatusFilter>("statusF
 export const filterText = signal("");
 /** Failed / Flaky filters show a flat list of tests instead of the deep tree (toggle in the filter row). */
 export const flatFailures = signal<boolean>(loadPref("flatFailures", true));
-const flatCapable = (f: StatusFilter) => f === "failed" || f === "flaky" || f === "new";
+const flatCapable = (f: StatusFilter) => f === "failed" || f === "flaky" || f === "new" || f === "changed";
 
 /** Sort order of the tree (Default = source / discovery order; duration sorts rank siblings at every level). */
 export const treeSort = signal<TreeSort>(loadPref<TreeSort>("treeSort", "default"));
@@ -144,7 +147,7 @@ const filterCache = createFilterCache();
 export function treeFilterPass(roots: readonly TreeNode[]): FilterPass {
   const text = filterText();
   const status = statusFilter();
-  return filterCache(roots, text, status, needsNewKeys(text, status) ? newFailureKeys() : undefined);
+  return filterCache(roots, text, status, needsNewKeys(text, status) ? newFailureKeys() : undefined, needsChangedKeys(text, status) ? changedKeys() : undefined);
 }
 
 let activeTree: TreePane | undefined;
@@ -316,12 +319,15 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
   });
   /** the new-failure keys the filter uses (undefined unless it needs them; scripts/lib/tree-invariants.mjs reads it) */
   readonly newKeys = computed(() => this.pass().newKeys);
+  /** the changed-test keys the filter uses (undefined unless it needs them) */
+  readonly changedKeys = computed(() => this.pass().changedKeys);
   private readonly pass = computed(() => treeFilterPass(this.props.roots()));
   private readonly rows = computed(() => {
     const r = this.ranks();
     const pass = this.pass();
     return flatten(this.props.roots(), this.isExpanded, pass.text, pass.status, this.flat(), {
       newKeys: pass.newKeys,
+      changedKeys: pass.changedKeys,
       rank: r?.rank,
       flatRank: r?.flatRank,
       pass,
@@ -456,6 +462,7 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
     effect(() => savePref("treeSort", treeSort()));
     effect(() => savePref("treeGroup", treeGroup()));
     onCleanup(onStatusFilterRequest((f) => this.setStatus(f)));
+    onCleanup(watchChanged()); // the Changed chip / is:changed (git; empty outside a repository)
     // a multi-selection doesn't survive a regrouping (its keys may not exist there)
     effect(() => {
       treeGroup();
@@ -512,6 +519,8 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
       switch (id) {
         case "new":
           return newFailureKeys().size;
+        case "changed":
+          return changedKeys().size;
         case "all":
           return c.total;
         case "flaky":
@@ -613,7 +622,12 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
               active: () => this.status() === id,
               tabIndex: () => (this.status() === id ? 0 : -1),
               onclick: () => this.setStatus(id),
-              title: id === "new" ? "New failures: failing now, passed in the previous full run (or a new test)" : undefined,
+              title:
+                id === "new"
+                  ? "New failures: failing now, passed in the previous full run (or a new test)"
+                  : id === "changed"
+                    ? "Tests added or modified on this branch: since it left the base branch, plus uncommitted changes"
+                    : undefined,
             });
           },
         ),
@@ -636,8 +650,8 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
         if (!armed()) return undefined;
         return { kind: "tokens" as const, items: QUERY_TOKENS.map((q) => ({ insert: q.token, label: q.example, what: q.what })) };
       }
-      const values = (prefix: string, vals: string[]) => ({ kind: "values" as const, items: vals.slice(0, 8).map((v) => ({ insert: `${prefix}${quoteIfSpaced(v)} `, label: `${prefix}${v}`, what: "" })) });
-      if (last === "is:") return values("is:", ["failed", "passed", "skipped", "flaky", "new", "slow", "notrun", "snapshot"]);
+      const values = (prefix: string, vals: string[]) => ({ kind: "values" as const, items: vals.slice(0, 9).map((v) => ({ insert: `${prefix}${quoteIfSpaced(v)} `, label: `${prefix}${v}`, what: "" })) });
+      if (last === "is:") return values("is:", ["failed", "passed", "skipped", "flaky", "new", "changed", "slow", "notrun", "snapshot"]);
       if (last === "cat:") return values("cat:", [...new Set([...getStore().get().tests.values()].flatMap((x) => (x.traits ?? []).map((tr) => tr.value)))].sort((x, y) => x.localeCompare(y)));
       if (last === "proj:") return values("proj:", getStore().get().projects.map((p) => p.name));
       return undefined;

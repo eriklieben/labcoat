@@ -2,7 +2,7 @@
 //   - `?nogit`: the workspace is not in a git repository (GitInfo.available false, /api/affected 409 notGitRepo)
 //   - a range ref containing "nope" → 404 unknownRef
 // The plans are derived from the mock catalog's tests (their filePath), so the reasons name real mock tests.
-import type { AffectedBase, AffectedFile, AffectedPlan, AffectedProject, AffectedTest, GitInfo, TestNode } from "../contract";
+import type { AffectedBase, AffectedFile, AffectedPlan, AffectedProject, AffectedTest, ChangedTests, GitInfo, TestNode } from "../contract";
 import { AffectedError } from "../components/run-affected";
 
 const ROOT = "/src/demo/samples";
@@ -92,6 +92,13 @@ function specs(b: AffectedBase): FileSpec[] {
       reason: (t) => `Calculator.cs changed (method ${/Multiply/.test(t.methodName ?? "") ? "Multiply" : "Divide"})`,
     },
   ];
+}
+
+/** GET /api/changed-tests: the tests of the mock's edited test file (see the working plan above). */
+export async function mockChangedTests(tests: TestNode[]): Promise<ChangedTests> {
+  const git = await mockGitInfo();
+  if (!git.available) return { available: false, error: git.error, tests: [] };
+  return { available: true, base: "branch", ref: git.defaultBase, tests: tests.filter((t) => base(t.filePath) === "OrderServiceTests.cs").map((t) => ({ projectId: t.projectId, id: t.id })) };
 }
 
 /** GET /api/affected?base=&ref= against the mock catalog. */

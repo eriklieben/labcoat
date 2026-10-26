@@ -72,7 +72,7 @@ public sealed partial class StartOptions
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
             "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
-            "--export", "--filter", "--export-paths", "--min-coverage", "--min-diff-coverage", // --run (CliRun.cs)
+            "--export", "--filter", "--export-paths", "--shard", "--shard-by", "--shard-timings", "--min-coverage", "--min-diff-coverage", // --run (CliRun.cs)
         };
 
         private int _index = -1;
@@ -135,7 +135,7 @@ public sealed partial class StartOptions
             case "--root": return AddRoot(args.Value());
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
-            case "--run" or "--export" or "--filter" or "--export-paths" or "--min-coverage" or "--min-diff-coverage": return ApplyRunOption(a, args); // CliRun.cs
+            case "--run" or "--export" or "--filter" or "--export-paths" or "--shard" or "--shard-by" or "--shard-timings" or "--min-coverage" or "--min-diff-coverage": return ApplyRunOption(a, args); // CliRun.cs
             case "--log-file":
                 LogFile = args.Value();
                 return ErrorUnless(!string.IsNullOrWhiteSpace(LogFile), "--log-file needs a file (or 'auto').");
@@ -267,6 +267,8 @@ public static partial class LabcoatApp
     public static async Task<int> RunAsync(string[] args, CancellationToken ct = default)
     {
         // ------------------------------------------------------------------ CLI
+        // merge: combine the report files of a split run (CliMerge.cs); no workspace, no build, no web server.
+        if (CliMerge.IsMerge(args)) return CliMerge.Run(args.AsSpan(1).ToArray());
         var options = StartOptions.Parse(args, out var argError);
         if (options is null) return Fail(argError!, exitCode: args.Contains("--run") ? CliRun.ExitBuildError : 1);
         if (options.PrintAndExit is { } text)
