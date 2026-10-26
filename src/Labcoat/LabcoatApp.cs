@@ -267,6 +267,8 @@ public static partial class LabcoatApp
     public static async Task<int> RunAsync(string[] args, CancellationToken ct = default)
     {
         // ------------------------------------------------------------------ CLI
+        // merge: combine the report files of a split run (CliMerge.cs); no workspace, no build, no web server.
+        if (CliMerge.IsMerge(args)) return CliMerge.Run(args.AsSpan(1).ToArray());
         var options = StartOptions.Parse(args, out var argError);
         if (options is null) return Fail(argError!, exitCode: args.Contains("--run") ? CliRun.ExitBuildError : 1);
         if (options.PrintAndExit is { } text)

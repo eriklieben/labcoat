@@ -47,6 +47,8 @@ public static class Cli
           dnx Labcoat{Pre} [paths...] [options]
                                                  no install   (.NET 10 SDK; dnx reads --help/--version itself:
                                                                use 'dnx Labcoat{Pre} -- --help')
+          labcoat merge --export <format>=<file> <reports...>
+                                                 merge the report files of a split run (see below)
 
         Arguments:
           paths            .csproj / .sln / .slnx / .slnf files or directories; directories are scanned
@@ -110,6 +112,16 @@ public static class Cli
           --shard-timings <file>  JUnit XML of an earlier run (--export junit; a pattern like
                            out/*/results.xml works) that balances the shards by duration. Repeatable.
                            Without it the shards are dealt out evenly by name.
+
+        Merge shard reports (CI; builds and runs nothing):
+          merge --export <format>=<file> <inputs...>
+                           Combines the report files of a split run into one: JUnit XML, lcov and Cobertura
+                           inputs are found by content. Inputs are paths (a shell-expanded list) or a pattern with
+                           * / ? in the file name part (shards/results-*.xml; not in the folders). --export is repeatable: junit, lcov or cobertura (lcov and cobertura inputs merge
+                           into one coverage report that either is written from). A test seen twice keeps the last
+                           one (with a warning); coverage hit counts are summed per source file and line.
+                           Exit codes: 0 when no merged test failed, 1 when one failed or errored (or a report could
+                           not be written), 2 for a usage error or an input that is missing or unreadable.
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):
           --theme <name>   catppuccin, aspire, github, one, dracula, solarized or gruvbox

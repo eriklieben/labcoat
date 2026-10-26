@@ -259,6 +259,77 @@ Pipelines publish the same file with `PublishTestResults@2` (`testResultsFormat:
 out/results.xml`) and the coverage with `PublishCodeCoverageResults@2` (`summaryFileLocation: out/coverage.xml` from
 `--export cobertura=out/coverage.xml`).
 
+### Merging shard reports
+
+When the tests of a run are split over several jobs (each job runs part of them with `--run --filter ...`), each job
+writes its own report files. `labcoat merge` combines them into one set, in a last job that builds nothing and runs
+nothing:
+
+```sh
+dotnet labcoat merge --export junit=out/results.xml --export lcov=out/coverage.info --export cobertura=out/coverage.xml \
+  shards/results-*.xml shards/coverage-*.info
+```
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | No merged test failed or errored. |
+| `1` | A merged test failed or errored, or a report could not be written. |
+| `2` | The command line is invalid, or an input is missing or unreadable (nothing is written). |
+
+- **Inputs:** JUnit XML, lcov and Cobertura files, told apart by their content, not their name. Pass the paths (a
+  list your shell expanded) or a pattern with `*` / `?` in the file name part, for shells that don't expand it
+  (`shards/results-*.xml`; the folders cannot have wildcards, and a pattern never matches the files being written). A
+  named file that doesn't exist, a pattern that matches nothing and a file that is not one of these reports are errors.
+- **`--export junit=<file>`:** the suites of all inputs; a suite of the same name in several inputs becomes one. A
+  test that appears twice (same suite, `classname` and `name`, e.g. a shard that was run again) keeps the last one and
+  prints a warning. The totals are recomputed from the test cases. The first suite's properties are kept, plus
+  `labcoat.mergedFrom` (how many reports the suite came from). The file is valid against the same `junit-10.xsd` as
+  `--run`'s.
+- **`--export lcov=<file>` / `--export cobertura=<file>`:** the union of the source files of all lcov and Cobertura
+  inputs (they can be mixed, and either format can be written). Files are matched by their path as written, so every
+  shard should write the same relative paths (Labcoat's default). Per file the hit counts of each line and branch are
+  summed, and the line and branch totals and rates are recomputed. Cobertura only has branch counts per line, so its
+  branches are taken as the first ones of the line. Function records of lcov (`FN`, `FNDA`) and Cobertura `methods`
+  are not kept.
+- **Summary:** the console shows the merged tests (failed, passed, skipped) and, when there is coverage, the line and
+  branch percentages. A coverage gate can build on the same totals later; `merge` does not enforce a threshold.
+
+A GitHub Actions merge job. Each test job uploads its report files (`results-1.xml`, `coverage-1.info`, ... with
+unique names) as the artifact `shard-<n>`:
+
+```yaml
+  merge:
+    needs: test                # the matrix job that runs one shard per job and uploads its reports
+    if: ${{ !cancelled() }}    # also when a shard failed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+          merge-multiple: true      # all files into shards/
+      - name: Merge
+        run: >
+          dotnet labcoat merge
+          --export junit=out/results.xml
+          --export lcov=out/coverage.info
+          --export cobertura=out/coverage.xml
+          "shards/results-*.xml" "shards/coverage-*.info"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: merged-reports
+          path: out/
+```
+
+The Merge step fails (exit code 1) when a merged test failed, so the job is red like an unsplit run. Quote the
+patterns so the runner passes them on instead of expanding them (or leave them unquoted: both work).
+
 ## Recommended setup
 
 1. **Trying it:** `dnx Labcoat` in the repository.
