@@ -104,6 +104,12 @@ public static class Cli
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+          --shard <i>/<n>  Run shard i of n (1-based) of the tests, for parallel CI jobs. Every shard
+                           must get the same test list and --shard-timings. Shards without tests exit 0.
+          --shard-by <u>   What is split: class (default), test or project.
+          --shard-timings <file>  JUnit XML of an earlier run (--export junit; a pattern like
+                           out/*/results.xml works) that balances the shards by duration. Repeatable.
+                           Without it the shards are dealt out evenly by name.
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):
           --theme <name>   catppuccin, aspire, github, one, dracula, solarized or gruvbox

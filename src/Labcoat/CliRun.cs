@@ -17,6 +17,13 @@ public sealed partial class StartOptions
     /// <summary>--export-paths absolute: absolute source paths in lcov / Cobertura (default: relative to the workspace root).</summary>
     public bool ExportAbsolutePaths { get; private set; }
 
+    /// <summary>--shard i/n: run only this shard of the tests (see <see cref="Sharding"/>).</summary>
+    public ShardSpec? Shard { get; private set; }
+    /// <summary>--shard-by: what a shard is made of.</summary>
+    public ShardBy ShardBy { get; private set; }
+    /// <summary>--shard-timings (repeatable): JUnit XML files (or patterns) of an earlier run that balance the shards.</summary>
+    public List<string> ShardTimings { get; } = [];
+
     private static readonly string[] AllExportFormats = [.. ExportFormats.RunFormats, .. ExportFormats.CoverageFormats];
 
     private string? ApplyRunOption(string option, ArgReader args)
@@ -32,6 +39,19 @@ public sealed partial class StartOptions
                 var filter = args.Value();
                 if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
                 Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
+                return null;
+            case "--shard":
+                Shard = ShardSpec.Parse(args.Value());
+                return Shard is null ? "--shard needs index/count with 1 <= index <= count, e.g. 2/4." : null;
+            case "--shard-by":
+                var by = args.Value()?.ToLowerInvariant();
+                if (by is not ("class" or "test" or "project")) return "--shard-by needs class, test or project.";
+                ShardBy = by == "test" ? ShardBy.Test : by == "project" ? ShardBy.Project : ShardBy.Class;
+                return null;
+            case "--shard-timings":
+                var timings = args.Value();
+                if (string.IsNullOrWhiteSpace(timings)) return "--shard-timings needs a JUnit XML file (a pattern like out/*/results.xml also works).";
+                ShardTimings.AddRange(RequestGuard.SplitList(timings));
                 return null;
             default: // --export-paths
                 var mode = args.Value();
@@ -52,11 +72,13 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--export / --filter / --export-paths only make sense with --run.</summary>
-    private string? ValidateRunOptions() =>
-        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths)
-            ? "--export, --filter and --export-paths need --run."
-            : null;
+    /// <summary>--export / --filter / --export-paths / --shard* only make sense with --run.</summary>
+    private string? ValidateRunOptions()
+    {
+        if (!RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || Shard is not null || ShardTimings.Count > 0))
+            return "--export, --filter, --export-paths, --shard and --shard-timings need --run.";
+        return Shard is null && ShardTimings.Count > 0 ? "--shard-timings needs --shard." : null;
+    }
 }
 
 /// <summary>
@@ -113,6 +135,18 @@ public static class CliRun
                 return broken.Count > 0 ? ExitBuildError : ExitFailed;
             }
         }
+        if (options.Shard is { } shard)
+        {
+            var plan = PlanShard(explorer, options, shard, ids);
+            if (plan is null) return ExitBuildError;
+            if (plan.TestIds.Count == 0)
+            {
+                Console.WriteLine("  This shard has no tests: nothing to run.");
+                WriteExports(explorer, options, null);
+                return BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed;
+            }
+            ids = plan.TestIds;
+        }
         var wantCoverage = coverage || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
         var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
         if (request.Status != 202)
@@ -129,6 +163,36 @@ public static class CliRun
         PrintResult(run, status, broken, sw.Elapsed);
         var exportsOk = WriteExports(explorer, options, run?.RunId);
         return ExitCode(run, broken, exportsOk);
+    }
+
+    /// <summary>This shard's tests of those that would run; null (after an error message) when the timings cannot be read.</summary>
+    private static ShardPlan? PlanShard(Explorer explorer, StartOptions options, ShardSpec shard, List<string>? ids)
+    {
+        var snapshot = explorer.Snapshot();
+        var names = snapshot.Projects.ToDictionary(p => p.Id, p => p.Name, StringComparer.Ordinal);
+        var selected = ids is null ? snapshot.Tests : snapshot.Tests.Where(t => ids.Contains(t.Id)).ToList();
+        ShardTimings? timings = null;
+        if (options.ShardTimings.Count > 0)
+        {
+            try
+            {
+                var files = Labcoat.ShardTimings.Resolve(options.ShardTimings);
+                if (files.Count == 0) Console.Error.WriteLine($"{WarningLabel} --shard-timings matched no file: the tests are dealt out without timings.");
+                else timings = Labcoat.ShardTimings.Load(files);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+            {
+                Console.Error.WriteLine($"{ErrorLabel} {ex.Message}");
+                return null;
+            }
+        }
+        var plan = Sharding.Plan(selected, id => names.GetValueOrDefault(id, id), shard, options.ShardBy, timings);
+        var unit = options.ShardBy.ToString().ToLowerInvariant();
+        var estimate = plan.EstimatedMs is { } ms ? $", about {HtmlReport.Duration(ms)}" : "";
+        Console.WriteLine($"  --shard {shard}: {plan.TestIds.Count} of {selected.Count} tests ({plan.Units} of {plan.TotalUnits} {unit}es{estimate}), split {plan.Fingerprint}");
+        if (timings is null)
+            Console.WriteLine(Cli.Dim("    No timings: the shards are dealt out evenly by name. --shard-timings <results.xml> balances them by duration."));
+        return plan;
     }
 
     /// <summary>Projects whose build or discovery failed.</summary>

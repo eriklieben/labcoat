@@ -177,6 +177,55 @@ palette ("Export run as JUnit XML / HTML report", "Export coverage as lcov") and
 page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html`, `GET /api/coverage/export?format=lcov|cobertura`,
 see [contract.md](contract.md#export-added)).
 
+### Sharding
+
+`--shard <i>/<n>` runs shard *i* of *n* (1-based) of the tests, so a matrix of CI jobs can run one suite in parallel. Every shard builds and
+discovers all test projects, works out the same split on its own and runs only its part.
+
+| Option | |
+| --- | --- |
+| `--shard <i>/<n>` | Run this shard. A shard without tests (more shards than classes) writes empty reports and exits `0`. Applies after `--filter`. |
+| `--shard-by class\|test\|project` | What is split. `class` (default) keeps a class together, so a class fixture or a started app runs once; `test` splits finer for a suite with a few huge classes; `project` keeps whole projects together. |
+| `--shard-timings <file>` | The JUnit XML of an earlier run (`--export junit`) that balances the shards by duration. Repeatable and comma-separated; a name with `*` or `?` in its last segment (`timings/*/results.xml`) matches several files. A named file that does not exist is an error; a pattern that matches nothing is a warning and the tests are dealt out by name. |
+
+Without timings the classes are sorted by name and dealt out one by one: even in count, not in duration. With timings the
+longest class goes first to the shard with the least work so far, and a class without a timing counts as the median one.
+
+Every shard must see the same test list and the same timing files: that is what makes the shards add up to the whole
+suite. Labcoat's own history is therefore not used, as it differs per machine. Each shard prints a split id
+(`split 9f3a1c`); when the ids of the shards differ, they did not see the same input. The reports of the shards are
+separate: publish one JUnit file per shard (or merge them), and merge the lcov files before a coverage service reads them.
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - name: Test
+        run: >
+          dotnet labcoat --run MyApp.slnx
+          --shard ${{ matrix.shard }}/4
+          --shard-timings "timings/*.xml"
+          --export junit=out/results-${{ matrix.shard }}.xml
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: junit-${{ matrix.shard }}
+          path: out/results-${{ matrix.shard }}.xml
+```
+
+Download the JUnit artifacts of the last green run into `timings/` in every job (for example with `actions/cache` or
+`gh run download`) to get balanced shards.
+
 ### GitHub Actions
 
 ```yaml
