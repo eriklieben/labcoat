@@ -4,7 +4,7 @@
 //   node eng/release.mjs verify [--dry-run]   tools are there; NUGET_API_KEY is set (not checked in a dry run)
 //   node eng/release.mjs prepare <version> [--baseline=<version>]
 //                                             set <VersionPrefix> in src/Directory.Build.props, build the UI (ui/),
-//                                             `dotnet pack` the eight packages with -p:Version=<version> into artifacts/.
+//                                             `dotnet pack` the nine packages with -p:Version=<version> into artifacts/.
 //                                             --baseline: the package validation baseline (semantic-release passes
 //                                             lastRelease.version): written to <PackageValidationBaselineVersion> and
 //                                             used for this pack; `--baseline=` (no previous release) packs without
@@ -39,7 +39,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const artifacts = path.join(root, "artifacts");
 const props = path.join(root, "src", "Directory.Build.props");
 const packages = ["Labcoat", "Labcoat.Aspire.Hosting", "Labcoat.Testing", "Labcoat.Testing.MSTest", "Labcoat.Testing.TUnit", "Labcoat.Testing.NUnit",
-  "Labcoat.Testing.XUnit", "Labcoat.TestingPlatform"];
+  "Labcoat.Testing.XUnit", "Labcoat.TestingPlatform", "Labcoat.Vitest"];
+// Packages without a symbol package (.snupkg): no assembly (Labcoat.Vitest carries a Node.js runner only).
+const withoutSymbols = new Set(["Labcoat.Vitest"]);
 const semver = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
 const log = (...args) => console.error("[release]", ...args);
@@ -230,7 +232,7 @@ function exportSboms(version) {
 }
 
 const packageFiles = (version) =>
-  packages.flatMap((id) => [`${id}.${version}.nupkg`, `${id}.${version}.snupkg`]).map((f) => path.join(artifacts, f));
+  packages.flatMap((id) => [`${id}.${version}.nupkg`, ...(withoutSymbols.has(id) ? [] : [`${id}.${version}.snupkg`])]).map((f) => path.join(artifacts, f));
 
 function verify(dryRun) {
   run("dotnet", ["--version"]);

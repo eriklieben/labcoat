@@ -281,7 +281,7 @@ public sealed class LabcoatConfig
     private const string TraceFilterKey = "traceFilter";
 
     private static readonly string[] FileKeys = ["$schema", "ui", "watch", CoverageKey, "traces", TraceFilterKey, "port", "affectedBase", "impactMap",
-        "maxParallelProjects", "hangThreshold", "testTimeout"];
+        "maxParallelProjects", "hangThreshold", "testTimeout", "runners"];
 
     /// <summary>Everything <see cref="Load"/> reads; tests pass their own home / env so they never see the real ones.</summary>
     public sealed record Inputs
@@ -336,6 +336,8 @@ public sealed class LabcoatConfig
     public string? AffectedBase { get; private set; }
     /// <summary>"impactMap" of the files (the workspace file wins): "class" | "test" | "auto" (ImpactMapModes).</summary>
     public string? ImpactMap { get; private set; }
+    /// <summary>"runners": the test runners to use (["dotnet", "vitest"] or "dotnet,vitest"); null = the default (Runners.cs).</summary>
+    public List<string>? Runners { get; private set; }
     /// <summary>"maxParallelProjects" of the files (the workspace file wins): projects discovered / run at once.</summary>
     public int? MaxParallelProjects { get; private set; }
     /// <summary>"hangThreshold" of the files: a running test is shown as possibly hanging after this long (zero = never).</summary>
@@ -438,6 +440,9 @@ public sealed class LabcoatConfig
             case "port":
                 Port = ReadPort(value, display) ?? Port;
                 break;
+            case "runners":
+                Runners = ReadRunners(value, display) ?? Runners;
+                break;
             default:
                 Warnings.Add(UiSettings.Find(key) is { } ui
                     ? $"{display}: '{key}' is a UI setting; put it under \"ui\" ({{ \"ui\": {{ \"{ui.Key}\": … }} }}); ignored."
@@ -490,6 +495,18 @@ public sealed class LabcoatConfig
         if (value is not JsonValue v) return null;
         if (v.TryGetValue<string>(out var text)) return text;
         return v.TryGetValue<double>(out var number) ? number.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+    }
+
+    private List<string>? ReadRunners(JsonNode? value, string display)
+    {
+        var text = value switch
+        {
+            JsonArray a => string.Join(',', a.Select(ScalarText)),
+            _ => ScalarText(value),
+        };
+        if (TestRunners.ParseList(text) is { } runners) return runners;
+        Warnings.Add($"{display}: 'runners' must name test runners, e.g. [\"dotnet\", \"vitest\"]; ignored.");
+        return null;
     }
 
     private string? ReadImpactMap(JsonNode? value, string display)

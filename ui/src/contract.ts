@@ -218,14 +218,15 @@ export interface CoverageReport {
 /** CoverageReport.settings: how a project's coverage was collected (docs/features.md "Code coverage"). */
 export interface CoverageSettingsInfo {
   projectId: string;
-  /** "file": a coverage settings / runsettings file; "testconfig": the codeCoverage section of testconfig.json; "defaults": Labcoat's */
-  source: "file" | "testconfig" | "defaults";
+  /** "file": a coverage settings / runsettings file; "testconfig": the codeCoverage section of testconfig.json; "defaults": Labcoat's;
+   *  "runner": a runner package's project (docs/runners.md): the runner's own settings, `path` its config file, `origin` its name */
+  source: "file" | "testconfig" | "defaults" | "runner";
   /** the settings file (absolute); absent for "defaults" */
   path?: string;
   /** how the file was found: Coverage.Settings, --coverage-settings in TestingPlatformCommandLineArguments, or by name */
-  origin?: "option" | "msbuild" | "convention";
-  /** "dynamic": the CLR profiler (no file rewritten); "static": assemblies instrumented in place */
-  instrumentation: "dynamic" | "static";
+  origin?: "option" | "msbuild" | "convention" | (string & {});
+  /** "dynamic": the CLR profiler (no file rewritten); "static": assemblies instrumented in place; "runner": the runner's own */
+  instrumentation: "dynamic" | "static" | "runner";
   /** "defaults" only: the assemblies counted (referenced projects); absent = every module except tests, frameworks and Labcoat */
   modules?: string[];
   include?: string[];
@@ -418,6 +419,8 @@ export interface TestProject {
   /** the project isn't on Microsoft.Testing.Platform: "vstest" (a VSTest test project) or "none" (no test framework).
    *  Labcoat doesn't build or start it; `diagnostics` says how to switch it. Absent: on MTP (or not known yet). */
   testPlatform?: "vstest" | "none";
+  /** the runner package that runs the project, e.g. "vitest" (docs/runners.md); absent: a .NET test project */
+  runner?: string;
 }
 
 /** Round 3 commands owned by the runs/settings area (send with `store.send(cmd as unknown as ClientCommand)`). */

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Labcoat.Vitest: Labcoat's Vitest runner (runner/, docs/runners.md). No .NET code: the package carries the runner
+    (a runner.json and a Node.js test host that drives the project's own Vitest) and copies it next to the explorer
+    that Labcoat.Aspire.Hosting bundles into the AppHost's output (labcoat/runners/vitest/), where Labcoat finds it.
+    The standalone tool fetches the same package when asked for the vitest runner (RunnerPackages.cs).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>Labcoat.Vitest</PackageId>
+    <Description>Vitest runner for Labcoat: lists and runs the Vitest tests of your JavaScript / TypeScript projects in Labcoat next to your .NET tests, with live results, warm reruns, watch mode and coverage. Reference it from the Aspire AppHost next to Labcoat.Aspire.Hosting.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>aspire;testing;vitest;javascript;typescript;test-runner;test-explorer;labcoat</PackageTags>
+    <!-- Content only: no assembly, no dependencies, no symbols, no public API to validate. -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <IncludeSymbols>false</IncludeSymbols>
+    <EnablePackageValidation>false</EnablePackageValidation>
+    <!-- NU5128: no lib/ folder on purpose (nothing to reference). -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- In the package under runner/ (buildTransitive/ copies it to labcoat/runners/vitest/ of the AppHost). In-repo, a
+         ProjectReference gets the same copy-to-output items. -->
+    <None Include="runner\**" Pack="true" PackagePath="runner\" Link="labcoat\runners\vitest\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="buildTransitive\Labcoat.Vitest.targets" Pack="true" PackagePath="buildTransitive\" />
+  </ItemGroup>
+
+</Project>

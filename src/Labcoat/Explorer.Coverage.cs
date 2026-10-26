@@ -36,6 +36,7 @@ public sealed partial class Explorer
     /// <summary>The settings of a coverage run of <paramref name="p"/> (logged, and listed in the report).</summary>
     private CoveragePlan CoveragePlanFor(ProjectEntry p)
     {
+        if (p.Plugin is { } plugin) return RunnerCoveragePlan(p, plugin);
         CoverageProject project;
         var tests = TestAssemblyNames();
         lock (Sync)
@@ -54,6 +55,25 @@ public sealed partial class Explorer
         var plan = CoverageSettingsResolver.Plan(project, CoverageOptions, Path.Combine(CoverageDir, "settings"), (level, message) => Log(p.Project.Id, level, message));
         Log(p.Project.Id, LogLevels.Info, "Coverage settings: " + plan.Info.Describe(Path.GetDirectoryName(p.Project.Path)));
         return plan;
+    }
+
+    /// <summary>
+    /// A runner package's project: the runner collects coverage with its own settings (e.g. the coverage section of the
+    /// Vitest config); Labcoat only picks the output and keeps its include / exclude globs for the report.
+    /// </summary>
+    private CoveragePlan RunnerCoveragePlan(ProjectEntry p, RunnerPlugin plugin)
+    {
+        var dir = Path.GetDirectoryName(p.Project.Path)!;
+        var config = plugin.ConfigFiles.Select(f => Path.Combine(dir, f)).FirstOrDefault(File.Exists) ?? p.Project.Path;
+        var info = new CoverageSettingsInfo
+        {
+            ProjectId = p.Project.Id, Source = CoverageSettingsInfo.RunnerSource, Path = config, Origin = plugin.DisplayName,
+            Instrumentation = CoverageSettingsInfo.RunnerSource,
+            Include = CoverageOptions.Include.Count > 0 ? [.. CoverageOptions.Include] : null,
+            Exclude = CoverageOptions.Exclude.Count > 0 ? [.. CoverageOptions.Exclude] : null,
+        };
+        Log(p.Project.Id, LogLevels.Info, "Coverage settings: " + info.Describe(dir));
+        return new CoveragePlan([], info, CoverageFilter.ForSettingsFile(CoverageOptions));
     }
 
     /// <summary>

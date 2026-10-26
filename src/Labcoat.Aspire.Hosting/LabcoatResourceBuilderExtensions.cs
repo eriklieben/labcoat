@@ -22,6 +22,12 @@ public static class LabcoatResourceBuilderExtensions
     /// <summary>Environment variable that carries <see cref="WithAffectedBase"/> to the explorer.</summary>
     public const string AffectedBaseEnvironmentVariable = "LABCOAT_AFFECTED_BASE";
 
+    /// <summary>Environment variable that carries <see cref="WithRunners"/> to the explorer.</summary>
+    public const string RunnersEnvironmentVariable = "LABCOAT_RUNNERS";
+
+    /// <summary>Environment variable with the folder of the runner packages the AppHost references (labcoat/runners).</summary>
+    public const string RunnerPathEnvironmentVariable = "LABCOAT_RUNNER_PATH";
+
     /// <summary>Environment variable that carries <see cref="WithImpactMap"/> to the explorer.</summary>
     public const string ImpactMapEnvironmentVariable = "LABCOAT_IMPACT_MAP";
 
@@ -115,6 +121,7 @@ public static class LabcoatResourceBuilderExtensions
         if (!string.IsNullOrWhiteSpace(options.CoverageSettings)) rb.WithCoverageSettings(options.CoverageSettings);
         if (options.CoverageInclude.Count > 0 || options.CoverageExclude.Count > 0) rb.WithCoverageFilter(options.CoverageInclude, options.CoverageExclude);
         if (options.HostPort is { } port && rb.Resource.Annotations.OfType<EndpointAnnotation>().Any()) rb.WithHostPort(port);
+        if (options.Runners.Count > 0) rb.WithRunners([.. options.Runners]);
         return rb;
     }
 
@@ -274,6 +281,11 @@ public static class LabcoatResourceBuilderExtensions
         if (!string.IsNullOrWhiteSpace(resource.AffectedBase)) env[AffectedBaseEnvironmentVariable] = resource.AffectedBase;
         if (!string.IsNullOrWhiteSpace(resource.ImpactMap)) env[ImpactMapEnvironmentVariable] = resource.ImpactMap;
         if (!string.IsNullOrWhiteSpace(resource.TracingFilter)) env[TraceFilterEnvironmentVariable] = resource.TracingFilter;
+        if (resource.Runners.Count > 0) env[RunnersEnvironmentVariable] = string.Join(',', resource.Runners);
+        // Runner packages the AppHost references (Labcoat.Vitest, …) copy their runner to labcoat/runners/<id>/. The bundled
+        // explorer looks there by itself; the `dotnet tool exec` fallback needs to be told.
+        var runners = Path.Combine(BaseDirectory, BundleFolderName, "runners");
+        if (Directory.Exists(runners)) env[RunnerPathEnvironmentVariable] = runners;
     }
 
     /// <summary>The AppHost's dashboard: its URL, and its telemetry API (URL and API key) for the Aspire failure context.</summary>
@@ -298,6 +310,28 @@ public static class LabcoatResourceBuilderExtensions
         ArgumentException.ThrowIfNullOrEmpty(path);
         var full = Path.GetFullPath(Path.Combine(builder.ApplicationBuilder.AppHostDirectory, path));
         if (!builder.Resource.TestProjects.Contains(full)) builder.Resource.TestProjects.Add(full);
+        return builder;
+    }
+
+    /// <summary>
+    /// The test runners this Labcoat uses, e.g. <c>.WithRunners("vitest")</c> for only the Vitest projects, or
+    /// <c>.WithRunners("dotnet", "vitest")</c>. <c>"dotnet"</c> runs .NET test projects on Microsoft.Testing.Platform
+    /// (MSTest, NUnit, xUnit v3, TUnit; "mstest" means the same); other names are runner packages, which the AppHost must
+    /// reference (<c>Labcoat.Vitest</c> for <c>"vitest"</c>). Without this call: dotnet plus every referenced runner package.
+    /// </summary>
+    public static IResourceBuilder<LabcoatResource> WithRunners(this IResourceBuilder<LabcoatResource> builder, params string[] runners)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(runners);
+        if (runners.Length == 0) throw new ArgumentException("Name at least one test runner, e.g. \"dotnet\" or \"vitest\".", nameof(runners));
+        var names = runners.Select(r => r?.Trim().ToLowerInvariant() ?? "").ToList();
+        foreach (var (name, given) in names.Zip(runners))
+        {
+            if (name.Length == 0 || name.Contains(',') || name.Any(char.IsWhiteSpace) || name.StartsWith('-'))
+                throw new ArgumentException($"'{given}' is not a test runner name.", nameof(runners));
+        }
+        builder.Resource.Runners.Clear();
+        foreach (var name in names.Distinct()) builder.Resource.Runners.Add(name);
         return builder;
     }
 

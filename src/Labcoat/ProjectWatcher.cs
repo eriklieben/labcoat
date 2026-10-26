@@ -5,7 +5,8 @@ namespace Labcoat;
 /// <c>*.fsproj</c>, <c>*.vbproj</c>), solutions (<c>*.sln</c>, <c>*.slnx</c>, <c>*.slnf</c>) and <c>Directory.*.props</c> /
 /// <c>Directory.*.targets</c>. Changes are debounced: a burst (a branch switch, a <c>dotnet new</c>) is reported once,
 /// after <see cref="Quiet"/> without further changes (at most <see cref="MaxDelay"/> after the first one). bin, obj,
-/// node_modules and dot-folders are ignored.
+/// node_modules and dot-folders are ignored. With runner packages (docs/runners.md) also their project files: package.json
+/// and the runners' config files (<see cref="ProjectFileNames"/>).
 /// </summary>
 public sealed class ProjectWatcher : IDisposable
 {
@@ -21,6 +22,9 @@ public sealed class ProjectWatcher : IDisposable
     public TimeSpan Quiet { get; init; } = TimeSpan.FromSeconds(1.5);
     /// <summary>Longest delay after the first change of a burst.</summary>
     public TimeSpan MaxDelay { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>More file names that can add or remove a test project (runner packages' package.json and config files).</summary>
+    public IReadOnlySet<string> ProjectFileNames { get; init; } = new HashSet<string>();
 
     /// <param name="roots">Directories watched recursively (missing ones are skipped).</param>
     /// <param name="changed">Called (on a timer thread) with the changed paths of a burst.</param>
@@ -106,7 +110,7 @@ public sealed class ProjectWatcher : IDisposable
     {
         var relative = Relative(path);
         var folder = structural && Directory.Exists(path) && !IsIgnored(relative + Path.DirectorySeparatorChar + "x");
-        if (!folder && !IsRelevant(relative)) return;
+        if (!folder && !IsRelevant(relative) && !(ProjectFileNames.Contains(Path.GetFileName(relative)) && !IsIgnored(relative))) return;
         lock (_gate)
         {
             if (_disposed) return;

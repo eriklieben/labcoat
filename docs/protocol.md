@@ -65,6 +65,9 @@ To host the explorer in an Aspire AppHost, use the `Labcoat.Aspire.Hosting` inte
      `Directory.*` files and `obj/project.assets.json`. This sees settings from `Directory.Build.props`, central
      package management and package props (`IsTestingPlatformApplication` comes from the MTP MSBuild package once the
      project is restored).
+- With runner packages ([runners.md](runners.md#which-projects)) a scan also finds their projects (a runner config
+  file, or a `package.json` that depends on the runner), and a solution's folder is scanned for them. They are never
+  built or evaluated with MSBuild.
 
 ### Behaviour
 
@@ -194,6 +197,11 @@ No `location.namespace` and no exception type were observed. Mapping to the cont
 `line`/`lineEnd` = `location.line-start`/`line-end`; traits `{K: ""}` → `{key: "Category", value: K}`, `{K: V}` →
 `{key: K, value: V}`; `error`/`failed` → `failed`, `timed-out` → `timedOut`; `errorType` is a best-effort guess
 (from "threw exception: X" in the message, or Assert frames in the stack trace); `\r\n` in output is normalized to `\n`.
+
+Runner packages ([runners.md](runners.md#writing-a-runner)), such as Labcoat.Vitest, speak the same protocol from a host
+of their own (`<command> --project <file> --server --client-port <port>`). Their nodes add `labcoat.namespace`,
+`labcoat.class` and `labcoat.method`; when `labcoat.namespace` is set, these give the tree levels instead of
+`location.type` / `location.method` (file and test names hold dots and parentheses).
 
 ### Several requests per session (warm host)
 
