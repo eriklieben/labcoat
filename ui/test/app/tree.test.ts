@@ -299,6 +299,16 @@ describe("flatten", () => {
     expect(flatten(roots, allExpanded, "", "new", true)).toHaveLength(0);
   });
 
+  it("changed filter uses the changed keys", () => {
+    const tests = [testNode({ id: "N.C.A" }), testNode({ id: "N.C.B" })];
+    const roots = buildTree([project()], mapOf(tests));
+    expect(flatten(roots, allExpanded, "", "changed", true, { changedKeys: new Set(["P1|N.C.A"]) }).map((r) => r.node.label)).toEqual(["A"]);
+    expect(flatten(roots, allExpanded, "", "changed", true)).toHaveLength(0);
+    expect(matchingTests(roots, "is:changed", "all", undefined, new Set(["P1|N.C.B"])).map((t) => t.id)).toEqual(["N.C.B"]);
+    expect(matchingTests(roots, "is:ch", "all", undefined, new Set(["P1|N.C.B"]))).toHaveLength(1); // prefixes work like the other values
+    expect(matchingTests(roots, "is:changed", "all")).toHaveLength(0);
+  });
+
   it("orders siblings by rank (duration sort)", () => {
     const { projects, map } = suite();
     const roots = buildTree(projects, map);
