@@ -171,7 +171,7 @@ const W = 132;
 const H = 28;
 const PAD = 4;
 
-function sparkline(history: HistoryEntry[], hover: number | undefined): string {
+export function sparkline(history: HistoryEntry[], hover: number | undefined): string {
   const pts = history
     .map((e, i) => ({ i, e, d: e.outcome === "skipped" ? undefined : e.durationMs }))
     .filter((x): x is { i: number; e: HistoryEntry; d: number } => x.d != null);

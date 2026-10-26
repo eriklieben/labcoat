@@ -354,6 +354,46 @@ public class RunLimitsTests
     }
 
     [TestMethod]
+    public void The_duration_budget_is_a_run_option()
+    {
+        Assert.AreEqual(TimeSpan.FromMilliseconds(500), StartOptions.Parse(["--run", "--max-test-duration", "500ms"], out var error)!.MaxTestDuration);
+        Assert.IsNull(error);
+        Assert.AreEqual(TimeSpan.FromSeconds(2), StartOptions.Parse(["--run", "--max-test-duration=2s"], out _)!.MaxTestDuration);
+        Assert.IsNull(StartOptions.Parse(["--run", "--max-test-duration", "slow"], out error));
+        StringAssert.Contains(error, "--max-test-duration needs seconds or a duration");
+        Assert.IsNull(StartOptions.Parse(["--max-test-duration", "2s"], out error));
+        StringAssert.Contains(error, "--max-test-duration need --run");
+    }
+
+    [TestMethod]
+    public void The_duration_budget_comes_from_the_command_line_then_the_environment_then_the_settings_files()
+    {
+        var dir = Directory.CreateTempSubdirectory("labcoat-budget-");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir.FullName, ".git"));
+            File.WriteAllText(Path.Combine(dir.FullName, ".labcoat.json"), """{ "maxTestDuration": "5s" }""");
+            var config = LabcoatConfig.Load(new LabcoatConfig.Inputs { WorkspaceRoot = dir.FullName, Home = Path.Combine(dir.FullName, "home"), NoUserConfig = true });
+            Assert.IsEmpty(config.Warnings);
+            Assert.AreEqual(TimeSpan.FromSeconds(5), config.MaxTestDuration);
+
+            var env = new Dictionary<string, string?>();
+            Assert.AreEqual(TimeSpan.FromSeconds(5), LabcoatApp.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n)).EffectiveMaxTestDuration);
+            env[RunLimits.MaxTestDurationEnv] = "2";
+            Assert.AreEqual(TimeSpan.FromSeconds(2), LabcoatApp.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n)).EffectiveMaxTestDuration);
+            var cli = StartOptions.Parse(["--run", "--max-test-duration", "off"], out _)!;
+            Assert.AreEqual(TimeSpan.Zero, LabcoatApp.ResolveRunLimits(cli, config, n => env.GetValueOrDefault(n)).EffectiveMaxTestDuration);
+            Assert.AreEqual(TimeSpan.Zero, RunLimitOptions.Default.EffectiveMaxTestDuration);
+
+            File.WriteAllText(Path.Combine(dir.FullName, ".labcoat.json"), """{ "maxTestDuration": "soon" }""");
+            config = LabcoatConfig.Load(new LabcoatConfig.Inputs { WorkspaceRoot = dir.FullName, Home = Path.Combine(dir.FullName, "home"), NoUserConfig = true });
+            StringAssert.Contains(config.Warnings.Single(), "'maxTestDuration' must be seconds or a duration");
+            Assert.IsNull(config.MaxTestDuration);
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [TestMethod]
     public void Run_limits_come_from_the_command_line_then_the_environment_then_the_settings_files()
     {
         var dir = Directory.CreateTempSubdirectory("labcoat-limits-");

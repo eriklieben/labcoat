@@ -135,6 +135,11 @@
       "pattern": "^\\s*(off|none|\\d+(\\.\\d+)?\\s*(ms|s|sec|m|min|h|hour)?)\\s*$",
       "description": "Per-test timeout (like --test-timeout): a test running longer is marked timed out and its project's run is cancelled. Seconds, or a duration such as \"30s\", \"5m\". 0 or \"off\" = no timeout (the default). Not MTP's --timeout, which limits a whole test session."
     },
+    "maxTestDuration": {
+      "type": ["number", "string"],
+      "pattern": "^\\s*(off|none|\\d+(\\.\\d+)?\\s*(ms|s|sec|m|min|h|hour)?)\\s*$",
+      "description": "Duration budget of --run (like --max-test-duration): a test that took longer is listed and fails the run (exit code 1); quarantined tests are left out and nothing is cancelled (unlike testTimeout). Seconds, or a duration such as \"2s\", \"500ms\". 0 or \"off\" = no budget (the default)."
+    },
     "port": {
       "type": "integer",
       "minimum": 1,

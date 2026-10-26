@@ -281,7 +281,7 @@ public sealed class LabcoatConfig
     private const string TraceFilterKey = "traceFilter";
 
     private static readonly string[] FileKeys = ["$schema", "ui", "watch", CoverageKey, "traces", TraceFilterKey, "port", "affectedBase", "impactMap",
-        "maxParallelProjects", "hangThreshold", "testTimeout"];
+        "maxParallelProjects", "hangThreshold", "testTimeout", "maxTestDuration"];
 
     /// <summary>Everything <see cref="Load"/> reads; tests pass their own home / env so they never see the real ones.</summary>
     public sealed record Inputs
@@ -342,6 +342,8 @@ public sealed class LabcoatConfig
     public TimeSpan? HangThreshold { get; private set; }
     /// <summary>"testTimeout" of the files: per-test timeout (zero = off).</summary>
     public TimeSpan? TestTimeout { get; private set; }
+    /// <summary>"maxTestDuration" of the files: with --run, a test that took longer fails the run (zero = no budget).</summary>
+    public TimeSpan? MaxTestDuration { get; private set; }
     public List<UiLayer> UiLayers { get; } = [];
     /// <summary>Problems found while reading (unknown keys, invalid values, malformed env JSON): logged at startup.</summary>
     public List<string> Warnings { get; } = [];
@@ -429,7 +431,7 @@ public sealed class LabcoatConfig
             case "maxParallelProjects":
                 MaxParallelProjects = ReadMaxParallel(value, display) ?? MaxParallelProjects;
                 break;
-            case "hangThreshold" or "testTimeout":
+            case "hangThreshold" or "testTimeout" or "maxTestDuration":
                 ReadDuration(key, value, display);
                 break;
             case "impactMap":
@@ -472,7 +474,7 @@ public sealed class LabcoatConfig
         return null;
     }
 
-    /// <summary>"hangThreshold" / "testTimeout": seconds, or a duration such as "90s", "5m"; 0 or "off" turns it off.</summary>
+    /// <summary>"hangThreshold" / "testTimeout" / "maxTestDuration": seconds, or a duration such as "90s", "5m"; 0 or "off" turns it off.</summary>
     private void ReadDuration(string key, JsonNode? value, string display)
     {
         if (RunLimits.ParseDuration(ScalarText(value)) is not { } d)
@@ -481,7 +483,8 @@ public sealed class LabcoatConfig
             return;
         }
         if (key == "hangThreshold") HangThreshold = d;
-        else TestTimeout = d;
+        else if (key == "testTimeout") TestTimeout = d;
+        else MaxTestDuration = d;
     }
 
     /// <summary>A JSON number or string as text (invariant culture); null for anything else.</summary>

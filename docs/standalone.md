@@ -155,7 +155,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | Exit code | Meaning |
 | --- | --- |
 | `0` | No test failed (skipped tests and failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests don't count). |
-| `1` | A test failed or timed out, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, or a report could not be written. |
+| `1` | A test failed or timed out, a test took longer than `--max-test-duration`, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, or a report could not be written. |
 | `2` | A project did not build or discover, nothing could run, or the command line is invalid. |
 
 | Option | |
@@ -165,6 +165,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
 | `--export-paths absolute` | Absolute source paths in lcov / Cobertura. The default writes them relative to the workspace root: the git repository root, else the common folder of the inputs and the test projects (and what they reference); files outside it stay absolute. |
+| `--max-test-duration <duration>` | A budget per test: tests that took longer are listed and fail the run (exit code `1`), quarantined tests excepted. Nothing is cancelled, unlike `--test-timeout`. Also `maxTestDuration` in the settings file ([Duration budget](configuration.md#duration-budget)). |
 | `--filter <pattern>` | Only tests whose display name, `Namespace.Class(.Method)` or project contains the pattern; `*` is a wildcard over the whole name (`*CartTests.Pay*`). Comma-separated; repeatable. |
 
 Coverage counts what the [coverage settings](features.md#which-code-counts) count: the project's settings file, or

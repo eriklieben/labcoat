@@ -91,6 +91,38 @@ public class CliRunTests
         Assert.AreEqual(CliRun.ExitBuildError, CliRun.ExitCode(null, [], true));
     }
 
+    [TestMethod]
+    public void Tests_over_the_duration_budget_fail_the_run()
+    {
+        var ok = new RunSummary { RunId = "r", StartedAt = "x", Passed = 3 };
+        Assert.AreEqual(CliRun.ExitFailed, CliRun.ExitCode(ok, [], true, overBudget: 1));
+        Assert.AreEqual(CliRun.ExitPassed, CliRun.ExitCode(ok, [], true, overBudget: 0));
+    }
+
+    [TestMethod]
+    public void The_duration_budget_lists_slow_tests_but_not_quarantined_or_skipped_ones()
+    {
+        static ExportTest T(string id, Outcome outcome, double? ms, bool quarantined = false) => new()
+        {
+            ProjectId = "P", Id = id, Name = id, Outcome = outcome, DurationMs = ms, Quarantined = quarantined,
+        };
+        var export = new RunExport
+        {
+            WorkspaceName = "w", Version = "1", Run = new RunSummary { RunId = "r", StartedAt = "x" }, Projects = [], GeneratedAt = "x",
+            Tests =
+            [
+                T("fast", Outcome.Passed, 100), T("edge", Outcome.Passed, 1000), T("slow", Outcome.Passed, 1500),
+                T("slowest-failed", Outcome.Failed, 9000), T("quarantined", Outcome.Passed, 8000, quarantined: true),
+                T("skipped", Outcome.Skipped, 5000), T("unknown", Outcome.Passed, null),
+            ],
+        };
+        var over = DurationBudget.OverBudget(export, TimeSpan.FromSeconds(1));
+        CollectionAssert.AreEqual(new[] { "slowest-failed", "slow" }, over.Select(t => t.Id).ToArray());
+        Assert.AreEqual(9000, over[0].DurationMs);
+        Assert.IsEmpty(DurationBudget.OverBudget(export, TimeSpan.Zero), "a zero budget is off");
+        Assert.IsEmpty(DurationBudget.OverBudget(export, TimeSpan.FromMinutes(1)));
+    }
+
     // ------------------------------------------------------------------ end to end
 
     private static readonly string[] IsolatedEnv = ["LABCOAT_HISTORY_DIR", LabcoatConfig.NoUserConfigEnv, "LABCOAT_NAME", "NO_COLOR", "CI"];

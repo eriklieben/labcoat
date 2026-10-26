@@ -691,6 +691,7 @@ type ClientCommand = /* … */
 | `POST /api/target-framework` | `{ projectId, targetFramework? }` | `202` (rebuild + rediscover start); `400` not one of `availableFrameworks`; `404` unknown project; `409` project not evaluated yet |
 | `GET /api/tests/details` | `?projectId=&id=` | `200 TestNode` (full: capped output, history); `404`; `400` without id |
 | `GET /api/tests/history` | `?projectId=&id=` (both optional) | `200 { tests: [{ projectId, id, history, flaky? }] }` — without `id`: every test that has history; `404` unknown project / test |
+| `GET /api/tests/slowest` | `?projectId=&limit=` (both optional) | `200 { projectId?, total, tests: SlowTest[] }` — the slowest tests of the project (or of all), slowest first, see "Slowest tests"; `400` limit below 1; `404` unknown project |
 | `GET /api/tests/output` | `?projectId=&id=` | `200 { projectId, id, stdOut?, stdErr?, truncated }` — full output when retained (`truncated: false`), else the capped text with `truncated: true` |
 | `POST /api/discover`, `/api/restart-host`, `/api/impact-map` | `{ projectId? }` | `404 { error, projectId }` for an unknown project (was 202) |
 | `POST /api/watch`, `/api/coverage`, `/api/tracing` | `{ enabled: boolean }` | `400` when `enabled` is missing or not a boolean (was: treated as false) |
@@ -1295,3 +1296,34 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
   leading comment with the run, scope, path root and the coverage settings per project. Paths relative to the workspace
   root (the git repository root, else the common root of the inputs and source roots) with `/`, absolute outside it.
 - `RunSummary.trigger` gains `"cli"`: a run of `labcoat --run` (docs/standalone.md "Labcoat in CI").
+
+## Slowest tests (added)
+
+`GET /api/tests/slowest?projectId=&limit=` ranks the tests that have a duration by their latest duration and returns the
+trend of each over its recent history. `limit` defaults to 20 (at most 200). Skipped, not run, queued, running and
+cancelled tests are left out. It reads the host's current results and history: no run is started. See
+[features.md](features.md#slowest-tests).
+
+```ts
+interface SlowTest {
+  projectId: string;
+  id: string;
+  name: string;
+  className?: string;
+  namespace?: string;
+  durationMs: number;        // the latest duration
+  medianMs?: number;         // median of the earlier results; absent without any
+  factor?: number;           // durationMs / medianMs (2 decimals); absent without a median
+  quarantined?: true;
+  trend: { at: string; durationMs: number; outcome: Outcome }[];  // the history with a duration (max 20), oldest first,
+                                                                  // the latest result last
+}
+interface SlowestTestsResponse {
+  projectId?: string;        // the requested project
+  total: number;             // tests with a duration (tests holds the slowest of them)
+  tests: SlowTest[];
+}
+```
+
+The `maxTestDuration` budget of `labcoat --run` ([configuration.md](configuration.md#duration-budget)) is not part of the
+protocol: it only decides the exit code of the command.

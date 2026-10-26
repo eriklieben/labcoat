@@ -10,6 +10,8 @@ import type {
   LogLevel,
   Outcome,
   RunSummary,
+  SlowestTestsResponse,
+  SlowTest,
   ServerEvent,
   TestNode,
   TestProject,
@@ -31,6 +33,8 @@ interface Spec {
   node: TestNode;
   behavior: Behavior;
   ms: [number, number];
+  /** Baseline of the seeded history when it should differ from the middle of `ms`. */
+  typicalMs?: number;
   error?: { type: string; message: string; stack: string };
   stdOut?: string;
   stdErr?: string;
@@ -56,6 +60,7 @@ function t(
     traits?: [string, string][];
     behavior?: Behavior;
     ms?: [number, number];
+    typicalMs?: number;
     error?: Spec["error"];
     stdOut?: string;
     stdErr?: string;
@@ -80,6 +85,7 @@ function t(
     },
     behavior: opts.behavior ?? "pass",
     ms: opts.ms ?? [2, 40],
+    typicalMs: opts.typicalMs,
     error: opts.error,
     stdOut: opts.stdOut,
     stdErr: opts.stdErr,
@@ -125,6 +131,7 @@ function buildCatalog(large: boolean, scale?: ScaleKind): { projects: TestProjec
       line: 10,
       traits: [["TestCategory", "Integration"]],
       ms: [600, 680],
+      typicalMs: 250,
       stdOut: "Connecting to the order store...\nOrder 42 persisted\n",
     }),
     t("SampleTests", "SampleTests.Orders", "OrderServiceTests", "PlaceOrder_SendsConfirmationEmail", {
@@ -132,6 +139,7 @@ function buildCatalog(large: boolean, scale?: ScaleKind): { projects: TestProjec
       line: 19,
       traits: [["TestCategory", "Integration"]],
       ms: [900, 960],
+      typicalMs: 380,
       behavior: "fail",
       error: {
         type: "Microsoft.VisualStudio.TestTools.UnitTesting.AssertFailedException",
@@ -169,7 +177,7 @@ function buildCatalog(large: boolean, scale?: ScaleKind): { projects: TestProjec
         '{"id":42,"status":"queued","items":[{"sku":"COF","qty":2},{"sku":"CRO","qty":1}],"total":10.5}',
       ),
     }),
-    t("SampleTests", "SampleTests.Orders", "OrderServiceTests", "Validate_RejectsEmptyCart", { file: orders, line: 37 }),
+    t("SampleTests", "SampleTests.Orders", "OrderServiceTests", "Validate_RejectsEmptyCart", { file: orders, line: 37, typicalMs: 9 }),
 
     ...["Hello World|hello-world", "  Trim me  |trim-me", "Ünïcödé café|unicode-cafe", "C# & .NET|c-net", "already-a-slug|already-a-slug"].map(
       (pair, i) => {
@@ -389,7 +397,7 @@ function seedPreviousSession(specs: Spec[], RUNS = 12): RunDetails[] {
       else if (s.behavior === "fail") o = i >= RUNS - 4 ? "failed" : "passed";
       else if (s.behavior === "timeout") o = i >= RUNS - 2 ? "timedOut" : "passed";
       else if (s.behavior === "flaky") o = flakyPattern[i % flakyPattern.length] === "F" ? "failed" : "passed";
-      const base = (s.ms[0] + s.ms[1]) / 2;
+      const base = s.typicalMs ?? (s.ms[0] + s.ms[1]) / 2;
       const durationMs = o === "skipped" ? 0 : Math.round(base * (0.6 + rnd() * 0.8) * (i === 7 ? 1.9 : 1) * 10) / 10;
       h.push({ outcome: o, durationMs, at: new Date(t0 + i * 2 * 3600_000 + Math.round(rnd() * 600_000)).toISOString(), runId: `prev-${i + 1}` });
       const failedNow = o === "failed" || o === "timedOut";
@@ -520,6 +528,34 @@ export class MockTransport implements Transport {
   // COVERAGE mock: GET /api/coverage/line
   fetchCoverageLine(path: string, line: number, signal?: AbortSignal) {
     return mockCoverageLine(path, line, this.specs.map((x) => x.node), this.testCoverage.values(), signal);
+  }
+
+  // SLOWEST mock: GET /api/tests/slowest (the host's ranking over the mock tests' history)
+  fetchSlowest(projectId: string, limit: number): Promise<SlowestTestsResponse> {
+    const timed = this.specs.map((x) => x.node).filter((n) => n.projectId === projectId && (n.durationMs ?? 0) > 0 && n.outcome !== "skipped");
+    const median = (xs: number[]) => {
+      const s = [...xs].sort((a, b) => a - b);
+      return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : undefined;
+    };
+    const tests = timed
+      .sort((a, b) => b.durationMs! - a.durationMs!)
+      .slice(0, limit)
+      .map((n): SlowTest => {
+        const trend = (n.history ?? []).filter((e) => e.outcome !== "skipped" && e.durationMs != null).map((e) => ({ at: e.at, durationMs: e.durationMs!, outcome: e.outcome }));
+        const m = median((trend.at(-1)?.at === n.lastRunAt ? trend.slice(0, -1) : trend).map((p) => p.durationMs));
+        return {
+          projectId: n.projectId,
+          id: n.id,
+          name: n.displayName,
+          className: n.className,
+          namespace: n.namespace,
+          durationMs: n.durationMs!,
+          medianMs: m,
+          factor: m ? Math.round((n.durationMs! / m) * 100) / 100 : undefined,
+          trend,
+        };
+      });
+    return Promise.resolve({ projectId, total: timed.length, tests });
   }
 
   fetchRun(runId: string): Promise<RunDetails | null> {

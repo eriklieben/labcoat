@@ -54,8 +54,8 @@ public sealed partial class StartOptions
 
     /// <summary>--export / --filter / --export-paths only make sense with --run.</summary>
     private string? ValidateRunOptions() =>
-        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths)
-            ? "--export, --filter and --export-paths need --run."
+        !RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || MaxTestDuration is not null)
+            ? "--export, --filter, --export-paths and --max-test-duration need --run."
             : null;
 }
 
@@ -63,7 +63,7 @@ public sealed partial class StartOptions
 /// <c>labcoat --run</c>: the non-interactive mode for CI. Builds and discovers the test projects, runs every test (or
 /// the <c>--filter</c>ed ones; with <c>--coverage</c>, which an lcov / Cobertura export implies), writes the
 /// <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed, <see cref="ExitFailed"/> when a test
-/// failed (or the run was aborted / cancelled), <see cref="ExitBuildError"/> when a project did not build or discover
+/// failed, a test took longer than <c>--max-test-duration</c> (or the run was aborted / cancelled), <see cref="ExitBuildError"/> when a project did not build or discover
 /// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
 public static class CliRun
@@ -92,11 +92,11 @@ public static class CliRun
         {
             explorer.ReleaseConsole();
             using var cancel = new CancelOnInterrupt(explorer, ct);
-            return await RunAndExportAsync(explorer, options, coverage, cancel.Token);
+            return await RunAndExportAsync(explorer, options, app.Limits.EffectiveMaxTestDuration, coverage, cancel.Token);
         }
     }
 
-    private static async Task<int> RunAndExportAsync(Explorer explorer, StartOptions options, bool coverage, CancellationToken ct)
+    private static async Task<int> RunAndExportAsync(Explorer explorer, StartOptions options, TimeSpan budget, bool coverage, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         await explorer.DiscoverAsync(null);
@@ -128,17 +128,30 @@ public static class CliRun
         broken = BrokenProjects(explorer);
         PrintResult(run, status, broken, sw.Elapsed);
         var exportsOk = WriteExports(explorer, options, run?.RunId);
-        return ExitCode(run, broken, exportsOk);
+        var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget);
+        return ExitCode(run, broken, exportsOk, overBudget.Count);
     }
 
     /// <summary>Projects whose build or discovery failed.</summary>
     private static List<TestProject> BrokenProjects(Explorer explorer) =>
         explorer.Snapshot().Projects.Where(p => p.Status == ProjectStatus.Error).ToList();
 
-    internal static int ExitCode(RunSummary? run, IReadOnlyCollection<TestProject> broken, bool exportsOk)
+    /// <summary>Lists the tests of the run that took longer than the <c>maxTestDuration</c> budget (they fail the run).</summary>
+    private static List<OverBudgetTest> ReportOverBudget(Explorer explorer, string runId, TimeSpan budget)
+    {
+        var over = explorer.ExportRun(runId) is { } export ? DurationBudget.OverBudget(export, budget) : [];
+        if (over.Count == 0) return over;
+        Console.Error.WriteLine($"{ErrorLabel} {over.Count} test{(over.Count == 1 ? "" : "s")} took longer than maxTestDuration ({RunLimits.Describe(budget)}):");
+        foreach (var t in over)
+            Console.Error.WriteLine($"  {HtmlReport.Duration(t.DurationMs)}  {(t.ClassName is { Length: > 0 } c ? c + "." : "")}{t.Name} [{t.ProjectId}]" +
+                                    (t.Outcome is Outcome.Passed ? "" : Cli.Dim($" ({t.Outcome})")));
+        return over;
+    }
+
+    internal static int ExitCode(RunSummary? run, IReadOnlyCollection<TestProject> broken, bool exportsOk, int overBudget = 0)
     {
         if (broken.Count > 0 || run is null) return ExitBuildError;
-        if (run.Failed > 0 || run.Aborted == true || run.Cancelled == true || !exportsOk) return ExitFailed;
+        if (run.Failed > 0 || run.Aborted == true || run.Cancelled == true || !exportsOk || overBudget > 0) return ExitFailed;
         return ExitPassed;
     }
 
