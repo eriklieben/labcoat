@@ -173,6 +173,18 @@ public partial class ExplorerEndToEndTests
         Assert.Contains("Repeat runs do not collect coverage", ScratchWorkspace.Logs(explorer));
         Assert.Contains("(3/3 repetitions, 1 flaky)", ScratchWorkspace.Logs(explorer));
 
+        // ---- random order: one request per test in the order the seed gives; the seed is in the summary and the log
+        var randomIds = new[] { Id(explorer, "Passes"), Id(explorer, "Fails"), Id(explorer, "Skipped"), flaky };
+        var eventsBefore = events.All().Count;
+        await explorer.RunAsync(null, randomIds, coverage: true, order: "random", seed: 4242);
+        run = explorer.Summary().LastRun!;
+        Assert.AreEqual(("random", 4242, 4), (run.Order, run.Seed, run.Total));
+        Assert.Contains("Random order, seed 4242: 4 tests, one at a time", ScratchWorkspace.Logs(explorer));
+        Assert.Contains("Random-order runs do not collect coverage", ScratchWorkspace.Logs(explorer));
+        var ranOrder = events.TestUpdates().Where(u => u.Index >= eventsBefore && u.Outcome == "running").Select(u => u.Id).Distinct().ToList();
+        var expected = RandomOrder.Shuffle(randomIds, 4242, id => id).Where(id => ranOrder.Contains(id)).ToList();
+        CollectionAssert.AreEqual(expected, ranOrder, "tests start in the seed's order");
+
         // ---- the clients' tests, built from snapshots + full entries + result patches, match the host's
         Assert.IsNotEmpty(events.Of("testResults"), "result-only changes go out as patches");
         await AssertClientsInSyncAsync(explorer, events, leanEvents);

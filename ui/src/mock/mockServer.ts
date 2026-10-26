@@ -564,7 +564,7 @@ export class MockTransport implements Transport {
   send(cmd: ClientCommand) {
     switch (cmd.type) {
       case "run":
-        this.startRun(cmd.projectId, cmd.testIds, cmd.coverage);
+        this.startRun(cmd.projectId, cmd.testIds, cmd.coverage, "user", cmd.order, cmd.seed);
         break;
       case "cancel":
         this.cancel();
@@ -770,7 +770,7 @@ export class MockTransport implements Transport {
     }
   }
 
-  private startRun(projectId?: string, testIds?: string[], coverage?: boolean, trigger: RunSummary["trigger"] = "user") {
+  private startRun(projectId?: string, testIds?: string[], coverage?: boolean, trigger: RunSummary["trigger"] = "user", order?: "random", seed?: number) {
     if (this.run) {
       this.log("warning", "A test run is already in progress. Cancel it first.");
       return;
@@ -796,6 +796,7 @@ export class MockTransport implements Transport {
       skipped: 0,
       scope: testIds?.length ? "subset" : "all",
       trigger,
+      ...(order === "random" ? { order, seed: seed ?? 48213 } : {}),
     };
     this.run = {
       summary,
