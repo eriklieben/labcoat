@@ -162,6 +162,9 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | --- | --- |
 | `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
 | `--export html=<file>` | A single static HTML file: summary, the failed tests first (message, expected / actual diff, stack trace, output), then every project and class with durations, and filters. No external requests (its Content-Security-Policy allows nothing else); every test name and output is escaped. Light and dark follow the system. For 20,000 tests passed tests are one line each and details are kept for the first 500 failures. |
+| `--export markdown=<file>` | The run as GitHub-flavored Markdown, sized for a pull request comment (under 60 KB): the verdict and totals, the failed tests first (message, source location, stack trace folded away), the ten slowest tests. Test names and output are escaped, so they cannot inject markup or mention a user. When it does not fit, the remaining failed tests are counted in a note. |
+| `--export trx=<file>` | A VSTest TRX file (`TestRun`, `Results`, `TestDefinitions`, `TestEntries`, `ResultSummary` with counters) that Visual Studio and Azure Pipelines (`PublishTestResults@2`, `testResultsFormat: VSTest`) read. Passed, Failed, Timeout and NotExecuted (skipped, not run, cancelled, quarantined failures); the result ids are the same for the same run. |
+| `--export sarif=<file>` | The failures as SARIF 2.1.0 for code scanning (`github/codeql-action/upload-sarif`, the Azure DevOps and VS Code SARIF viewers): one result per failed test with its message and the file and line of the assertion (else the test, else the project file), relative to the workspace root. Quarantined failures are `note`s; passed and skipped tests are not results. |
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
 | `--export-paths absolute` | Absolute source paths in lcov / Cobertura. The default writes them relative to the workspace root: the git repository root, else the common folder of the inputs and the test projects (and what they reference); files outside it stay absolute. |
@@ -173,8 +176,8 @@ to the workspace's history like any run (`LABCOAT_HISTORY_DIR`), so a run on a d
 run list (trigger "CLI").
 
 The same files can be downloaded from a running Labcoat: the **Export** items of the run menu in the header, the command
-palette ("Export run as JUnit XML / HTML report", "Export coverage as lcov") and the **Export** button of the Coverage
-page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html`, `GET /api/coverage/export?format=lcov|cobertura`,
+palette ("Export run as JUnit XML / HTML report / Markdown / TRX / SARIF", "Export coverage as lcov") and the **Export** button of the Coverage
+page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html|markdown|trx|sarif`, `GET /api/coverage/export?format=lcov|cobertura`,
 see [contract.md](contract.md#export-added)).
 
 ### GitHub Actions
@@ -209,6 +212,50 @@ jobs:
 Pipelines publish the same file with `PublishTestResults@2` (`testResultsFormat: JUnit`, `testResultsFiles:
 out/results.xml`) and the coverage with `PublishCodeCoverageResults@2` (`summaryFileLocation: out/coverage.xml` from
 `--export cobertura=out/coverage.xml`).
+
+### Step summary and annotations
+
+Under GitHub Actions `--run` reports to the workflow by itself; there is nothing to enable:
+
+- When `$GITHUB_STEP_SUMMARY` is set, it appends the Markdown report (totals, the failed tests first with message and
+  stack trace, the slowest tests, and the coverage when it was collected) to the job summary. The text is cut to fit
+  GitHub's 1 MiB limit, with a note counting the failed tests left out.
+- When `GITHUB_ACTIONS=true`, every failed test becomes an `::error file=…,line=…,title=…::message` annotation at the
+  line of its assertion, so it shows in the pull request's **Files changed**. At most 50 are written (GitHub shows no
+  more per step), followed by a `::notice` that counts the rest. Characters the workflow-command syntax reserves
+  (`%`, line breaks, and `:` / `,` in the file and title) are escaped. Quarantined failures are not annotated.
+
+![The Markdown report as GitHub renders it: totals, the failed tests with their messages, the slowest tests](images/markdown-report.png)
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # only for the SARIF upload
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool restore
+      - name: Test
+        run: >
+          dotnet labcoat --run MyApp.slnx
+          --export markdown=out/summary.md
+          --export sarif=out/tests.sarif
+          --export lcov=out/coverage.info
+      - uses: github/codeql-action/upload-sarif@v3
+        if: ${{ !cancelled() }}
+        with:
+          sarif_file: out/tests.sarif
+          category: labcoat-tests
+```
+
+The job summary and the annotations come from the Test step; `--export markdown` is the same text as a file, for a
+pull request comment (post `out/summary.md` with `gh pr comment --body-file`) or any other place that renders Markdown.
+Azure Pipelines and Visual Studio read the TRX file (`--export trx=out/results.trx`).
 
 ## Recommended setup
 

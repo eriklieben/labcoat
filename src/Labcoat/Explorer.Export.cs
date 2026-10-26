@@ -18,6 +18,7 @@ public sealed partial class Explorer
         var id = runId == LatestRun ? Runs().FirstOrDefault()?.RunId ?? LastRunId() : runId;
         if (id is null) return null;
         var details = _history.GetRun(id);
+        var exportRoot = ExportRoot;
         lock (Sync)
         {
             if (details is null)
@@ -29,7 +30,7 @@ public sealed partial class Explorer
             var order = new Dictionary<(string, string), int>(_order.Count);
             for (var i = 0; i < _order.Count; i++) order[_order[i]] = i;
             var tests = details.Results
-                .Select(r => ExportTestLocked(r, id, quarantined))
+                .Select(r => ExportTestLocked(r, id, quarantined, exportRoot))
                 .OrderBy(t => order.TryGetValue((t.ProjectId, t.Id), out var i) ? i : int.MaxValue)
                 .ToList();
             var withResults = tests.Select(t => t.ProjectId).ToHashSet(StringComparer.Ordinal);
@@ -57,11 +58,13 @@ public sealed partial class Explorer
         lock (Sync) return _lastRun?.RunId;
     }
 
-    private ExportTest ExportTestLocked(RunResult r, string runId, HashSet<string> quarantined)
+    private ExportTest ExportTestLocked(RunResult r, string runId, HashSet<string> quarantined, string? root)
     {
         _tests.TryGetValue((r.ProjectId, r.Id), out var t);
         // The test's current result is this run's: it has the full error, its type and the console output.
         var live = t is not null && t.Outcome == r.Outcome && t.History is { Count: > 0 } h && h[^1].RunId == runId;
+        var stack = live ? t!.StackTrace : r.StackTrace;
+        var (file, line) = ExportLocation.Of(stack, t?.FilePath, t?.Line, root);
         return new ExportTest
         {
             ProjectId = r.ProjectId,
@@ -73,10 +76,12 @@ public sealed partial class Explorer
             DurationMs = r.DurationMs,
             ErrorMessage = live ? t!.ErrorMessage : r.ErrorMessage,
             ErrorType = live ? t!.ErrorType : null,
-            StackTrace = live ? t!.StackTrace : r.StackTrace,
+            StackTrace = stack,
             StdOut = live ? t!.StdOut : null,
             StdErr = live ? t!.StdErr : null,
             Quarantined = quarantined.Contains(WorkspaceSettings.QuarantineKey(r.ProjectId, r.Id)),
+            SourceFile = file,
+            SourceLine = line,
         };
     }
 

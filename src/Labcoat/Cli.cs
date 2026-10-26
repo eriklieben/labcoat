@@ -98,12 +98,15 @@ public static class Cli
           --run            Build, run the tests once, write the --export files and exit: 0 when no test
                            failed, 1 when one failed (or the run was aborted / cancelled), 2 when a project
                            did not build or discover (or nothing could run).
-          --export <format>=<file>  Write a report: junit, html, lcov or cobertura. Repeatable; lcov and
-                           cobertura collect coverage (like --coverage) and hold this run's coverage.
+          --export <format>=<file>  Write a report: junit, html, markdown, trx (Visual Studio / Azure DevOps),
+                           sarif (code scanning), lcov or cobertura. Repeatable; lcov and cobertura
+                           collect coverage (like --coverage) and hold this run's coverage.
           --filter <pattern>  Only the tests whose name, Namespace.Class(.Method) or project contains it
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+                           On GitHub Actions, --run also appends a Markdown summary to $GITHUB_STEP_SUMMARY and
+                           annotates failed tests at their source line (no option needed).
 
         UI defaults (a choice made in the browser's Settings page wins unless the setting is locked):
           --theme <name>   catppuccin, aspire, github, one, dracula, solarized or gruvbox
@@ -154,6 +157,8 @@ public static class Cli
           labcoat --theme dracula --mode dark      UI defaults for this start
           labcoat --run --export junit=out/results.xml --export html=out/report.html
                                                    CI: run everything once, write JUnit + HTML reports
+          labcoat --run --export markdown=out/summary.md --export sarif=out/tests.sarif
+                                                   CI: a PR-comment Markdown report and SARIF failures
         """;
 
     /// <summary>Default base directory for history / settings / caches ($LABCOAT_HISTORY_DIR overrides it).</summary>
