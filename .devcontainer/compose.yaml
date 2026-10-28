@@ -15,7 +15,6 @@ services:
         condition: service_healthy
     command: sleep infinity
     volumes:
-      - ..:/workspace:z
       - ${GIT_COMMON_SRC:?open this through the dev container so init-host.sh writes .devcontainer/.env}:${GIT_COMMON_DST}:z
       - ${GIT_HOOKS_SRC:?open this through the dev container so init-host.sh writes .devcontainer/.env}:${GIT_HOOKS_DST}:ro
       - ${GIT_CONFIG_SRC}:${GIT_CONFIG_DST}:ro
@@ -36,6 +35,7 @@ services:
 
   firewall:
     build: ./firewall
+    image: localhost/labcoat-firewall:latest
     network_mode: service:netns
     cap_drop: [ALL]
     # NET_ADMIN for nftables; the other three let dnsmasq bind :53 and drop to `nobody`.
