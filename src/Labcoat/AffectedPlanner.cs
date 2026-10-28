@@ -387,7 +387,7 @@ internal sealed class AffectedPlanner
         private void MatchSourceFile(FileMatch m, GitChange change, string ext)
         {
             m.Kind = m.Containing.Count > 0 || ProductCodeExtensions.Contains(ext) ? "product" : "other";
-            var isCode = Explorer.CodeExtensions.Contains(ext) || ProductCodeExtensions.Contains(ext);
+            var isCode = SourceExtensions.Code.Contains(ext) || ProductCodeExtensions.Contains(ext);
             if (isCode)
             {
                 MatchImpactMap(m, change.Status is "deleted" ? null : change.Lines);
@@ -522,6 +522,6 @@ internal sealed class AffectedPlanner
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException) { /* unreadable project file: no references from it */ }
-        return Explorer.ProjectReferenceClosureDirs(refs);
+        return ProjectReferences.ClosureDirs(refs);
     }
 }

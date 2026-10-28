@@ -602,7 +602,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             var repeat = x.Run!.Repeat!;
             if (!ct.IsCancellationRequested && x.Aborts.Count == 0) repeat.Completed++;
             repeat.PerTest = x.Requested.Where(x.RepeatStats.ContainsKey).Select(k => x.RepeatStats[k]).ToList();
-            UpdateCounts(x.Run, x.Results, x.Quarantined);
+            RunCounts.Update(x.Run, x.Results, x.Quarantined);
         }
     }
 
@@ -704,7 +704,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         {
             run.FinishedAt = Json.Now();
             run.DurationMs = Math.Round((x.Stopwatch?.Elapsed ?? TimeSpan.Zero).TotalMilliseconds, 1);
-            UpdateCounts(run, x.Results, x.Quarantined);
+            RunCounts.Update(run, x.Results, x.Quarantined);
             run.Total = Math.Max(run.Total, x.Results.Count);
             var notRun = x.Requested.Count(k => !x.Results.ContainsKey(k) || x.Results[k] == Outcome.Cancelled);
             if (ct.IsCancellationRequested && notRun > 0) run.Cancelled = true;
@@ -769,27 +769,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         lock (Sync)
             return _state.Projects.Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    /// <summary>Run counts; results of quarantined tests ("projectId|id") go to <see cref="RunSummary.Quarantined"/> only.</summary>
-    internal static void UpdateCounts(RunSummary run, Dictionary<(string, string), Outcome> results, IReadOnlySet<string> quarantined)
-    {
-        int passed = 0, failed = 0, skipped = 0, q = 0;
-        foreach (var ((projectId, id), o) in results)
-        {
-            if (quarantined.Count > 0 && quarantined.Contains(WorkspaceSettings.QuarantineKey(projectId, id)))
-            {
-                if (o is not Outcome.Cancelled) q++;
-                continue;
-            }
-            if (o == Outcome.Passed) passed++;
-            else if (o is Outcome.Failed or Outcome.TimedOut) failed++;
-            else if (o == Outcome.Skipped) skipped++;
-        }
-        run.Passed = passed;
-        run.Failed = failed;
-        run.Skipped = skipped;
-        run.Quarantined = q > 0 ? q : null;
     }
 
     // ------------------------------------------------------------------ build
@@ -950,7 +929,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             if (json[EvaluatedProperties]?[n] is JsonValue v && v.TryGetValue<string>(out var sv)) props[n] = sv;
         p.Properties = props;
         p.TestingPlatformArguments = json[EvaluatedProperties]?["TestingPlatformCommandLineArguments"]?.GetValue<string>() is { Length: > 0 } tpa ? tpa : null;
-        p.ReferencedAssemblies = ProjectReferenceClosure(json[EvaluatedItems]?["ProjectReference"], assembliesOnly: true).Select(AssemblyNameOf)
+        p.ReferencedAssemblies = ProjectReferences.Closure(json[EvaluatedItems]?["ProjectReference"], assembliesOnly: true).Select(AssemblyNameOf)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         p.PackageReferences = json[EvaluatedItems]?["PackageReference"] is JsonArray pkgs
             ? pkgs.Select(x => x?["Identity"]?.GetValue<string>()).OfType<string>().ToList()
@@ -982,7 +961,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         if (json[EvaluatedItems]?["ProjectReference"] is JsonArray refs)
             watchDirs.AddRange(refs.Select(r => r?["FullPath"]?.GetValue<string>()).OfType<string>().Select(full => Path.GetDirectoryName(full)!));
         // Transitive references too (product code two hops away still affects the tests).
-        foreach (var d in ProjectReferenceClosureDirs(json[EvaluatedItems]?["ProjectReference"]).Where(d => !watchDirs.Contains(d)))
+        foreach (var d in ProjectReferences.ClosureDirs(json[EvaluatedItems]?["ProjectReference"]).Where(d => !watchDirs.Contains(d)))
             watchDirs.Add(d);
         return watchDirs;
     }
@@ -1209,7 +1188,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         MtpMapping.ApplyResult(t, incoming, outcome.Value, state);
         CapOutput(t);
         pr.Results[key] = outcome.Value;
-        UpdateCounts(pr.Run, pr.Results, pr.Quarantined);
+        RunCounts.Update(pr.Run, pr.Results, pr.Quarantined);
         return t;
     }
 
@@ -1320,7 +1299,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 else t.Outcome = Outcome.NotRun;
                 changed.Add(t);
             }
-            UpdateCounts(pr.Run, pr.Results, pr.Quarantined);
+            RunCounts.Update(pr.Run, pr.Results, pr.Quarantined);
             PublishTests(changed);
             var names = running.Select(k => _state.Tests[k].DisplayName).ToList();
             return CrashReason(pr.Project.Project.Name, code, names, skipped: open.Count - running.Count);

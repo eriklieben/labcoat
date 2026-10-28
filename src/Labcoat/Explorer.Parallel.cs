@@ -194,7 +194,7 @@ public sealed partial class Explorer
         while (queue.TryDequeue(out var proj))
         {
             if (!seen.Add(proj) || !File.Exists(proj)) continue;
-            foreach (var r in ProjectReferencesOf(proj, assembliesOnly: false)) queue.Enqueue(r);
+            foreach (var r in ProjectReferences.Of(proj, assembliesOnly: false)) queue.Enqueue(r);
         }
         return seen;
     }

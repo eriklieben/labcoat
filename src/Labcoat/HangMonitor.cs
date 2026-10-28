@@ -170,7 +170,7 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
         t.LastRunAt = Json.Now();
         t.Stale = null;
         pr.Results[key] = Outcome.TimedOut;
-        Explorer.UpdateCounts(pr.Run, pr.Results, pr.Quarantined);
+        RunCounts.Update(pr.Run, pr.Results, pr.Quarantined);
         effects.PublishTests([t]);
     }
 }

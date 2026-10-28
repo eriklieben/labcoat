@@ -4,8 +4,6 @@ namespace Labcoat;
 // builds or starts them; the project gets one message (log line, TestProject.diagnostics) with the switch for its framework.
 public sealed partial class Explorer
 {
-    internal const string ProjectAssetsFile = "ProjectAssetsFile";
-
     /// <summary>The projects that may be built and started: the others are marked (<see cref="MarkNotMtp"/>) and left out.</summary>
     private async Task<List<ProjectEntry>> ProjectsOnMtpAsync(IReadOnlyList<ProjectEntry> projects, CancellationToken ct) =>
         await ForEachProjectAsync(projects, p => CheckPlatformAsync(p, ct), ct);
@@ -43,7 +41,7 @@ public sealed partial class Explorer
     /// <summary>The MSBuild evaluation of the platform settings (no restore needed); null when it fails.</summary>
     private async Task<(TestPlatformInfo Info, bool Restored)?> EvaluatePlatformAsync(ProjectEntry p, CancellationToken ct)
     {
-        string[] args = ["msbuild", p.Project.Path, "-nologo", .. TestPlatform.Properties.Append(ProjectAssetsFile).Select(n => "-getProperty:" + n), "-getItem:PackageReference"];
+        string[] args = ["msbuild", p.Project.Path, "-nologo", .. TestPlatform.Properties.Append(ProjectDiagnostics.ProjectAssetsFile).Select(n => "-getProperty:" + n), "-getItem:PackageReference"];
         try
         {
             var (code, output) = await RunDotnetAsync(args, Path.GetDirectoryName(p.Project.Path)!, ct);
@@ -57,7 +55,7 @@ public sealed partial class Explorer
     }
 
     private static bool IsRestored(IReadOnlyDictionary<string, string> properties) =>
-        properties.GetValueOrDefault(ProjectAssetsFile) is { Length: > 0 } assets && File.Exists(assets);
+        properties.GetValueOrDefault(ProjectDiagnostics.ProjectAssetsFile) is { Length: > 0 } assets && File.Exists(assets);
 
     /// <summary>
     /// After a build (restored): false (and the project marked) when the evaluated settings say it isn't on MTP: a VSTest

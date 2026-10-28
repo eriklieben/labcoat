@@ -341,8 +341,6 @@ public sealed partial class Explorer
 
     // ------------------------------------------------------------------ smart watch
 
-    internal static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase) { ".cs", ".fs", ".vb", ".razor" };
-
     /// <summary>
     /// Debounced watch trigger: build + re-discover, then run only the affected tests:
     /// changed test file -> its tests; product file known to the impact map -> the mapped tests; anything else -> all tests.
@@ -431,7 +429,7 @@ public sealed partial class Explorer
                 selection.Ids.UnionWith(inFile);
                 selection.Strategies.Add("testFile");
             }
-            else if (CodeExtensions.Contains(Path.GetExtension(file)) && _impact.Affected(p.Project.Id, file, out var detail) is { } mapped)
+            else if (SourceExtensions.Code.Contains(Path.GetExtension(file)) && _impact.Affected(p.Project.Id, file, out var detail) is { } mapped)
             {
                 selection.Ids.UnionWith(mapped.Where(id => _state.Tests.ContainsKey((p.Project.Id, id))));
                 QueueImpactRefinementLocked(mapped.Where(id => !_impact.IsPerTest(p.Project.Id, id)).Select(id => (p.Project.Id, id)));
@@ -442,85 +440,6 @@ public sealed partial class Explorer
             else selection.Unknown.Add(path);
         }
         return selection;
-    }
-
-    /// <summary>
-    /// Project files of the transitive ProjectReference closure (MSBuild gives us the direct references; deeper levels are
-    /// read from the project files without evaluation, so conditional/property-based references are skipped).
-    /// <paramref name="assembliesOnly"/>: only references whose assembly ends up in the test app (not
-    /// ReferenceOutputAssembly="false", not an Aspire project resource).
-    /// </summary>
-    private static List<string> ProjectReferenceClosure(JsonNode? directRefs, bool assembliesOnly = false)
-    {
-        var cmp = PathUtil.Comparison == StringComparison.Ordinal ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
-        var seen = new HashSet<string>(cmp);
-        var queue = new Queue<string>(DirectReferences(directRefs, assembliesOnly));
-        while (queue.TryDequeue(out var proj))
-        {
-            if (!File.Exists(proj) || !seen.Add(proj)) continue; // a missing project is no source root
-            foreach (var r in ProjectReferencesOf(proj, assembliesOnly)) queue.Enqueue(r);
-        }
-        return [.. seen];
-    }
-
-    /// <summary>The project files of MSBuild's evaluated ProjectReference items.</summary>
-    private static List<string> DirectReferences(JsonNode? directRefs, bool assembliesOnly)
-    {
-        var result = new List<string>();
-        if (directRefs is not JsonArray arr) return result;
-        foreach (var r in arr)
-        {
-            if (r?["FullPath"]?.GetValue<string>() is not { } full) continue;
-            if (assembliesOnly && NotReferencedAssembly(r["ReferenceOutputAssembly"]?.GetValue<string>(), r["IsAspireProjectResource"]?.GetValue<string>())) continue;
-            result.Add(full);
-        }
-        return result;
-    }
-
-    /// <summary>The ProjectReferences read from a project file (no evaluation: conditional/property-based ones are skipped).</summary>
-    private static List<string> ProjectReferencesOf(string proj, bool assembliesOnly)
-    {
-        var refs = new List<string>();
-        try
-        {
-            var dir = Path.GetDirectoryName(proj)!;
-            var doc = XDocument.Load(proj);
-            // An Aspire AppHost's ProjectReferences are resources (separate processes), unless marked otherwise.
-            var appHost = IsAspireAppHost(doc);
-            foreach (var el in doc.Descendants().Where(e => e.Name.LocalName == "ProjectReference"))
-            {
-                var include = (string?)el.Attribute("Include");
-                if (string.IsNullOrWhiteSpace(include) || include.Contains("$(")) continue;
-                if (assembliesOnly && IsNotReferencedAssembly(el, appHost)) continue;
-                refs.AddRange(include.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(part => Path.GetFullPath(Path.Combine(dir, part.Replace('\\', Path.DirectorySeparatorChar)))));
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException) { /* unreadable project file: no references from it */ }
-        return refs;
-    }
-
-    private static bool IsNotReferencedAssembly(XElement projectReference, bool inAppHost) =>
-        NotReferencedAssembly(Metadata(projectReference, "ReferenceOutputAssembly"),
-            Metadata(projectReference, "IsAspireProjectResource") ?? (inAppHost ? "true" : null));
-
-    private static bool NotReferencedAssembly(string? referenceOutputAssembly, string? aspireResource) =>
-        string.Equals(referenceOutputAssembly?.Trim(), "false", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(aspireResource?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsAspireAppHost(XDocument doc) =>
-        ((string?)doc.Root?.Attribute("Sdk"))?.Contains("Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase) == true
-        || doc.Descendants().Any(e => (e.Name.LocalName == "Sdk" && ((string?)e.Attribute("Name"))?.Equals("Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase) == true)
-                                      || (e.Name.LocalName == "IsAspireHost" && e.Value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)));
-
-    private static string? Metadata(XElement el, string name) =>
-        (string?)el.Attribute(name) ?? el.Elements().FirstOrDefault(e => e.Name.LocalName == name)?.Value;
-
-    /// <summary>Directories of <see cref="ProjectReferenceClosure"/>.</summary>
-    internal static List<string> ProjectReferenceClosureDirs(JsonNode? directRefs)
-    {
-        var cmp = PathUtil.Comparison == StringComparison.Ordinal ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
-        return ProjectReferenceClosure(directRefs).Select(p => Path.GetDirectoryName(p)!).Distinct(cmp).ToList();
     }
 }
 

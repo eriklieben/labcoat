@@ -3,12 +3,14 @@ namespace Labcoat;
 /// <summary>Discovery diagnostics (TestProject.diagnostics): why a project found no tests or its test host did not start.</summary>
 internal static class ProjectDiagnostics
 {
+    public const string ProjectAssetsFile = "ProjectAssetsFile";
+
     /// <summary>
     /// MSBuild properties read when the project is evaluated, for <see cref="Diagnose"/> and
     /// Explorer.AcceptsPlatformAfterBuild (the test platform settings and the restore output).
     /// </summary>
     public static readonly string[] Properties =
-        ["OutputType", .. TestPlatform.Properties, Explorer.ProjectAssetsFile];
+        ["OutputType", .. TestPlatform.Properties, ProjectAssetsFile];
 
     /// <summary>
     /// Why a project discovered no tests (<paramref name="failure"/> null) or its test host could not start/answer:
