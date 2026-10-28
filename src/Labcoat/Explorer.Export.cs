@@ -22,19 +22,19 @@ public sealed partial class Explorer
         {
             if (details is null)
             {
-                if (_lastRun?.RunId != id) return null;
-                details = new RunDetails(_lastRun.Copy(), []);
+                if (_state.Run.Last?.RunId != id) return null;
+                details = new RunDetails(_state.Run.Last.Copy(), []);
             }
             var quarantined = _settings.Quarantined().ToHashSet(StringComparer.Ordinal);
-            var order = new Dictionary<(string, string), int>(_order.Count);
-            for (var i = 0; i < _order.Count; i++) order[_order[i]] = i;
+            var order = new Dictionary<(string, string), int>(_state.Order.Count);
+            for (var i = 0; i < _state.Order.Count; i++) order[_state.Order[i]] = i;
             var tests = details.Results
                 .Select(r => ExportTestLocked(r, id, quarantined))
                 .OrderBy(t => order.TryGetValue((t.ProjectId, t.Id), out var i) ? i : int.MaxValue)
                 .ToList();
             var withResults = tests.Select(t => t.ProjectId).ToHashSet(StringComparer.Ordinal);
             var root = _inputRoots.FirstOrDefault();
-            var projects = _projects.Select(p => p.Project)
+            var projects = _state.Projects.Select(p => p.Project)
                 .Where(p => withResults.Contains(p.Id))
                 .Select(p => new ExportProject(p.Id, p.Name, p.TargetFramework, RelativeTo(root, p.Path)))
                 .ToList();
@@ -54,12 +54,12 @@ public sealed partial class Explorer
 
     private string? LastRunId()
     {
-        lock (Sync) return _lastRun?.RunId;
+        lock (Sync) return _state.Run.Last?.RunId;
     }
 
     private ExportTest ExportTestLocked(RunResult r, string runId, HashSet<string> quarantined)
     {
-        _tests.TryGetValue((r.ProjectId, r.Id), out var t);
+        _state.Tests.TryGetValue((r.ProjectId, r.Id), out var t);
         // The test's current result is this run's: it has the full error, its type and the console output.
         var live = t is not null && t.Outcome == r.Outcome && t.History is { Count: > 0 } h && h[^1].RunId == runId;
         return new ExportTest

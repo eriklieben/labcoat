@@ -548,7 +548,7 @@ public sealed partial class Explorer
     {
         lock (Sync)
         {
-            var paths = _projects.Select(p => p.Project.Path).ToList();
+            var paths = _state.Projects.Select(p => p.Project.Path).ToList();
             if (paths.Count == 0) return _inputRoots.FirstOrDefault();
             return PathUtil.CommonRoot(paths);
         }
@@ -562,7 +562,7 @@ public sealed partial class Explorer
         {
             // Projects of several repositories: the first one that is in a repository.
             List<string> projectDirs;
-            lock (Sync) projectDirs = _projects.Select(p => Path.GetDirectoryName(p.Project.Path)!).ToList();
+            lock (Sync) projectDirs = _state.Projects.Select(p => Path.GetDirectoryName(p.Project.Path)!).ToList();
             foreach (var d in projectDirs)
             {
                 repo = await GitRepo.FindAsync(d, ct);
@@ -604,7 +604,7 @@ public sealed partial class Explorer
         try
         {
             int count;
-            lock (Sync) count = _order.Count;
+            lock (Sync) count = _state.Order.Count;
             if (_changedCache is { } c && c.Tests == count && DateTime.UtcNow - c.At < TimeSpan.FromSeconds(2)) return c.Result;
             var result = await ComputeChangedTestsAsync(ct);
             _changedCache = new ChangedCacheEntry(DateTime.UtcNow, count, result);
@@ -638,12 +638,12 @@ public sealed partial class Explorer
         lock (Sync)
         {
             var byFile = new Dictionary<string, List<TestNode>>(PathComparer);
-            foreach (var k in _order)
+            foreach (var k in _state.Order)
             {
-                if (_tests[k].FilePath is not { } fp) continue;
+                if (_state.Tests[k].FilePath is not { } fp) continue;
                 var f = PathUtil.CanonicalizeOrSelf(fp);
                 if (!byFile.TryGetValue(f, out var list)) byFile[f] = list = [];
-                list.Add(_tests[k]);
+                list.Add(_state.Tests[k]);
             }
             foreach (var change in changes.Files.Where(c => c.Status != "deleted"))
             {
@@ -705,7 +705,7 @@ public sealed partial class Explorer
 
         // Project scopes: the project directory plus its ProjectReference closure (evaluated, else read from the files).
         List<(string Id, string Name, string Path, List<string> WatchDirs)> raw;
-        lock (Sync) raw = _projects.Select(p => (p.Project.Id, p.Project.Name, p.Project.Path, p.WatchDirs.ToList())).ToList();
+        lock (Sync) raw = _state.Projects.Select(p => (p.Project.Id, p.Project.Name, p.Project.Path, p.WatchDirs.ToList())).ToList();
         var scopes = raw.Select(r =>
         {
             var dir = PathUtil.CanonicalizeOrSelf(Path.GetDirectoryName(r.Path)!);
@@ -803,9 +803,9 @@ public sealed partial class Explorer
         {
             _explorer = explorer;
             _scopes = scopes;
-            foreach (var k in explorer._order)
+            foreach (var k in explorer._state.Order)
             {
-                if (explorer._tests[k].FilePath is not { } fp) continue;
+                if (explorer._state.Tests[k].FilePath is not { } fp) continue;
                 var f = PathUtil.CanonicalizeOrSelf(fp);
                 if (!_byFile.TryGetValue(f, out var list)) _byFile[f] = list = [];
                 list.Add(k);
@@ -822,7 +822,7 @@ public sealed partial class Explorer
 
         private void AddWhole(string projectId, string reason) => AddDistinct(_wholeProjects, projectId, reason);
 
-        private int CountTests(string projectId) => _explorer._order.Count(k => k.ProjectId == projectId);
+        private int CountTests(string projectId) => _explorer._state.Order.Count(k => k.ProjectId == projectId);
 
         public void AddChange(string root, GitChange change)
         {
@@ -914,7 +914,7 @@ public sealed partial class Explorer
             {
                 if (impact.AffectedByLines(projectId, m.Abs, lines, out var outside) is not { } hits) continue;
                 m.Mapping = "impactMap";
-                foreach (var (tid, methods) in hits.Where(h => _explorer._tests.ContainsKey((projectId, h.Key))))
+                foreach (var (tid, methods) in hits.Where(h => _explorer._state.Tests.ContainsKey((projectId, h.Key))))
                     SelectByImpact(m, (projectId, tid), methods, outside);
             }
         }
@@ -946,7 +946,7 @@ public sealed partial class Explorer
         private void MatchCachedCoverage(FileMatch m)
         {
             var covering = _explorer._coverageCache.SingleTestReports()
-                .Where(c => _explorer._tests.ContainsKey((c.ProjectId, c.TestId)))
+                .Where(c => _explorer._state.Tests.ContainsKey((c.ProjectId, c.TestId)))
                 .Where(c => c.Report.Files.Any(f => f.LinesCovered > 0 && string.Equals(PathUtil.CanonicalizeOrSelf(f.Path), m.Abs, PathUtil.Comparison)));
             foreach (var (pid, tid, _, _) in covering)
             {
@@ -988,7 +988,7 @@ public sealed partial class Explorer
         public List<AffectedTest> TestsInTreeOrder(Dictionary<string, HashSet<string>?> selection)
         {
             var tests = new List<AffectedTest>();
-            foreach (var k in _explorer._order)
+            foreach (var k in _explorer._state.Order)
             {
                 if (!selection.TryGetValue(k.ProjectId, out var ids)) continue;
                 if (ids is not null && !ids.Contains(k.Id)) continue;

@@ -74,7 +74,7 @@ public sealed partial class Explorer
             var acc = new CoverageAccumulator();
             acc.AddCobertura(coverageFile, plan.Filter);
             List<string> ordered;
-            lock (Sync) ordered = _order.Where(k => k.ProjectId == p.Project.Id && ids.Contains(k.Id)).Select(k => k.Id).ToList();
+            lock (Sync) ordered = _state.Order.Where(k => k.ProjectId == p.Project.Id && ids.Contains(k.Id)).Select(k => k.Id).ToList();
             if (ordered.Count == 0) ordered = [.. ids];
             var report = acc.Build(runId, [p.Project.Id], ordered) with { Settings = [plan.Info] };
             var stamp = OutputFingerprint(p.TargetPath);

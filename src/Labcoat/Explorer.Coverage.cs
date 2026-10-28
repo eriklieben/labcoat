@@ -6,14 +6,6 @@ public sealed partial class Explorer
     /// <summary>Coverage.Settings / Include / Exclude (command line, settings files, AppHost).</summary>
     public CoverageOptions CoverageOptions { get; init; } = CoverageOptions.None;
 
-    private sealed partial class ProjectEntry
-    {
-        /// <summary>The MSBuild property TestingPlatformCommandLineArguments (may name --coverage-settings).</summary>
-        public string? TestingPlatformArguments;
-        /// <summary>Assembly names of the projects the test project references, transitively.</summary>
-        public List<string> ReferencedAssemblies = [];
-    }
-
     /// <summary>The full report (Coverage page): GET /api/coverage.</summary>
     public CoverageReport? FullCoverageReport => _fullCoverage.Report;
 

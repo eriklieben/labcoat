@@ -4,19 +4,7 @@ namespace Labcoat;
 // builds or starts them; the project gets one message (log line, TestProject.diagnostics) with the switch for its framework.
 public sealed partial class Explorer
 {
-    private const string ProjectAssetsFile = "ProjectAssetsFile";
-
-    private sealed partial class ProjectEntry
-    {
-        /// <summary>The last pre-build check (<see cref="CheckPlatformAsync"/>) and the stamp it was made for.</summary>
-        public TestPlatformInfo? Platform;
-        public string? PlatformStamp;
-        public bool PlatformRestored;
-        /// <summary>The verdict keeps the project from being built and started.</summary>
-        public bool PlatformBlocks;
-        /// <summary>The message last logged for a project that isn't on MTP (logged again only when it changes).</summary>
-        public string? PlatformMessage;
-    }
+    internal const string ProjectAssetsFile = "ProjectAssetsFile";
 
     /// <summary>The projects that may be built and started: the others are marked (<see cref="MarkNotMtp"/>) and left out.</summary>
     private async Task<List<ProjectEntry>> ProjectsOnMtpAsync(IReadOnlyList<ProjectEntry> projects, CancellationToken ct) =>
@@ -108,8 +96,8 @@ public sealed partial class Explorer
             p.TargetPath = null;
             p.DiscoveredDllStamp = default;
             var id = p.Project.Id;
-            foreach (var key in _order.Where(k => k.ProjectId == id).ToList()) _tests.Remove(key);
-            _order.RemoveAll(k => k.ProjectId == id);
+            foreach (var key in _state.Order.Where(k => k.ProjectId == id).ToList()) _state.Tests.Remove(key);
+            _state.Order.RemoveAll(k => k.ProjectId == id);
             p.Project.TestPlatform = info.Runner == TestRunner.VsTest ? "vstest" : "none";
             p.Project.Diagnostics = TestPlatform.Diagnostics(p.Project.Name, info, restored);
             p.Project.Status = ProjectStatus.Idle;

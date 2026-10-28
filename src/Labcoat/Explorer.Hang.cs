@@ -22,13 +22,6 @@ public sealed partial class Explorer
     private RunningTests Running => LazyInitializer.EnsureInitialized(ref _runningTests,
         () => new RunningTests { HangThreshold = HangThreshold, TestTimeout = TestTimeout });
 
-    private sealed partial class ProjectEntry
-    {
-        /// <summary>TestingPlatformArguments sorted for server mode (cached per value).</summary>
-        public TestingPlatformArguments? HostArguments;
-        public string? HostArgumentsFrom;
-    }
-
     /// <summary>One project's part of a run that is in progress: its own cancellation (linked to the run's).</summary>
     private sealed class ProjectRunScope(Explorer owner, ProjectRun run, CancellationTokenSource cts, TimeSpan? sessionTimeout, string? sessionTimeoutText)
         : IDisposable
@@ -94,7 +87,7 @@ public sealed partial class Explorer
     private bool HangTimedOutLocked((string ProjectId, string Id) key) => _runningTests?.IsTimedOut(key) == true;
 
     /// <summary>ExplorerState.runningNow (caller holds Sync).</summary>
-    private RunningNowInfo? RunningNowLocked() => _currentRun is not null && _runningTests is { Count: > 0 } r ? r.Info() : null;
+    private RunningNowInfo? RunningNowLocked() => _state.Run.Current is not null && _runningTests is { Count: > 0 } r ? r.Info() : null;
 
     /// <summary>ExplorerState.limits.</summary>
     private RunLimitsInfo LimitsInfo() => new()
@@ -147,7 +140,7 @@ public sealed partial class Explorer
                 TimeOutSessionLocked(scope);
                 cancel.Add(scope);
             }
-            if (_currentRun is not null && running.Changed() is { } info) Emit(new RunningNowEvent(info));
+            if (_state.Run.Current is not null && running.Changed() is { } info) Emit(new RunningNowEvent(info));
         }
         foreach (var line in slowLines) Log(null, "warning", line);
         foreach (var scope in cancel)
@@ -174,7 +167,7 @@ public sealed partial class Explorer
     private void MarkTimedOutLocked(ProjectRun pr, (string ProjectId, string Id) key, TimeSpan elapsed, string message)
     {
         _runningTests?.MarkTimedOut(key.ProjectId, key.Id);
-        if (!_tests.TryGetValue(key, out var t) || t.Outcome != Outcome.Running) return;
+        if (!_state.Tests.TryGetValue(key, out var t) || t.Outcome != Outcome.Running) return;
         LiveFinished(t);
         t.ClearResult();
         t.Outcome = Outcome.TimedOut;

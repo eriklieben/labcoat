@@ -13,14 +13,13 @@ namespace Labcoat;
 /// (see <see cref="EventHub.HandleAsync"/>). Operations (build/discover/run) are serialized by a single
 /// semaphore, so requests issued while something is in progress are queued.
 /// </summary>
-public sealed partial class Explorer : IAsyncDisposable
+public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 {
-    public object Sync { get; } = new();
+    private readonly WorkspaceState _state = new();
+
+    public object Sync => _state.Sync;
 
     private readonly EventHub _hub;
-    private readonly List<ProjectEntry> _projects = [];
-    private readonly Dictionary<(string ProjectId, string Id), TestNode> _tests = [];
-    private readonly List<(string ProjectId, string Id)> _order = [];
     private readonly SemaphoreSlim _opLock = new(1, 1);
     private CancellationTokenSource _cancel = new();
     private readonly CancellationTokenSource _shutdown = new();
@@ -32,10 +31,6 @@ public sealed partial class Explorer : IAsyncDisposable
     private CancellationTokenSource _operation;
     private CancellationToken _operationToken;
     private int _disposed;
-    private RunSummary? _currentRun;
-    /// <summary>The tests of the run in progress (lock Sync); Cancel() marks the ones still queued as cancelled at once.</summary>
-    private List<(string ProjectId, string Id)>? _currentRequested;
-    private RunSummary? _lastRun;
     private bool _watch;
     private bool _coverageEnabled;
     private CoverageReport? _coverage;
@@ -56,23 +51,6 @@ public sealed partial class Explorer : IAsyncDisposable
     private readonly Dictionary<string, int> _historyStamps = [];
     private readonly string _instance = Guid.NewGuid().ToString("N")[..8];
     private readonly Timer _flushTimer;
-
-    private sealed partial class ProjectEntry(TestProject project) // more fields in Explorer.Warm.cs
-    {
-        public TestProject Project { get; } = project;
-        public string? TargetPath;
-        public DateTime TargetPathStamp;           // csproj write time when TargetPath was computed
-        public List<string> WatchDirs = [];
-        public DateTime DiscoveredDllStamp;        // dll write time at last successful discovery
-        public DateTime? LastBuildStartUtc;        // start time of the last successful build
-        public List<FileSystemWatcher> Watchers = [];
-        public Timer? Debounce;
-        public MtpHost? ActiveSession;
-        public bool? SupportsCoverage;             // cached result of probing `--help` for --coverage
-        public DateTime SupportsCoverageStamp;
-        public Dictionary<string, string> Properties = new(StringComparer.OrdinalIgnoreCase); // evaluated MSBuild properties (diagnostics)
-        public List<string> PackageReferences = [];
-    }
 
     private readonly List<string> _inputRoots;
 
@@ -105,7 +83,7 @@ public sealed partial class Explorer : IAsyncDisposable
             var id = name;
             var suffix = 2;
             while (!used.Add(id)) id = $"{name}-{suffix++}";
-            _projects.Add(new ProjectEntry(new TestProject { Id = id, Name = name, Path = path }));
+            _state.Projects.Add(new ProjectEntry(new TestProject { Id = id, Name = name, Path = path }));
         }
     }
 
@@ -127,18 +105,18 @@ public sealed partial class Explorer : IAsyncDisposable
             List<TestNode> tests;
             List<string>? files = null;
             if (lean) tests = LeanTestsLocked(out files);
-            else tests = _order.Select(k => _tests[k].Copy()).ToList();
+            else tests = _state.Order.Select(k => _state.Tests[k].Copy()).ToList();
             return new ExplorerState
             {
                 Logs = includeLogs ? _logs.ToList() : null,
-                Projects = _projects.Select(p => p.Project.Copy()).ToList(),
+                Projects = _state.Projects.Select(p => p.Project.Copy()).ToList(),
                 Tests = tests,
                 Lean = lean ? true : null,
                 Files = files,
-                HistoryStamps = lean ? _projects.ToDictionary(p => p.Project.Id, p => $"{_instance}.{_historyStamps.GetValueOrDefault(p.Project.Id)}") : null,
-                PendingRun = _pendingRun?.Info(),
-                CurrentRun = _currentRun?.Copy(),
-                LastRun = _lastRun?.Copy(),
+                HistoryStamps = lean ? _state.Projects.ToDictionary(p => p.Project.Id, p => $"{_instance}.{_historyStamps.GetValueOrDefault(p.Project.Id)}") : null,
+                PendingRun = _state.Run.Pending?.Info(),
+                CurrentRun = _state.Run.Current?.Copy(),
+                LastRun = _state.Run.Last?.Copy(),
                 Watch = _watch,
                 AspireDashboardUrl = _aspireDashboardUrl,
                 CoverageEnabled = _coverageEnabled,
@@ -166,10 +144,10 @@ public sealed partial class Explorer : IAsyncDisposable
     {
         files = [];
         var index = new Dictionary<string, int>(StringComparer.Ordinal);
-        var tests = new List<TestNode>(_order.Count);
-        foreach (var k in _order)
+        var tests = new List<TestNode>(_state.Order.Count);
+        foreach (var k in _state.Order)
         {
-            var t = _tests[k].LeanCopy();
+            var t = _state.Tests[k].LeanCopy();
             if (t.FilePath is { } f)
             {
                 if (!index.TryGetValue(f, out var i))
@@ -188,7 +166,7 @@ public sealed partial class Explorer : IAsyncDisposable
     /// <summary>ExplorerState.uiDefaults (LabcoatConfig.UiDefaults, serialized once; immutable, so snapshots share it).</summary>
     public JsonElement? UiDefaults { get; init; }
 
-    public bool IsRunning { get { lock (Sync) return _currentRun is not null; } }
+    public bool IsRunning { get { lock (Sync) return _state.Run.IsRunning; } }
 
     /// <summary>Persisted past runs, newest first (GET /api/runs).</summary>
     public List<RunSummary> Runs() => _history.Runs();
@@ -216,7 +194,7 @@ public sealed partial class Explorer : IAsyncDisposable
                 case StateEvent se:
                     _pendingTests.Clear();
                     // Every client gets a snapshot: the patches of later flushes start from it.
-                    _encoder.Reset(se.State.Lean == true ? _order.Select(k => _tests[k].Copy()) : se.State.Tests);
+                    _encoder.Reset(se.State.Lean == true ? _state.Order.Select(k => _state.Tests[k].Copy()) : se.State.Tests);
                     // Lean clients get a lean snapshot (no history / console output).
                     _hub.Publish(evt, () => new StateEvent(Snapshot(lean: true)));
                     return;
@@ -388,7 +366,7 @@ public sealed partial class Explorer : IAsyncDisposable
 
     public bool HasProject(string projectId)
     {
-        lock (Sync) return _projects.Any(p => p.Project.Id == projectId);
+        lock (Sync) return _state.Projects.Any(p => p.Project.Id == projectId);
     }
 
     private CancellationToken CurrentToken()
@@ -398,8 +376,8 @@ public sealed partial class Explorer : IAsyncDisposable
 
     private List<ProjectEntry> SelectProjects(string? projectId)
     {
-        if (projectId is null) return _projects;
-        var p = _projects.FirstOrDefault(p => p.Project.Id == projectId);
+        if (projectId is null) return _state.Projects;
+        var p = _state.Projects.FirstOrDefault(p => p.Project.Id == projectId);
         if (p is null) Log(null, LogLevels.Warning, $"Unknown project '{projectId}'");
         return p is null ? [] : [p];
     }
@@ -467,37 +445,6 @@ public sealed partial class Explorer : IAsyncDisposable
         }
     }
 
-    /// <summary>The state of one <see cref="ExecuteRunAsync"/>: what was requested, the results so far and the coverage collected.</summary>
-    private sealed class RunExecution(RunRequest request, bool collectCoverage, HashSet<string> quarantined)
-    {
-        public RunRequest Request { get; } = request;
-        public int Iterations => Request.Iterations;
-        public bool CollectCoverage { get; } = collectCoverage;
-        public HashSet<string> Quarantined { get; } = quarantined;
-        public RunSummary? Run { get; set; }
-        public Stopwatch? Stopwatch { get; set; }
-        public Dictionary<(string, string), Outcome> Results { get; } = [];
-        /// <summary>Outcome before the run, restored when a test never ran.</summary>
-        public Dictionary<(string, string), Outcome> Previous { get; } = [];
-        public List<(string ProjectId, string Id)> Requested { get; } = [];
-        public CoverageAccumulator Accumulator { get; } = new();
-        public List<string> CoveredProjects { get; } = [];
-        public List<CoverageSettingsInfo> CoverageSettings { get; } = [];
-        /// <summary>Per project: its coverage of this run, and whether it ran every test of the project (FullCoverage.cs).</summary>
-        public List<(string ProjectId, HashSet<string>? Ids, CoverageAccumulator Data, CoverageSettingsInfo Settings)> ProjectCoverage { get; } = [];
-        public Dictionary<(string ProjectId, string Id), RepeatTestResult> RepeatStats { get; } = [];
-        /// <summary>Repeat: the most recent failing repetition per test.</summary>
-        public Dictionary<(string, string), TestNode> LastFailure { get; } = [];
-        public List<string> Aborts { get; } = [];
-    }
-
-    /// <summary>One project's part of a run (<see cref="RunProjectAsync"/>).</summary>
-    /// <param name="Quarantined">"projectId|id" keys whose results are counted separately (RunSummary.quarantined).</param>
-    /// <param name="RequestedKeys">The tests of this project the run asked for (to settle them when the host crashes).</param>
-    /// <param name="Debug">Debug run: a one-off host that waits for a debugger (TESTINGPLATFORM_WAIT_ATTACH_DEBUGGER).</param>
-    private sealed record ProjectRun(ProjectEntry Project, HashSet<string>? Ids, RunSummary Run, Dictionary<(string, string), Outcome> Results,
-        IReadOnlySet<string> Quarantined, List<(string ProjectId, string Id)> RequestedKeys, bool Debug);
-
     private static bool IsFailure(Outcome o) => o is Outcome.Failed or Outcome.TimedOut;
 
     /// <summary>
@@ -540,9 +487,9 @@ public sealed partial class Explorer : IAsyncDisposable
         {
             foreach (var (pid, ids) in req.Selection)
             {
-                var p = _projects.FirstOrDefault(x => x.Project.Id == pid);
+                var p = _state.Projects.FirstOrDefault(x => x.Project.Id == pid);
                 if (p is null) continue;
-                var known = ids?.Where(id => _tests.ContainsKey((pid, id))).ToHashSet();
+                var known = ids?.Where(id => _state.Tests.ContainsKey((pid, id))).ToHashSet();
                 if (known is { Count: 0 }) continue;
                 plan.Add((p, known));
             }
@@ -557,7 +504,7 @@ public sealed partial class Explorer : IAsyncDisposable
         lock (Sync)
         {
             foreach (var (p, ids) in ready)
-                x.Requested.AddRange(_order.Where(k => k.ProjectId == p.Project.Id && (ids is null || ids.Contains(k.Id))));
+                x.Requested.AddRange(_state.Order.Where(k => k.ProjectId == p.Project.Id && (ids is null || ids.Contains(k.Id))));
 
             var run = new RunSummary
             {
@@ -572,16 +519,16 @@ public sealed partial class Explorer : IAsyncDisposable
                 Debug = req.Debug ? true : null,
             };
             x.Run = run;
-            _currentRun = run;
-            _currentRequested = x.Requested;
+            _state.Run.Current = run;
+            _state.Run.CurrentRequested = x.Requested;
             foreach (var k in x.Requested)
             {
-                var t = _tests[k];
+                var t = _state.Tests[k];
                 x.Previous[k] = t.Outcome is Outcome.Queued or Outcome.Running ? Outcome.NotRun : t.Outcome;
                 t.Outcome = Outcome.Queued;
             }
             Emit(new RunStartedEvent(run.Copy(), x.Requested.Select(k => k.Id).ToList()));
-            PublishTests(x.Requested.Select(k => _tests[k]));
+            PublishTests(x.Requested.Select(k => _state.Tests[k]));
         }
     }
 
@@ -592,8 +539,8 @@ public sealed partial class Explorer : IAsyncDisposable
         {
             lock (Sync)
             {
-                foreach (var k in x.Requested) if (_tests.TryGetValue(k, out var t)) t.Outcome = Outcome.Queued;
-                PublishTests(x.Requested.Where(_tests.ContainsKey).Select(k => _tests[k]));
+                foreach (var k in x.Requested) if (_state.Tests.TryGetValue(k, out var t)) t.Outcome = Outcome.Queued;
+                PublishTests(x.Requested.Where(_state.Tests.ContainsKey).Select(k => _state.Tests[k]));
             }
         }
         if (x.Iterations > 1) Log(null, LogLevels.Info, $"Repeat {iteration + 1}/{x.Iterations}");
@@ -681,7 +628,7 @@ public sealed partial class Explorer : IAsyncDisposable
         if (o == Outcome.Passed) r.Passed++;
         else if (IsFailure(o)) r.Failed++;
         else if (o == Outcome.Skipped) r.Skipped++;
-        if (_tests.TryGetValue(k, out var t))
+        if (_state.Tests.TryGetValue(k, out var t))
         {
             if (o is not Outcome.Cancelled && t.DurationMs is { } d) r.DurationsMs.Add(d);
             if (IsFailure(o)) x.LastFailure[k] = t.Copy();
@@ -699,7 +646,7 @@ public sealed partial class Explorer : IAsyncDisposable
             var changed = new List<TestNode>();
             foreach (var (k, agg) in x.Results)
             {
-                if (!_tests.TryGetValue(k, out var t)) continue;
+                if (!_state.Tests.TryGetValue(k, out var t)) continue;
                 if (x.LastFailure.TryGetValue(k, out var f)) CopyFailure(f, t);
                 else if (agg is not (Outcome.Queued or Outcome.Running)) t.Outcome = agg;
                 if (x.RepeatStats.TryGetValue(k, out var r) && r.DurationsMs.Count > 0) t.DurationMs = Math.Round(r.DurationsMs.Average(), 2);
@@ -732,7 +679,7 @@ public sealed partial class Explorer : IAsyncDisposable
             var changed = new List<TestNode>();
             foreach (var k in keys)
             {
-                if (_tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Queued or Outcome.Running)
+                if (_state.Tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Queued or Outcome.Running)
                 {
                     LiveFinished(t);
                     t.Outcome = outcome ?? x.Previous.GetValueOrDefault(k, Outcome.NotRun);
@@ -783,11 +730,11 @@ public sealed partial class Explorer : IAsyncDisposable
                 run.AbortReason = string.Join(" ", x.Aborts);
             }
             run.NotRun = notRun > 0 ? notRun : null;
-            _currentRun = null;
-            _currentRequested = null;
+            _state.Run.Current = null;
+            _state.Run.CurrentRequested = null;
             LiveReset();
-            _lastRun = run;
-            PublishTests(_history.Record(run, x.Results.Keys.Where(_tests.ContainsKey).Select(k => _tests[k]).ToList(), mixed));
+            _state.Run.Last = run;
+            PublishTests(_history.Record(run, x.Results.Keys.Where(_state.Tests.ContainsKey).Select(k => _state.Tests[k]).ToList(), mixed));
             Emit(new RunsUpdatedEvent(_history.Runs()));
             Emit(new RunFinishedEvent(run.Copy()));
             // Clients that kept showing the previous result of tests that never ran (UI "pending" display) resync.
@@ -798,8 +745,8 @@ public sealed partial class Explorer : IAsyncDisposable
     private List<string> FailedTestNames(RunExecution x)
     {
         lock (Sync)
-            return x.Results.Where(kv => IsFailure(kv.Value) && _tests.ContainsKey(kv.Key))
-                .Select(kv => _tests[kv.Key].DisplayName
+            return x.Results.Where(kv => IsFailure(kv.Value) && _state.Tests.ContainsKey(kv.Key))
+                .Select(kv => _state.Tests[kv.Key].DisplayName
                     + (x.Quarantined.Contains(WorkspaceSettings.QuarantineKey(kv.Key.Item1, kv.Key.Item2)) ? " (quarantined)" : ""))
                 .ToList();
     }
@@ -836,7 +783,7 @@ public sealed partial class Explorer : IAsyncDisposable
     private HashSet<string> TestAssemblyNames()
     {
         lock (Sync)
-            return _projects.Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
+            return _state.Projects.Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -919,7 +866,7 @@ public sealed partial class Explorer : IAsyncDisposable
         lock (Sync)
         {
             // Results produced before this build are from older code now.
-            var hadResults = _tests.Values.Any(t => t.ProjectId == p.Project.Id && t.Outcome is not (Outcome.NotRun or Outcome.Queued or Outcome.Running));
+            var hadResults = _state.Tests.Values.Any(t => t.ProjectId == p.Project.Id && t.Outcome is not (Outcome.NotRun or Outcome.Queued or Outcome.Running));
             if (hadResults) p.Project.ResultsOutdated = true;
         }
         SetStatus(p, ProjectStatus.Error, firstError ?? $"Build failed (exit code {code})", tail,
@@ -985,7 +932,7 @@ public sealed partial class Explorer : IAsyncDisposable
 
         var dir = Path.GetDirectoryName(p.Project.Path)!;
         string[] args = ["msbuild", p.Project.Path, "-getProperty:TargetPath", "-getProperty:TargetFrameworks", "-getProperty:TargetFramework", "-getItem:ProjectReference",
-            "-getProperty:TestingPlatformCommandLineArguments", .. DiagnosticProperties.Select(n => "-getProperty:" + n), "-getItem:PackageReference"];
+            "-getProperty:TestingPlatformCommandLineArguments", .. ProjectDiagnostics.Properties.Select(n => "-getProperty:" + n), "-getItem:PackageReference"];
         var (code, output) = await RunDotnetAsync(args, dir, ct);
         if (code != 0) throw new InvalidOperationException("Could not evaluate project: " + TailLines(output, 20));
         var json = JsonNode.Parse(output)!;
@@ -1015,7 +962,7 @@ public sealed partial class Explorer : IAsyncDisposable
     private static void ApplyEvaluation(ProjectEntry p, JsonNode json)
     {
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var n in DiagnosticProperties)
+        foreach (var n in ProjectDiagnostics.Properties)
             if (json[EvaluatedProperties]?[n] is JsonValue v && v.TryGetValue<string>(out var sv)) props[n] = sv;
         p.Properties = props;
         p.TestingPlatformArguments = json[EvaluatedProperties]?["TestingPlatformCommandLineArguments"]?.GetValue<string>() is { Length: > 0 } tpa ? tpa : null;
@@ -1084,7 +1031,7 @@ public sealed partial class Explorer : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            lock (Sync) p.Project.Diagnostics = DiagnoseProject(p, ex);
+            lock (Sync) p.Project.Diagnostics = ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, ex);
             SetStatus(p, ProjectStatus.Error, "Discovery failed: " + ex.Message);
             Log(p.Project.Id, LogLevels.Error, "Discovery failed: " + ex.Message);
             return false;
@@ -1119,22 +1066,22 @@ public sealed partial class Explorer : IAsyncDisposable
             {
                 var key = (p.Project.Id, n.Id);
                 if (!newKeys.Add(key)) continue;
-                if (_tests.TryGetValue(key, out var old)) CarryOverResult(old, n);
+                if (_state.Tests.TryGetValue(key, out var old)) CarryOverResult(old, n);
                 else
                 {
                     _history.Restore(n); // previous session's result + history
                     if (n.History is { Count: > 0 }) restoredHistory = true;
                 }
-                _tests[key] = n;
+                _state.Tests[key] = n;
                 newOrder.Add(key);
             }
-            foreach (var key in _order.Where(k => k.ProjectId == p.Project.Id && !newKeys.Contains(k)).ToList())
-                _tests.Remove(key);
+            foreach (var key in _state.Order.Where(k => k.ProjectId == p.Project.Id && !newKeys.Contains(k)).ToList())
+                _state.Tests.Remove(key);
 
             // Keep project grouping order: insert at the position of the project's first test (or the end).
             var firstIndex = FirstTestIndexLocked(p); // a new project: after the projects before it (Explorer.Projects.cs)
-            _order.RemoveAll(k => k.ProjectId == p.Project.Id);
-            _order.InsertRange(firstIndex < 0 ? _order.Count : Math.Min(firstIndex, _order.Count), newOrder);
+            _state.Order.RemoveAll(k => k.ProjectId == p.Project.Id);
+            _state.Order.InsertRange(firstIndex < 0 ? _state.Order.Count : Math.Min(firstIndex, _state.Order.Count), newOrder);
 
             // lean clients fetch history on demand: tell them this project's changed (ExplorerState.historyStamps)
             if (restoredHistory) _historyStamps[p.Project.Id] = _historyStamps.GetValueOrDefault(p.Project.Id) + 1;
@@ -1145,7 +1092,7 @@ public sealed partial class Explorer : IAsyncDisposable
             p.Project.BuildErrors = null;
             p.Project.BuildErrorCount = null;
             p.Project.BuildWarningCount = null;
-            p.Project.Diagnostics = found.Count == 0 ? DiagnoseProject(p, null) : null;
+            p.Project.Diagnostics = found.Count == 0 ? ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, null) : null;
             Emit(new ProjectStatusEvent(p.Project.Copy()));
             PublishState();
         }
@@ -1224,7 +1171,7 @@ public sealed partial class Explorer : IAsyncDisposable
         if (pr.Ids is null) return null;
         var projectId = pr.Project.Project.Id;
         lock (Sync)
-            return pr.Ids.Where(id => _tests.ContainsKey((projectId, id))).Select(id => (id, _tests[(projectId, id)].DisplayName)).ToList();
+            return pr.Ids.Where(id => _state.Tests.ContainsKey((projectId, id))).Select(id => (id, _state.Tests[(projectId, id)].DisplayName)).ToList();
     }
 
     /// <summary>A <c>testing/testUpdates/tests</c> notification of a run: results and in-progress states.</summary>
@@ -1249,13 +1196,13 @@ public sealed partial class Explorer : IAsyncDisposable
         var projectId = pr.Project.Project.Id;
         var incoming = MtpMapping.ToTestNode(projectId, node);
         var key = (projectId, incoming.Id);
-        if (!_tests.TryGetValue(key, out var t))
+        if (!_state.Tests.TryGetValue(key, out var t))
         {
             // Test that was not known from discovery (e.g. dynamic data) — add it.
             t = incoming;
-            _tests[key] = t;
-            var insertAt = _order.FindLastIndex(k => k.ProjectId == projectId);
-            _order.Insert(insertAt < 0 ? _order.Count : insertAt + 1, key);
+            _state.Tests[key] = t;
+            var insertAt = _state.Order.FindLastIndex(k => k.ProjectId == projectId);
+            _state.Order.Insert(insertAt < 0 ? _state.Order.Count : insertAt + 1, key);
         }
         var state = node["execution-state"]?.GetValue<string>();
         var outcome = MtpMapping.MapState(state);
@@ -1344,7 +1291,7 @@ public sealed partial class Explorer : IAsyncDisposable
         }
         int corrupt;
         lock (Sync)
-            corrupt = requestedKeys.Count(k => _tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Failed && LooksLikeStaleAssembly(t));
+            corrupt = requestedKeys.Count(k => _state.Tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Failed && LooksLikeStaleAssembly(t));
         if (corrupt == 0) return;
         Log(p.Project.Id, LogLevels.Warning, $"{corrupt} test{(corrupt == 1 ? "" : "s")} failed with BadImageFormatException / \"Index not found (0x80131124)\": " +
             "the warm test host had assemblies loaded that changed on disk. Run them again.");
@@ -1370,14 +1317,14 @@ public sealed partial class Explorer : IAsyncDisposable
         var code = ex.ExitCode is { } c ? c.ToString() : "?";
         lock (Sync)
         {
-            var open = pr.RequestedKeys.Where(k => _tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Queued or Outcome.Running).ToList();
-            var running = open.Where(k => _tests[k].Outcome == Outcome.Running).ToList();
+            var open = pr.RequestedKeys.Where(k => _state.Tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Queued or Outcome.Running).ToList();
+            var running = open.Where(k => _state.Tests[k].Outcome == Outcome.Running).ToList();
             if (running.Count == 0 && open.Count == 1) running = open;
             var stderr = ex.StderrTail.Where(l => !string.IsNullOrWhiteSpace(l)).TakeLast(10).ToList();
             var changed = new List<TestNode>();
             foreach (var k in open)
             {
-                var t = _tests[k];
+                var t = _state.Tests[k];
                 LiveFinished(t);
                 t.ClearResult();
                 t.Stale = null;
@@ -1391,7 +1338,7 @@ public sealed partial class Explorer : IAsyncDisposable
             }
             UpdateCounts(pr.Run, pr.Results, pr.Quarantined);
             PublishTests(changed);
-            var names = running.Select(k => _tests[k].DisplayName).ToList();
+            var names = running.Select(k => _state.Tests[k].DisplayName).ToList();
             return CrashReason(pr.Project.Project.Name, code, names, skipped: open.Count - running.Count);
         }
     }
@@ -1577,7 +1524,7 @@ public sealed partial class Explorer : IAsyncDisposable
         {
             known = (_coverage?.Files.Any(f => string.Equals(PathUtil.CanonicalizeOrSelf(f.Path), full, cmp)) ?? false)
                     || (_fullCoverage.Report?.Files.Any(f => string.Equals(PathUtil.CanonicalizeOrSelf(f.Path), full, cmp)) ?? false)
-                    || _tests.Values.Any(t => t.FilePath is not null && string.Equals(PathUtil.CanonicalizeOrSelf(t.FilePath), full, cmp));
+                    || _state.Tests.Values.Any(t => t.FilePath is not null && string.Equals(PathUtil.CanonicalizeOrSelf(t.FilePath), full, cmp));
             roots = SourceRootsLocked();
         }
         if (!known && !roots.Any(r => PathUtil.IsUnder(full, r)))
@@ -1593,7 +1540,7 @@ public sealed partial class Explorer : IAsyncDisposable
     private List<string> SourceRootsLocked()
     {
         var all = new List<string>(_inputRoots);
-        foreach (var p in _projects)
+        foreach (var p in _state.Projects)
         {
             all.Add(Path.GetDirectoryName(p.Project.Path)!);
             all.AddRange(p.WatchDirs);
@@ -1657,7 +1604,7 @@ public sealed partial class Explorer : IAsyncDisposable
         {
             if (_watch == enabled) return;
             _watch = enabled;
-            foreach (var p in _projects)
+            foreach (var p in _state.Projects)
             {
                 if (enabled) StartWatching(p);
                 else StopWatching(p);
@@ -1784,7 +1731,7 @@ public sealed partial class Explorer : IAsyncDisposable
         lock (Sync)
         {
             _hangTimer?.Dispose(); // Explorer.Hang.cs
-            foreach (var p in _projects)
+            foreach (var p in _state.Projects)
             {
                 StopWatching(p);
                 if (p.ActiveSession != p.Warm?.Host) p.ActiveSession?.Kill(); // warm hosts get a graceful exit below

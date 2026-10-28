@@ -10,29 +10,6 @@ public sealed partial class Explorer
     /// <summary>Set on warm test host processes so fixtures can keep expensive state alive across requests.</summary>
     public const string WarmHostEnvVar = "LABCOAT_WARM_HOST";
 
-    private sealed class WarmSession(MtpHost host, string fingerprint, bool tracing, OutputWatch watch)
-    {
-        public MtpHost Host { get; } = host;
-        /// <summary>Notices assemblies of the output folder rewritten in place while the process runs (OutputWatch.cs).</summary>
-        public OutputWatch Watch { get; } = watch;
-        /// <summary>Trace collection state the process was started with (its LABCOAT_OTLP_* environment).</summary>
-        public bool Tracing { get; } = tracing;
-        /// <summary><see cref="OutputFingerprint"/> of the output directory when the process was started.</summary>
-        public string Fingerprint { get; } = fingerprint;
-        public MtpConnection? Connection;
-        /// <summary>Notification sink of the request in flight (requests are serialized by the op lock).</summary>
-        public volatile Action<string, JsonNode?>? Handler;
-    }
-
-    private sealed partial class ProjectEntry
-    {
-        public WarmSession? Warm;
-        /// <summary>The test app runs behind a test host controller (always-on out-of-process extension): no warm host.</summary>
-        public bool WarmUnsupported;
-        /// <summary>Changed files collected by the watcher during the debounce window.</summary>
-        public readonly HashSet<string> PendingChanges = [];
-    }
-
     private readonly List<Task> _retiring = [];
 
     /// <summary>
@@ -434,7 +411,7 @@ public sealed partial class Explorer
         var hosts = new List<MtpHost>();
         lock (Sync)
         {
-            foreach (var p in _projects)
+            foreach (var p in _state.Projects)
             {
                 if (p.Warm is { } w)
                 {
@@ -573,7 +550,7 @@ public sealed partial class Explorer
         List<ImpactGroup> groups;
         lock (Sync)
         {
-            groups = ImpactGroups(_order.Where(k => k.ProjectId == p.Project.Id).Select(k => _tests[k]), perTest);
+            groups = ImpactGroups(_state.Order.Where(k => k.ProjectId == p.Project.Id).Select(k => _state.Tests[k]), perTest);
             // A fresh pass: classes may be refined per test again (auto).
             _refineSeen.RemoveWhere(k => k.ProjectId == p.Project.Id);
         }
@@ -680,10 +657,10 @@ public sealed partial class Explorer
         var added = false;
         foreach (var key in classLevel)
         {
-            if (!_tests.TryGetValue(key, out var t)) continue;
+            if (!_state.Tests.TryGetValue(key, out var t)) continue;
             var cls = (key.ProjectId, ClassKeyOf(t));
             if (_refineSeen.Contains(cls)) continue;
-            if (_order.Count(k => k.ProjectId == key.ProjectId && ClassKeyOf(_tests[k]) == cls.Item2) < 2) continue;
+            if (_state.Order.Count(k => k.ProjectId == key.ProjectId && ClassKeyOf(_state.Tests[k]) == cls.Item2) < 2) continue;
             _refineSeen.Add(cls);
             _refineQueue.Enqueue(cls);
             added = true;
@@ -723,7 +700,7 @@ public sealed partial class Explorer
         List<(string ProjectId, string ClassKey)> classes;
         lock (Sync)
         {
-            classes = classLevel.Where(_tests.ContainsKey).Select(k => (k.ProjectId, ClassKeyOf(_tests[k]))).Distinct().ToList();
+            classes = classLevel.Where(_state.Tests.ContainsKey).Select(k => (k.ProjectId, ClassKeyOf(_state.Tests[k]))).Distinct().ToList();
             foreach (var c in classes) _refineSeen.Add(c);
         }
         if (classes.Count > 0) await RefineClassesAsync(classes);
@@ -767,10 +744,10 @@ public sealed partial class Explorer
         List<ImpactGroup> groups;
         lock (Sync)
         {
-            p = _projects.FirstOrDefault(x => x.Project.Id == byProject.Key);
+            p = _state.Projects.FirstOrDefault(x => x.Project.Id == byProject.Key);
             var wanted = byProject.Select(c => c.ClassKey).ToHashSet();
-            groups = ImpactGroups(_order.Where(k => k.ProjectId == byProject.Key && !_impact.IsPerTest(k.ProjectId, k.Id))
-                .Select(k => _tests[k]).Where(t => wanted.Contains(ClassKeyOf(t))), perTest: true);
+            groups = ImpactGroups(_state.Order.Where(k => k.ProjectId == byProject.Key && !_impact.IsPerTest(k.ProjectId, k.Id))
+                .Select(k => _state.Tests[k]).Where(t => wanted.Contains(ClassKeyOf(t))), perTest: true);
         }
         if (p?.TargetPath is null || !File.Exists(p.TargetPath) || groups.Count == 0) return 0;
         if (!await SupportsCoverageAsync(p, ct)) return 0;
@@ -861,7 +838,7 @@ public sealed partial class Explorer
     private WatchSelection WatchSelectionLocked(ProjectEntry p, string[] changed)
     {
         var byFile = new Dictionary<string, List<string>>(PathUtil.Comparison == StringComparison.Ordinal ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase);
-        foreach (var t in _order.Where(k => k.ProjectId == p.Project.Id).Select(k => _tests[k]).Where(t => t.FilePath is not null))
+        foreach (var t in _state.Order.Where(k => k.ProjectId == p.Project.Id).Select(k => _state.Tests[k]).Where(t => t.FilePath is not null))
         {
             var f = PathUtil.CanonicalizeOrSelf(t.FilePath!);
             if (!byFile.TryGetValue(f, out var list)) byFile[f] = list = [];
@@ -878,7 +855,7 @@ public sealed partial class Explorer
             }
             else if (CodeExtensions.Contains(Path.GetExtension(file)) && _impact.Affected(p.Project.Id, file, out var detail) is { } mapped)
             {
-                selection.Ids.UnionWith(mapped.Where(id => _tests.ContainsKey((p.Project.Id, id))));
+                selection.Ids.UnionWith(mapped.Where(id => _state.Tests.ContainsKey((p.Project.Id, id))));
                 QueueImpactRefinementLocked(mapped.Where(id => !_impact.IsPerTest(p.Project.Id, id)).Select(id => (p.Project.Id, id)));
                 selection.Strategies.Add("impactMap");
                 selection.Details.Add($"{Path.GetFileName(file)}: {detail}");

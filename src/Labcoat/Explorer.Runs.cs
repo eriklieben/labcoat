@@ -4,37 +4,6 @@ namespace Labcoat;
 // REST callers (Aspire dashboard commands), suite summary, debug runs, target framework selection, lean payloads.
 public sealed partial class Explorer
 {
-    /// <summary>A validated run request. Selection: projectId -> test ids (null = every test of the project).</summary>
-    private sealed class RunRequest
-    {
-        public required string RunId { get; init; }
-        public required string RequestedAt { get; init; }
-        public required Dictionary<string, HashSet<string>?> Selection { get; set; }
-        public bool? Coverage { get; init; }
-        public int Iterations { get; init; } = 1;
-        public string? Trigger { get; set; }
-        public AffectedRun? Affected { get; set; }
-        public WatchContext? Watch { get; set; }
-        public bool Debug { get; init; }
-        public int Requests { get; set; } = 1;
-        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public bool IsSubset => Selection.Values.All(ids => ids is not null);
-
-        public PendingRunInfo Info() => new()
-        {
-            RunId = RunId,
-            RequestedAt = RequestedAt,
-            Scope = IsSubset ? "subset" : "all",
-            ProjectIds = [.. Selection.Keys],
-            TestCount = IsSubset ? Selection.Values.Sum(ids => ids!.Count) : null,
-            Coverage = Coverage,
-            Repeat = Iterations > 1 ? Iterations : null,
-            Trigger = Trigger,
-            Requests = Requests,
-        };
-    }
-
     /// <summary>Result of <see cref="RequestRun"/>: HTTP-like status (202 accepted, 400 / 404 rejected).</summary>
     public sealed record RunRequestResult(int Status, string? RunId = null, string? Error = null, bool Queued = false, bool Merged = false,
         List<string>? UnknownTestIds = null, List<string>? KnownProjects = null, Task? Completion = null);
@@ -42,7 +11,6 @@ public sealed partial class Explorer
     /// <summary>Lifecycle of a run request, for <c>GET /api/runs/{runId}/status</c>.</summary>
     public sealed record RunRequestStatus(string RunId, string State, string? Reason = null, RunSummary? Run = null, string? SupersededBy = null);
 
-    private RunRequest? _pendingRun;
     private readonly Dictionary<string, RunRequestStatus> _runStatus = [];
     private readonly Queue<string> _runStatusOrder = new();
     /// <summary>Name of the operation holding the op lock ("run", "discover", ...), null when idle.</summary>
@@ -188,20 +156,20 @@ public sealed partial class Explorer
     /// </summary>
     private (Dictionary<string, HashSet<string>?> Selection, List<string>? Unknown, RunRequestResult? Rejected) ResolveSelectionLocked(RunRequestOptions o)
     {
-        var known = _projects.Select(p => p.Project.Id).ToList();
+        var known = _state.Projects.Select(p => p.Project.Id).ToList();
         // An exact per-project selection (run affected): known projects only; null = every test of the project.
         if (o.Selection is not null)
         {
             var selection = o.Selection.Where(kv => known.Contains(kv.Key))
-                .ToDictionary(kv => kv.Key, kv => kv.Value is null ? null : kv.Value.Where(id => _tests.ContainsKey((kv.Key, id))).ToHashSet());
+                .ToDictionary(kv => kv.Key, kv => kv.Value is null ? null : kv.Value.Where(id => _state.Tests.ContainsKey((kv.Key, id))).ToHashSet());
             selection = selection.Where(kv => kv.Value is null || kv.Value.Count > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
             return selection.Count == 0
                 ? ([], null, new RunRequestResult(404, Error: "None of the selected tests is known.", KnownProjects: known))
                 : (selection, null, null);
         }
         List<ProjectEntry> projects;
-        if (o.ProjectId is null) projects = [.. _projects];
-        else if (_projects.FirstOrDefault(p => p.Project.Id == o.ProjectId) is { } p) projects = [p];
+        if (o.ProjectId is null) projects = [.. _state.Projects];
+        else if (_state.Projects.FirstOrDefault(p => p.Project.Id == o.ProjectId) is { } p) projects = [p];
         else return ([], null, new RunRequestResult(404, Error: $"Unknown project '{o.ProjectId}'.", KnownProjects: known));
         if (projects.Count == 0) return ([], null, new RunRequestResult(404, Error: "No test projects.", KnownProjects: known));
 
@@ -219,7 +187,7 @@ public sealed partial class Explorer
         var ids = testIds.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
         foreach (var pid in projects.Select(pr => pr.Project.Id))
         {
-            var inProject = ids.Where(id => _tests.ContainsKey((pid, id))).ToHashSet();
+            var inProject = ids.Where(id => _state.Tests.ContainsKey((pid, id))).ToHashSet();
             if (inProject.Count > 0) selection[pid] = inProject;
         }
         var unknown = ids.Where(id => !selection.Values.Any(s => s!.Contains(id))).ToList();
@@ -235,9 +203,9 @@ public sealed partial class Explorer
     /// </summary>
     private (RunRequest Req, bool Merged, RunRequest? Superseded) QueueLocked(RunRequest req)
     {
-        if (_pendingRun is not { } pending)
+        if (_state.Run.Pending is not { } pending)
         {
-            _pendingRun = req;
+            _state.Run.Pending = req;
             return (req, false, null);
         }
         if (CanMerge(pending, req))
@@ -245,7 +213,7 @@ public sealed partial class Explorer
             Merge(pending, req);
             return (pending, true, null);
         }
-        _pendingRun = req;
+        _state.Run.Pending = req;
         return (req, false, pending);
     }
 
@@ -296,8 +264,8 @@ public sealed partial class Explorer
         RunRequest? req;
         lock (Sync)
         {
-            req = _pendingRun;
-            _pendingRun = null;
+            req = _state.Run.Pending;
+            _state.Run.Pending = null;
             if (req is not null) Emit(new PendingRunEvent(null));
         }
         if (req is null)
@@ -340,19 +308,19 @@ public sealed partial class Explorer
             _cancel = new CancellationTokenSource();
             _operation = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token, _shutdownToken);
             _operationToken = _operation.Token;
-            pending = _pendingRun;
-            _pendingRun = null;
+            pending = _state.Run.Pending;
+            _state.Run.Pending = null;
             active = _activeOp;
             if (pending is not null) Emit(new PendingRunEvent(null));
             if (active is not null) _cancelling = true;
             // Tests of the current run that have not started will not run: cancelled now, not once the test host has
             // stopped (that can take the cancel grace period). A result that still arrives replaces it.
-            if (_currentRequested is { } keys)
+            if (_state.Run.CurrentRequested is { } keys)
             {
                 var changed = new List<TestNode>();
                 foreach (var k in keys)
                 {
-                    if (_tests.TryGetValue(k, out var t) && t.Outcome == Outcome.Queued)
+                    if (_state.Tests.TryGetValue(k, out var t) && t.Outcome == Outcome.Queued)
                     {
                         t.Outcome = Outcome.Cancelled;
                         changed.Add(t);
@@ -390,7 +358,7 @@ public sealed partial class Explorer
         {
             int passed = 0, failed = 0, skipped = 0, notRun = 0, running = 0, queued = 0, cancelled = 0;
             var perProject = new Dictionary<string, int>();
-            foreach (var t in _tests.Values)
+            foreach (var t in _state.Tests.Values)
             {
                 perProject[t.ProjectId] = perProject.GetValueOrDefault(t.ProjectId) + 1;
                 switch (t.Outcome)
@@ -405,9 +373,9 @@ public sealed partial class Explorer
                 }
             }
             return new SummaryInfo(Cli.Version, _workspaceName,
-                new OutcomeCounts(_tests.Count, passed, failed, skipped, notRun, running, queued, cancelled),
-                _currentRun?.Copy(), _lastRun?.Copy(), _pendingRun?.Info(), _activeOp, _watch, _coverageEnabled,
-                _projects.Select(p => new ProjectSummary(p.Project.Id, p.Project.Name, p.Project.Status, p.Project.HostState, p.Project.LastError,
+                new OutcomeCounts(_state.Tests.Count, passed, failed, skipped, notRun, running, queued, cancelled),
+                _state.Run.Current?.Copy(), _state.Run.Last?.Copy(), _state.Run.Pending?.Info(), _activeOp, _watch, _coverageEnabled,
+                _state.Projects.Select(p => new ProjectSummary(p.Project.Id, p.Project.Name, p.Project.Status, p.Project.HostState, p.Project.LastError,
                     perProject.GetValueOrDefault(p.Project.Id), p.Project.TargetFramework)).ToList(),
                 _cancelling && _activeOp is not null ? true : null);
         }
@@ -420,8 +388,8 @@ public sealed partial class Explorer
     {
         lock (Sync)
         {
-            var key = _order.FirstOrDefault(k => k.Id == id && (projectId is null || k.ProjectId == projectId));
-            return key.Id is null ? null : _tests[key].Copy();
+            var key = _state.Order.FirstOrDefault(k => k.Id == id && (projectId is null || k.ProjectId == projectId));
+            return key.Id is null ? null : _state.Tests[key].Copy();
         }
     }
 
@@ -430,8 +398,8 @@ public sealed partial class Explorer
     {
         lock (Sync)
         {
-            return _order.Where(k => (projectId is null || k.ProjectId == projectId) && (id is null || k.Id == id))
-                .Select(k => _tests[k])
+            return _state.Order.Where(k => (projectId is null || k.ProjectId == projectId) && (id is null || k.Id == id))
+                .Select(k => _state.Tests[k])
                 .Where(t => id is not null || t.History is { Count: > 0 })
                 .Select(t => new TestHistoryInfo(t.ProjectId, t.Id, t.History ?? [], t.Flaky))
                 .ToList();
@@ -520,7 +488,7 @@ public sealed partial class Explorer
     public (int Status, string? Error) SetTargetFramework(string? projectId, string? tfm)
     {
         ProjectEntry? p;
-        lock (Sync) p = _projects.FirstOrDefault(x => x.Project.Id == projectId);
+        lock (Sync) p = _state.Projects.FirstOrDefault(x => x.Project.Id == projectId);
         if (p is null) return (404, $"Unknown project '{projectId}'.");
         if (!string.IsNullOrEmpty(tfm) && p.Project.AvailableFrameworks is { } fws && !fws.Contains(tfm, StringComparer.OrdinalIgnoreCase))
             return (400, $"'{tfm}' is not one of the project's target frameworks ({string.Join(", ", fws)}).");

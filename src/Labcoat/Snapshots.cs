@@ -285,7 +285,7 @@ public static class SnapshotEndpoints
     private static IResult TestSnapshots(Explorer explorer, string? projectId, string? id)
     {
         if (string.IsNullOrEmpty(id)) return Results.BadRequest(new { error = "id is required" });
-        return explorer.GetSnapshots(projectId, id) is { } s ? Results.Json(s, Json.Options) : Results.NotFound(new { error = "Unknown test" });
+        return explorer.Snapshots.Get(projectId, id) is { } s ? Results.Json(s, Json.Options) : Results.NotFound(new { error = "Unknown test" });
     }
 
     private static async Task<IResult> SnapshotFileAsync(Explorer explorer, string? path, HttpContext ctx)
@@ -316,7 +316,7 @@ public static class SnapshotEndpoints
             body = string.IsNullOrWhiteSpace(text) ? new SnapshotRequest(null, null, null, null) : JsonSerializer.Deserialize<SnapshotRequest>(text, Json.Options);
         }
         catch (JsonException ex) { return Results.BadRequest(new { error = "Malformed JSON: " + ex.Message }); }
-        var (status, result, error) = explorer.ResolveSnapshots(body ?? new SnapshotRequest(null, null, null, null), accept);
+        var (status, result, error) = explorer.Snapshots.Resolve(body ?? new SnapshotRequest(null, null, null, null), accept);
         return result is not null ? Results.Json(result, Json.Options, statusCode: status) : Results.Json(new { error }, Json.Options, statusCode: status);
     }
 }

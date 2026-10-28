@@ -151,8 +151,7 @@ public class ExplorerOrchestrationTests
             e.Cancel();
         }
 
-        static object PendingRequest(Labcoat.Explorer e) =>
-            typeof(Labcoat.Explorer).GetField("_pendingRun", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(e)!;
+        static object PendingRequest(Labcoat.Explorer e) => e.PendingRunRequest!;
         static object? Prop(object o, string name) => o.GetType().GetProperty(name)!.GetValue(o);
     }
 

@@ -423,7 +423,7 @@ public class GitAffectedTests
         {
             var result = await r.Explorer.RunAffectedAsync("working", null, coverage: null, buildImpactMap: false, trigger: "api", TestContext.CancellationToken);
             Assert.AreEqual((202, true), (result.Run!.Status, result.Run.Queued));
-            var pending = typeof(Explorer).GetField("_pendingRun", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(r.Explorer)!;
+            var pending = r.Explorer.PendingRunRequest!;
             var selection = (Dictionary<string, HashSet<string>?>)pending.GetType().GetProperty("Selection")!.GetValue(pending)!;
             CollectionAssert.AreEquivalent(new[] { "t1" }, selection["Shop.Tests"]!.ToArray());
             Assert.IsNull(selection["Other.Tests"]); // whole project
