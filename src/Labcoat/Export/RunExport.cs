@@ -1,4 +1,4 @@
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>One test result of an exported run (<see cref="RunExport"/>).</summary>
 public sealed record ExportTest
@@ -107,9 +107,9 @@ internal static class ExportKinds
     /// <summary>The reason shown for a result that did not pass or fail.</summary>
     public static string SkipReason(ExportTest t) => t.Kind switch
     {
-        ExportKind.QuarantinedFailure => "Quarantined; failed: " + ExportText.FirstLine(t.ErrorMessage, 500),
+        ExportKind.QuarantinedFailure => "Quarantined; failed: " + Export.ExportText.FirstLine(t.ErrorMessage, 500),
         ExportKind.NotRun => t.Outcome == Outcome.Cancelled ? "Cancelled" : "Not run",
-        _ => string.IsNullOrWhiteSpace(t.ErrorMessage) ? "Skipped" : ExportText.FirstLine(t.ErrorMessage, 500),
+        _ => string.IsNullOrWhiteSpace(t.ErrorMessage) ? "Skipped" : Export.ExportText.FirstLine(t.ErrorMessage, 500),
     };
 }
 
@@ -142,5 +142,5 @@ public static class ExportFormats
 
     /// <summary>labcoat-&lt;workspace&gt;-&lt;run id&gt;.&lt;extension&gt;, e.g. labcoat-shop-3f2a….junit.xml.</summary>
     public static string FileName(string? workspaceName, string runId, string format) =>
-        $"labcoat-{ExportText.Slug(workspaceName)}-{ExportText.Slug(runId, "run")}.{Extension(format)}";
+        $"labcoat-{Export.ExportText.Slug(workspaceName)}-{Export.ExportText.Slug(runId, "run")}.{Extension(format)}";
 }

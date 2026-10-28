@@ -3,7 +3,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>The totals of a merged JUnit report.</summary>
 public sealed record JUnitTotals(int Suites, int Tests, int Failures, int Errors, int Skipped, double Seconds)
@@ -172,7 +172,7 @@ public sealed class JUnitMerge
         var totals = Totals();
         w.WriteStartDocument();
         w.WriteStartElement("testsuites");
-        w.WriteAttributeString("name", ExportText.Clean(_name is { Length: > 0 } ? _name : "Labcoat merged"));
+        w.WriteAttributeString("name", Export.ExportText.Clean(_name is { Length: > 0 } ? _name : "Labcoat merged"));
         w.WriteAttributeString("tests", Int(totals.Tests));
         w.WriteAttributeString("failures", Int(totals.Failures));
         w.WriteAttributeString("errors", Int(totals.Errors));
@@ -187,7 +187,7 @@ public sealed class JUnitMerge
     {
         var cases = suite.Cases.Select(c => c.Element).ToList();
         w.WriteStartElement("testsuite");
-        w.WriteAttributeString("name", ExportText.Clean(suite.Name));
+        w.WriteAttributeString("name", Export.ExportText.Clean(suite.Name));
         w.WriteAttributeString("tests", Int(cases.Count));
         w.WriteAttributeString("failures", Int(Count(cases, "failure")));
         w.WriteAttributeString("errors", Int(Count(cases, "error")));
@@ -195,14 +195,14 @@ public sealed class JUnitMerge
         w.WriteAttributeString("time", JUnitWriter.Seconds(cases.Sum(Seconds) * 1000));
         if (suite.Timestamp is not null) w.WriteAttributeString("timestamp", suite.Timestamp);
         w.WriteAttributeString("id", Int(index));
-        if (suite.Package is not null) w.WriteAttributeString("package", ExportText.Clean(suite.Package));
+        if (suite.Package is not null) w.WriteAttributeString("package", Export.ExportText.Clean(suite.Package));
 
         w.WriteStartElement("properties");
         foreach (var (name, value) in (suite.Properties ?? []).Append((MergedFromProperty, Int(suite.MergedFrom))))
         {
             w.WriteStartElement("property");
             w.WriteAttributeString("name", name);
-            w.WriteAttributeString("value", ExportText.Clean(value));
+            w.WriteAttributeString("value", Export.ExportText.Clean(value));
             w.WriteEndElement();
         }
         w.WriteEndElement();

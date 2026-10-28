@@ -1,5 +1,6 @@
 using System.Text;
 using System.Xml;
+using Labcoat.Export;
 
 namespace Labcoat;
 
@@ -92,7 +93,7 @@ public static class CliMerge
 
         Console.WriteLine($"{Cli.Bold("Labcoat " + Cli.Version)} {Cli.Dim("merge")}: {files.Count} file{(files.Count == 1 ? "" : "s")}");
         var junit = new JUnitMerge();
-        var coverage = new CoverageMerge();
+        var coverage = new Export.CoverageMerge();
         var counts = new Dictionary<ReportKind, int>();
         foreach (var file in files)
         {
@@ -149,7 +150,7 @@ public static class CliMerge
         _ => "cobertura",
     };
 
-    private static void Read(ReportKind kind, string file, JUnitMerge junit, CoverageMerge coverage)
+    private static void Read(ReportKind kind, string file, JUnitMerge junit, Export.CoverageMerge coverage)
     {
         using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 64 * 1024);
         switch (kind)
@@ -253,7 +254,7 @@ public static class CliMerge
     // ------------------------------------------------------------------ outputs
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>
-    private static bool WriteExports(IReadOnlyList<ExportTarget> exports, JUnitMerge junit, CoverageMerge coverage, JUnitTotals? tests, CoverageTotals? totals)
+    private static bool WriteExports(IReadOnlyList<ExportTarget> exports, JUnitMerge junit, Export.CoverageMerge coverage, JUnitTotals? tests, CoverageTotals? totals)
     {
         var ok = true;
         foreach (var target in exports)

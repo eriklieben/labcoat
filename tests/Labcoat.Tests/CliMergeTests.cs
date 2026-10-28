@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Labcoat;
+using Labcoat.Export;
 using Labcoat.Tests.Unit;
 
 namespace Labcoat.Tests;

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Labcoat.Export;
 
 namespace Labcoat;
 
@@ -188,7 +189,7 @@ public static class CliRun
         }
         var plan = Sharding.Plan(selected, id => names.GetValueOrDefault(id, id), shard, options.ShardBy, timings);
         var unit = options.ShardBy.ToString().ToLowerInvariant();
-        var estimate = plan.EstimatedMs is { } ms ? $", about {HtmlReport.Duration(ms)}" : "";
+        var estimate = plan.EstimatedMs is { } ms ? $", about {Export.HtmlReport.Duration(ms)}" : "";
         Console.WriteLine($"  --shard {shard}: {plan.TestIds.Count} of {selected.Count} tests ({plan.Units} of {plan.TotalUnits} {unit}es{estimate}), split {plan.Fingerprint}");
         if (timings is null)
             Console.WriteLine(Cli.Dim("    No timings: the shards are dealt out evenly by name. --shard-timings <results.xml> balances them by duration."));
@@ -218,7 +219,7 @@ public static class CliRun
         }
         var verdict = run.Failed > 0 ? Cli.Red($"{run.Failed} failed") : Cli.Bold("no failures");
         var extra = (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
-        Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {HtmlReport.Duration(elapsed.TotalMilliseconds)}");
+        Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {Export.HtmlReport.Duration(elapsed.TotalMilliseconds)}");
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
         if (run.Cancelled == true) Console.Error.WriteLine($"{WarningLabel} Run cancelled.");
     }

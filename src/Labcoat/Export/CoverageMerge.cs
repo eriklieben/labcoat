@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>The totals of merged coverage.</summary>
 public sealed record CoverageTotals(int Files, int LinesCovered, int LinesValid, int BranchesCovered, int BranchesValid)

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Xml;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>
 /// Writes a run as JUnit XML, the de-facto CI test report format (Azure
@@ -149,11 +149,11 @@ public static class JUnitWriter
     private static void WriteProblem(XmlWriter w, string element, ExportTest t, string type)
     {
         w.WriteStartElement(element);
-        var message = Text(ExportText.Cap(ExportText.Clean(t.ErrorMessage), MaxMessageChars));
+        var message = Text(Export.ExportText.Cap(Export.ExportText.Clean(t.ErrorMessage), MaxMessageChars));
         w.WriteAttributeString(MessageAttr, message.Length > 0 ? message : DefaultMessage(t));
         w.WriteAttributeString(TypeAttr, Text(type));
         var body = string.IsNullOrWhiteSpace(t.StackTrace) ? t.ErrorMessage : t.StackTrace;
-        w.WriteString(ExportText.Cap(ExportText.Clean(body), MaxStackChars));
+        w.WriteString(Export.ExportText.Cap(Export.ExportText.Clean(body), MaxStackChars));
         w.WriteEndElement();
     }
 
@@ -164,7 +164,7 @@ public static class JUnitWriter
     private static void WriteOutput(XmlWriter w, string element, string? text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        w.WriteElementString(element, ExportText.Cap(ExportText.Clean(text), MaxOutputChars));
+        w.WriteElementString(element, Export.ExportText.Cap(Export.ExportText.Clean(text), MaxOutputChars));
     }
 
     /// <summary>The tests whose console output fits into <see cref="MaxTotalOutputChars"/>: failed ones first, then in order.</summary>
@@ -182,7 +182,7 @@ public static class JUnitWriter
         return chosen;
     }
 
-    private static string Text(string? s) => ExportText.Clean(s);
+    private static string Text(string? s) => Export.ExportText.Clean(s);
 
     private static string Int(int n) => n.ToString(CultureInfo.InvariantCulture);
 

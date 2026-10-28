@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 // The HTML report's inline assets: the default theme's tokens, the report CSS and the filter script. The page's CSP
 // allows exactly these two inline blocks (by hash) and nothing else: no external requests, no other script.
@@ -19,7 +19,7 @@ public static partial class HtmlReport
 
     private static string? ReadThemeResource()
     {
-        using var stream = typeof(HtmlReport).Assembly.GetManifestResourceStream(ThemeResource);
+        using var stream = typeof(Export.HtmlReport).Assembly.GetManifestResourceStream(ThemeResource);
         if (stream is null) return null;
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd();

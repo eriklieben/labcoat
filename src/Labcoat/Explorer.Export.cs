@@ -1,3 +1,5 @@
+using Labcoat.Export;
+
 namespace Labcoat;
 
 // Run export (JUnit XML, HTML report; LabcoatApp.Export.cs, CliRun.cs): a persisted run joined with what the explorer

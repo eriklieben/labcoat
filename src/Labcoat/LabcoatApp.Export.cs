@@ -1,3 +1,5 @@
+using Labcoat.Export;
+
 namespace Labcoat;
 
 // Export endpoints (docs/contract.md "Export"): a run as JUnit XML / HTML report, a coverage report as lcov / Cobertura.
@@ -47,7 +49,7 @@ public static partial class LabcoatApp
             return;
         }
         using var w = new StreamWriter(stream, new System.Text.UTF8Encoding(false), 64 * 1024, leaveOpen: true) { NewLine = "\n" };
-        HtmlReport.Write(export, w);
+        Export.HtmlReport.Write(export, w);
     }
 
     /// <summary>An attachment (Content-Disposition with the file name), never cached.</summary>
