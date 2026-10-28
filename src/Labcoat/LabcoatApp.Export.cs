@@ -20,8 +20,8 @@ public static partial class LabcoatApp
     {
         if (format is not (ExportFormats.JUnit or ExportFormats.Html))
             return Results.BadRequest(new { error = "format must be junit or html" });
-        if (explorer.ExportRun(runId) is not { } export)
-            return Results.NotFound(new { error = runId == Explorer.LatestRun ? "No runs yet" : "Unknown run id", runId });
+        if (explorer.Exports.Run(runId) is not { } export)
+            return Results.NotFound(new { error = runId == ExportService.LatestRun ? "No runs yet" : "Unknown run id", runId });
         using var ms = new MemoryStream();
         WriteRunExport(export, format, ms);
         return Download(ctx, ms.ToArray(), format, ExportFormats.FileName(export.WorkspaceName, export.Run.RunId, format));
@@ -36,8 +36,8 @@ public static partial class LabcoatApp
         var report = scope == "last" ? explorer.LastCoverageReport : explorer.FullCoverageReport;
         if (report is null) return Results.NotFound(new { error = "No coverage report yet: run the tests with coverage first" });
         using var ms = new MemoryStream();
-        CoverageExport.Write(format, report, new CoverageExportOptions(explorer.ExportRoot, paths == "absolute"), ms);
-        return Download(ctx, ms.ToArray(), format, ExportFormats.FileName(explorer.ExportWorkspaceName, report.RunId, format));
+        CoverageExport.Write(format, report, new CoverageExportOptions(explorer.Exports.Root, paths == "absolute"), ms);
+        return Download(ctx, ms.ToArray(), format, ExportFormats.FileName(explorer.Exports.WorkspaceName, report.RunId, format));
     }
 
     /// <summary>Writes a run export (JUnit XML or HTML report) as UTF-8 to <paramref name="stream"/>.</summary>

@@ -38,7 +38,7 @@ public sealed record ExportTest
 public sealed record ExportProject(string Id, string Name, string? TargetFramework, string? Path);
 
 /// <summary>
-/// A run as the exports see it (Explorer.ExportRun): the summary, the projects that reported results and every result
+/// A run as the exports see it (ExportService.Run): the summary, the projects that reported results and every result
 /// with the test's names, error and (when the live result is still this run's) console output, in tree order.
 /// </summary>
 public sealed record RunExport

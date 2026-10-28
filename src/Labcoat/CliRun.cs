@@ -251,13 +251,13 @@ public static class CliRun
                                         "(do the test projects reference Microsoft.Testing.Extensions.CodeCoverage?).");
                 return true;
             }
-            var coverageOptions = new CoverageExportOptions(explorer.ExportRoot, options.ExportAbsolutePaths);
+            var coverageOptions = new CoverageExportOptions(explorer.Exports.Root, options.ExportAbsolutePaths);
             Write(path, s => CoverageExport.Write(target.Format, report, coverageOptions, s));
             Console.WriteLine($"  Wrote {target.Format}: {target.Path} ({report.Files.Count} files, {report.LineRate:P1} of lines)");
             Console.WriteLine(Cli.Dim("    " + CoverageExport.Note(report, coverageOptions)));
             return true;
         }
-        var export = (runId is null ? null : explorer.ExportRun(runId)) ?? EmptyExport(explorer);
+        var export = (runId is null ? null : explorer.Exports.Run(runId)) ?? EmptyExport(explorer);
         Write(path, s => LabcoatApp.WriteRunExport(export, target.Format, s));
         Console.WriteLine($"  Wrote {target.Format}: {target.Path} ({export.Tests.Count} tests)");
         return true;
@@ -273,7 +273,7 @@ public static class CliRun
     /// <summary>An export without results (nothing ran): the reports still exist and say so.</summary>
     private static RunExport EmptyExport(Explorer explorer) => new()
     {
-        WorkspaceName = explorer.ExportWorkspaceName,
+        WorkspaceName = explorer.Exports.WorkspaceName,
         Version = Cli.Version,
         Run = new RunSummary { RunId = "none", StartedAt = Json.Now(), Trigger = Trigger },
         Projects = [],
