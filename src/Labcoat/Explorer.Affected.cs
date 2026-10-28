@@ -8,7 +8,7 @@ public sealed partial class Explorer
 
     private AffectedPlanner? _affected;
 
-    private AffectedPlanner Affected => _affected ??= new AffectedPlanner(_state, _inputRoots, AffectedBase, _impact, _coverageCache, QueueImpactRefinementLocked);
+    private AffectedPlanner Affected => LazyInitializer.EnsureInitialized(ref _affected, () => new AffectedPlanner(_state, _inputRoots, AffectedBase, _impact, _coverageCache, QueueImpactRefinementLocked));
 
     /// <summary>GET /api/git: branch, HEAD, dirty count, default base (cached ~2 s).</summary>
     public Task<GitInfo> GitInfoAsync(CancellationToken ct = default) => Affected.GitInfoAsync(ct);

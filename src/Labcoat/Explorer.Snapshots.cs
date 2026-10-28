@@ -5,7 +5,7 @@ namespace Labcoat;
 public sealed partial class Explorer
 {
     /// <summary>GET /api/tests/snapshots, POST /api/snapshots/accept and /reject (SnapshotService.cs).</summary>
-    internal SnapshotService Snapshots => _snapshots ??= new SnapshotService(_state, this, RequestRun);
+    internal SnapshotService Snapshots => LazyInitializer.EnsureInitialized(ref _snapshots, () => new SnapshotService(_state, this, RequestRun));
     private SnapshotService? _snapshots;
 
     void IExplorerEffects.PublishTests(IEnumerable<TestNode> nodes) => PublishTests(nodes);

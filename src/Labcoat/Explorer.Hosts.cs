@@ -8,7 +8,7 @@ public sealed partial class Explorer : ITestHostOwner
 {
     private TestHostPool? _hosts;
 
-    private TestHostPool Hosts => _hosts ??= new TestHostPool(_state, this, this, _gate.ShutdownToken);
+    private TestHostPool Hosts => LazyInitializer.EnsureInitialized(ref _hosts, () => new TestHostPool(_state, this, this, _gate.ShutdownToken));
 
     MtpHost ITestHostOwner.StartHost(ProjectEntry p, string[] extraArgs, Action<string, JsonNode?> onUpdate, IReadOnlyDictionary<string, string>? environment, bool? tracing) =>
         StartHost(p, extraArgs, onUpdate, environment, tracing);

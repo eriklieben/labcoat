@@ -1714,7 +1714,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         StopProjectWatcher(); // Explorer.Projects.cs
         lock (Sync)
         {
-            _hang?.Dispose();
+            Hang.Dispose(); // also when no run used it yet: a later access must not start a timer on a disposed explorer
             foreach (var p in _state.Projects)
             {
                 StopWatching(p);

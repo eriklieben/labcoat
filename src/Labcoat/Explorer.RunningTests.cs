@@ -16,8 +16,8 @@ public sealed partial class Explorer
     private LiveOutputService? _liveOutput;
     private HangMonitor? _hang;
 
-    private LiveOutputService LiveService => _liveOutput ??= new LiveOutputService(_state, this);
-    private HangMonitor Hang => _hang ??= new HangMonitor(_state, this, LiveService, HangThreshold, TestTimeout, HangCheckInterval);
+    private LiveOutputService LiveService => LazyInitializer.EnsureInitialized(ref _liveOutput, () => new LiveOutputService(_state, this));
+    private HangMonitor Hang => LazyInitializer.EnsureInitialized(ref _hang, () => new HangMonitor(_state, this, LiveService, HangThreshold, TestTimeout, HangCheckInterval));
 
     void IExplorerEffects.Emit(ServerEvent evt) => Emit(evt);
 
