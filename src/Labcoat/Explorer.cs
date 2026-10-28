@@ -133,7 +133,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 Editors = _editors,
                 TelemetryAvailable = DashboardTelemetry.Available ? true : null,
                 UiDefaults = UiDefaults,
-                RunningNow = RunningNowLocked(), // Explorer.Hang.cs
+                RunningNow = Hang.RunningNowLocked(),
                 Limits = LimitsInfo(),
             };
         }
@@ -788,7 +788,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     }
 
     /// <summary>Run counts; results of quarantined tests ("projectId|id") go to <see cref="RunSummary.Quarantined"/> only.</summary>
-    private static void UpdateCounts(RunSummary run, Dictionary<(string, string), Outcome> results, IReadOnlySet<string> quarantined)
+    internal static void UpdateCounts(RunSummary run, Dictionary<(string, string), Outcome> results, IReadOnlySet<string> quarantined)
     {
         int passed = 0, failed = 0, skipped = 0, q = 0;
         foreach (var ((projectId, id), o) in results)
@@ -1220,7 +1220,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             LivePartial(t, incoming); // Explorer.Live.cs
             return started ? t : null;
         }
-        if (HangTimedOutLocked(key)) return null; // timed out (Explorer.Hang.cs): a late "cancelled" keeps that
+        if (Hang.IsTimedOutLocked(key)) return null; // timed out (HangMonitor.cs): a late "cancelled" keeps that
         LiveFinished(t);
         MtpMapping.ApplyResult(t, incoming, outcome.Value, state);
         CapOutput(t);
@@ -1367,8 +1367,8 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         if (p.PlatformBlocks) throw new InvalidOperationException(p.PlatformMessage ?? $"{p.Project.Name} isn't a Microsoft.Testing.Platform test app.");
         bool tracingEnabled;
         lock (Sync) tracingEnabled = tracing ?? _tracingEnabled;
-        (extraArgs, environment) = LiveHostOptions(p, extraArgs, environment); // Explorer.Live.cs
-        extraArgs = WithProjectArguments(p, extraArgs); // TestingPlatformCommandLineArguments (Explorer.Hang.cs)
+        (extraArgs, environment) = LiveService.HostOptions(p, extraArgs, environment);
+        extraArgs = WithProjectArguments(p, extraArgs); // TestingPlatformCommandLineArguments
         var host = MtpHost.Start(p.TargetPath!, extraArgs, (method, prm) =>
         {
             switch (method)
@@ -1390,7 +1390,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                     break;
             }
         }, (level, msg) => Log(p.Project.Id, level, msg), environment, tracingEnabled, TraceFilter);
-        AttachLiveOutput(p, host);
+        LiveService.Attach(p, host);
         lock (Sync) p.ActiveSession = host;
         return host;
     }
@@ -1730,7 +1730,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         StopProjectWatcher(); // Explorer.Projects.cs
         lock (Sync)
         {
-            _hangTimer?.Dispose(); // Explorer.Hang.cs
+            _hang?.Dispose();
             foreach (var p in _state.Projects)
             {
                 StopWatching(p);
