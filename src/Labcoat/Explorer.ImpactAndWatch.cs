@@ -341,7 +341,7 @@ public sealed partial class Explorer
 
     // ------------------------------------------------------------------ smart watch
 
-    private static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase) { ".cs", ".fs", ".vb", ".razor" };
+    internal static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase) { ".cs", ".fs", ".vb", ".razor" };
 
     /// <summary>
     /// Debounced watch trigger: build + re-discover, then run only the affected tests:
@@ -517,7 +517,7 @@ public sealed partial class Explorer
         (string?)el.Attribute(name) ?? el.Elements().FirstOrDefault(e => e.Name.LocalName == name)?.Value;
 
     /// <summary>Directories of <see cref="ProjectReferenceClosure"/>.</summary>
-    private static List<string> ProjectReferenceClosureDirs(JsonNode? directRefs)
+    internal static List<string> ProjectReferenceClosureDirs(JsonNode? directRefs)
     {
         var cmp = PathUtil.Comparison == StringComparison.Ordinal ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
         return ProjectReferenceClosure(directRefs).Select(p => Path.GetDirectoryName(p)!).Distinct(cmp).ToList();
