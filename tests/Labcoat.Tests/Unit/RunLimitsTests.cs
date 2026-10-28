@@ -367,16 +367,16 @@ public class RunLimitsTests
             Assert.AreEqual((3, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(30)), (config.MaxParallelProjects, config.HangThreshold, config.TestTimeout));
 
             var none = new Dictionary<string, string?>();
-            var fromFile = LabcoatApp.ResolveRunLimits(new StartOptions(), config, n => none.GetValueOrDefault(n));
+            var fromFile = StartupSettings.ResolveRunLimits(new StartOptions(), config, n => none.GetValueOrDefault(n));
             Assert.AreEqual(new RunLimitOptions(3, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(30)), fromFile);
 
             var env = new Dictionary<string, string?> { [RunLimits.MaxParallelEnv] = "6", [RunLimits.HangThresholdEnv] = "45", [RunLimits.TestTimeoutEnv] = "nope" };
-            var fromEnv = LabcoatApp.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n));
+            var fromEnv = StartupSettings.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n));
             Assert.AreEqual(new RunLimitOptions(6, TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(30)), fromEnv);
             StringAssert.Contains(config.Warnings.Single(), "LABCOAT_TEST_TIMEOUT: 'nope' is not a duration");
 
             var cli = StartOptions.Parse(["--max-parallel", "1", "--test-timeout", "0"], out _)!;
-            var fromCli = LabcoatApp.ResolveRunLimits(cli, config, n => env.GetValueOrDefault(n));
+            var fromCli = StartupSettings.ResolveRunLimits(cli, config, n => env.GetValueOrDefault(n));
             Assert.AreEqual((1, TimeSpan.Zero), (fromCli.EffectiveMaxParallel, fromCli.EffectiveTestTimeout));
 
             Assert.AreEqual((RunLimits.DefaultMaxParallel, RunLimits.DefaultHangThreshold, TimeSpan.Zero),
@@ -398,7 +398,7 @@ public class RunLimitsTests
         try
         {
             var sub = Directory.CreateDirectory(Path.Combine(dir.FullName, "sub")).FullName;
-            var roots = LabcoatApp.WorkspaceRootsOf([dir.FullName, Path.Combine(sub, "All.slnx"), Path.Combine(sub, "A.csproj"), dir.FullName]);
+            var roots = WorkspaceDiscovery.WorkspaceRootsOf([dir.FullName, Path.Combine(sub, "All.slnx"), Path.Combine(sub, "A.csproj"), dir.FullName]);
             CollectionAssert.AreEqual(new[] { dir.FullName, sub }, roots);
         }
         finally { dir.Delete(recursive: true); }

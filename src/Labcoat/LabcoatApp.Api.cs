@@ -312,4 +312,35 @@ public static partial class LabcoatApp
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted, stopping);
         await hub.HandleAsync(socket, explorer.Sync, () => new StateEvent(explorer.Snapshot(includeLogs: true, lean: lean)), explorer.HandleCommandAsync, cts.Token, lean);
     }
+
+    /// <summary>JSON body of a command endpoint: (null, null) for an empty body, (null, 400 result) for malformed JSON / wrong types.</summary>
+    private static async Task<(ClientCommand? Body, IResult? Error)> ReadBody(HttpRequest req)
+    {
+        if (req.ContentLength is 0) return (null, null);
+        try
+        {
+            using var reader = new StreamReader(req.Body);
+            var text = await reader.ReadToEndAsync();
+            if (string.IsNullOrWhiteSpace(text)) return (null, null);
+            return (JsonSerializer.Deserialize<ClientCommand>(text, Json.Options), null);
+        }
+        catch (JsonException ex)
+        {
+            return (null, Results.BadRequest(new { error = "Malformed JSON: " + ex.Message }));
+        }
+    }
+
+    private static IResult AffectedError(AffectedException ex) =>
+        Results.Json(new { error = ex.Message, code = ex.Code }, Json.Options, statusCode: ex.Status);
+
+    private static IResult UnknownProject(string projectId) =>
+        Results.NotFound(new { error = $"Unknown project '{projectId}'", projectId });
+
+    private static IResult RunResult(Explorer.RunRequestResult r) => r.Status == 202
+        ? Results.Json(new { accepted = true, runId = r.RunId, queued = r.Queued, merged = r.Merged, unknownTestIds = r.UnknownTestIds },
+            Json.Options, statusCode: StatusCodes.Status202Accepted)
+        : Results.Json(new { error = r.Error, unknownTestIds = r.UnknownTestIds, projects = r.KnownProjects }, Json.Options, statusCode: r.Status);
 }
+
+/// <summary>POST /api/open-in-editor body.</summary>
+public sealed record OpenInEditorRequest(string? Editor, string? Path, int? Line, int? Column);

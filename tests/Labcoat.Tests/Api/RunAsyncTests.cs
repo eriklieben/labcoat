@@ -183,10 +183,10 @@ public class RunAsyncTests
         File.WriteAllText(Path.Combine(project, "Labcoat.csproj"), "<Project />");
         Directory.CreateDirectory(Path.Combine(project, "wwwroot"));
         var bin = Directory.CreateDirectory(Path.Combine(project, "bin", "Debug", "net10.0")).FullName;
-        Assert.AreEqual(Path.Combine(project, "wwwroot"), LabcoatApp.FindWebRoot(bin));
+        Assert.AreEqual(Path.Combine(project, "wwwroot"), WebUi.FindWebRoot(bin));
 
         var installed = Directory.CreateDirectory(Path.Combine(_dir.FullName, "tools", "labcoat")).FullName;
-        Assert.AreEqual(Path.Combine(installed, "wwwroot"), LabcoatApp.FindWebRoot(installed));
+        Assert.AreEqual(Path.Combine(installed, "wwwroot"), WebUi.FindWebRoot(installed));
         Assert.IsTrue(Directory.Exists(Path.Combine(installed, "wwwroot")), "created so static files have a root");
     }
 }

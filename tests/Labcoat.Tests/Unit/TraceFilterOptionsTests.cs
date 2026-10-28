@@ -98,25 +98,25 @@ public sealed class TraceFilterOptionsTests
         using var s = new Sandbox();
         s.Write("home/repo/.labcoat.json", """{"traceFilter": "cat:FromFile"}""");
         var config = s.Load();
-        var saved = Environment.GetEnvironmentVariable(LabcoatApp.TraceFilterEnv);
+        var saved = Environment.GetEnvironmentVariable(StartupSettings.TraceFilterEnv);
         try
         {
-            Environment.SetEnvironmentVariable(LabcoatApp.TraceFilterEnv, null);
-            Assert.AreEqual("cat:FromFile", LabcoatApp.ResolveTraceFilter(new StartOptions(), config, out var error));
+            Environment.SetEnvironmentVariable(StartupSettings.TraceFilterEnv, null);
+            Assert.AreEqual("cat:FromFile", StartupSettings.ResolveTraceFilter(new StartOptions(), config, out var error));
             Assert.IsNull(error);
 
-            Environment.SetEnvironmentVariable(LabcoatApp.TraceFilterEnv, " cat:FromEnv ");
-            Assert.AreEqual("cat:FromEnv", LabcoatApp.ResolveTraceFilter(new StartOptions(), config, out error));
+            Environment.SetEnvironmentVariable(StartupSettings.TraceFilterEnv, " cat:FromEnv ");
+            Assert.AreEqual("cat:FromEnv", StartupSettings.ResolveTraceFilter(new StartOptions(), config, out error));
             Assert.IsNull(error);
-            Assert.AreEqual("cat:FromCli", LabcoatApp.ResolveTraceFilter(new StartOptions { TraceFilter = "cat:FromCli" }, config, out _));
+            Assert.AreEqual("cat:FromCli", StartupSettings.ResolveTraceFilter(new StartOptions { TraceFilter = "cat:FromCli" }, config, out _));
 
-            Environment.SetEnvironmentVariable(LabcoatApp.TraceFilterEnv, "is:failed");
-            Assert.IsNull(LabcoatApp.ResolveTraceFilter(new StartOptions(), config, out error));
+            Environment.SetEnvironmentVariable(StartupSettings.TraceFilterEnv, "is:failed");
+            Assert.IsNull(StartupSettings.ResolveTraceFilter(new StartOptions(), config, out error));
             StringAssert.StartsWith(error, "LABCOAT_TRACE_FILTER: 'is:' depends on the test's result");
         }
         finally
         {
-            Environment.SetEnvironmentVariable(LabcoatApp.TraceFilterEnv, saved);
+            Environment.SetEnvironmentVariable(StartupSettings.TraceFilterEnv, saved);
         }
     }
 
