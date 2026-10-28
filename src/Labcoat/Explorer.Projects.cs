@@ -28,7 +28,7 @@ public sealed partial class Explorer
     /// </summary>
     public async Task RediscoverAsync()
     {
-        await RefreshProjectListAsync(CurrentToken());
+        await RefreshProjectListAsync(_gate.CurrentToken());
         await DiscoverAsync(null);
     }
 
@@ -40,10 +40,10 @@ public sealed partial class Explorer
 
     internal async Task OnProjectFilesChangedAsync(IReadOnlyCollection<string> changed)
     {
-        if (_shutdownToken.IsCancellationRequested) return;
+        if (_gate.ShutdownToken.IsCancellationRequested) return;
         var shown = string.Join(", ", changed.Select(Path.GetFileName).Distinct().Take(3)) + MoreSuffix(changed.Count, 3);
         Log(null, LogLevels.Info, $"Project files changed ({shown}); looking for test projects again");
-        var ct = CurrentToken();
+        var ct = _gate.CurrentToken();
         var (added, _) = await RefreshProjectListAsync(ct);
         if (ct.IsCancellationRequested) return;
         if (changed.Any(ProjectWatcher.AffectsAll))
@@ -64,11 +64,11 @@ public sealed partial class Explorer
     /// <summary>Build + discover these projects (one operation).</summary>
     private async Task DiscoverProjectsAsync(IReadOnlyList<ProjectEntry> projects)
     {
-        var ct = CurrentToken();
-        if (!await AcquireOpAsync("discovery", ct)) return;
+        var ct = _gate.CurrentToken();
+        if (!await _gate.AcquireAsync("discovery", ct)) return;
         try { await BuildAndDiscoverAsync(projects, onlyIfChanged: false, forceDiscovery: true, ct); }
         catch (Exception ex) { Log(null, "error", "Discovery failed: " + ex.Message); }
-        finally { ReleaseOp(); }
+        finally { _gate.Release(); }
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ public sealed partial class Explorer
     private async Task<(List<ProjectEntry> Added, int Removed)> RefreshProjectListAsync(CancellationToken ct)
     {
         if (ProjectFinder is not { } finder) return ([], 0);
-        if (!await AcquireOpAsync("project discovery", ct)) return ([], 0);
+        if (!await _gate.AcquireAsync("project discovery", ct)) return ([], 0);
         var warnings = new List<string>();
         try
         {
@@ -100,7 +100,7 @@ public sealed partial class Explorer
         }
         finally
         {
-            ReleaseOp();
+            _gate.Release();
             foreach (var w in warnings.Distinct()) Log(null, LogLevels.Warning, w);
         }
     }

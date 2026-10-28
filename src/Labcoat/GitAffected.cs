@@ -1076,14 +1076,14 @@ public sealed partial class Explorer
             foreach (var pid in projects) await BuildImpactMapAsync(pid);
             if (ImpactMapMode == ImpactMapModes.Auto)
             {
-                var mid = projects.Count > 0 ? await PlanAffectedAsync(baseKind, reference, _shutdownToken) : plan;
+                var mid = projects.Count > 0 ? await PlanAffectedAsync(baseKind, reference, _gate.ShutdownToken) : plan;
                 await RefineImpactMapAsync(mid.ClassLevel);
             }
-            var again = await PlanAffectedAsync(baseKind, reference, _shutdownToken);
+            var again = await PlanAffectedAsync(baseKind, reference, _gate.ShutdownToken);
             StartAffectedRun(again, coverage, trigger);
         }
         catch (AffectedException ex) { Log(null, LogLevels.Warning, "Run affected: " + ex.Message); }
-        catch (Exception ex) when (!_shutdown.IsCancellationRequested) { Log(null, LogLevels.Error, "Run affected failed: " + ex.Message); }
+        catch (Exception ex) when (!_gate.IsShuttingDown) { Log(null, LogLevels.Error, "Run affected failed: " + ex.Message); }
         catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
     }
 
@@ -1092,7 +1092,7 @@ public sealed partial class Explorer
     {
         try
         {
-            var r = await RunAffectedAsync(cmd.Base, cmd.Ref, cmd.Coverage, cmd.BuildImpactMap ?? false, "user", _shutdownToken);
+            var r = await RunAffectedAsync(cmd.Base, cmd.Ref, cmd.Coverage, cmd.BuildImpactMap ?? false, "user", _gate.ShutdownToken);
             if (r.Run is { Status: not 202 } run) return new CommandRejectedEvent(cmd.Type, run.Status, run.Error ?? "rejected", run.UnknownTestIds);
             return null;
         }

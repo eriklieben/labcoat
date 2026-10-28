@@ -8,7 +8,7 @@ public sealed partial class Explorer : ITestHostOwner
 {
     private TestHostPool? _hosts;
 
-    private TestHostPool Hosts => _hosts ??= new TestHostPool(_state, this, this, _shutdownToken);
+    private TestHostPool Hosts => _hosts ??= new TestHostPool(_state, this, this, _gate.ShutdownToken);
 
     MtpHost ITestHostOwner.StartHost(ProjectEntry p, string[] extraArgs, Action<string, JsonNode?> onUpdate, IReadOnlyDictionary<string, string>? environment, bool? tracing) =>
         StartHost(p, extraArgs, onUpdate, environment, tracing);
@@ -24,18 +24,17 @@ public sealed partial class Explorer : ITestHostOwner
     private async Task RestartRewrittenWarmAsync(ProjectEntry p, WarmSession session, string assembly)
     {
         // A try-acquire that never waits (busy: RenewWarmIfRewrittenAsync / EnsureWarmAsync handle it).
-        if (_shutdown.IsCancellationRequested || !await _opLock.WaitAsync(TimeSpan.Zero, CancellationToken.None)) return;
-        _activeOp = "host restart";
+        if (!await _gate.TryAcquireAsync("host restart")) return;
         try
         {
             lock (Sync)
             {
                 if (p.Warm != session) return;
             }
-            await Hosts.RenewAsync(p, session, TestHostPool.RewrittenReason(assembly), _shutdownToken);
+            await Hosts.RenewAsync(p, session, TestHostPool.RewrittenReason(assembly), _gate.ShutdownToken);
         }
         catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
-        finally { ReleaseOp(); }
+        finally { _gate.Release(); }
     }
 
     /// <summary>
@@ -45,7 +44,7 @@ public sealed partial class Explorer : ITestHostOwner
     /// </summary>
     public async Task RestartHostAsync(string? projectId)
     {
-        if (_activeOp is { } active)
+        if (_gate.Active is { } active)
         {
             Log(projectId, LogLevels.Info, $"Restart requested while a {active} is in progress: cancelling it and stopping the test host now.");
             List<MtpHost> hosts;
@@ -54,8 +53,8 @@ public sealed partial class Explorer : ITestHostOwner
             Cancel();
             foreach (var h in hosts) h.Kill();
         }
-        var ct = CurrentToken();
-        if (!await AcquireOpAsync("host restart", ct)) return;
+        var ct = _gate.CurrentToken();
+        if (!await _gate.AcquireAsync("host restart", ct)) return;
         try
         {
             foreach (var p in SelectProjects(projectId).ToList())
@@ -84,6 +83,6 @@ public sealed partial class Explorer : ITestHostOwner
             Log(projectId, LogLevels.Error, "Could not restart the test host: " + ex.Message);
         }
         catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
-        finally { ReleaseOp(); }
+        finally { _gate.Release(); }
     }
 }

@@ -55,8 +55,8 @@ public sealed partial class Explorer
     /// <summary>Tests only: holds the operation lock (as a running build / run would) until the result is disposed.</summary>
     internal async Task<IDisposable> HoldOperationAsync(string name)
     {
-        await AcquireOpAsync(name, CancellationToken.None);
-        return new OperationHold(ReleaseOp);
+        await _gate.AcquireAsync(name, CancellationToken.None);
+        return new OperationHold(_gate.Release);
     }
 
     private sealed class OperationHold(Action release) : IDisposable

@@ -20,16 +20,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     public object Sync => _state.Sync;
 
     private readonly EventHub _hub;
-    private readonly SemaphoreSlim _opLock = new(1, 1);
-    private CancellationTokenSource _cancel = new();
-    private readonly CancellationTokenSource _shutdown = new();
-    /// <summary>_shutdown.Token, read once: background work started before DisposeAsync may still pass it on after the
-    /// source is disposed (the token itself stays valid and cancelled; reading Token from a disposed source throws).</summary>
-    private readonly CancellationToken _shutdownToken;
-    /// <summary>_cancel linked with _shutdown, one per _cancel (lock Sync): CurrentToken() hands out its token, Cancel()
-    /// replaces both and disposes the old pair, so no per-call linked source keeps a registration on _shutdown.</summary>
-    private CancellationTokenSource _operation;
-    private CancellationToken _operationToken;
+    private readonly OperationGate _gate; // the operation lock and the cancellation tokens (OperationGate.cs)
     private int _disposed;
     private bool _watch;
     private bool _coverageEnabled;
@@ -61,9 +52,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         string? workspaceName = null, bool tracingOnStart = false, IEnumerable<string>? inputPaths = null)
     {
         projectPaths = projectPaths.ToList();
-        _shutdownToken = _shutdown.Token;
-        _operation = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token, _shutdownToken);
-        _operationToken = _operation.Token;
+        _gate = new OperationGate(_state.Sync);
         _inputRoots = inputRoots?.ToList() ?? [];
         _hub = hub;
         _aspireDashboardUrl = aspireDashboardUrl;
@@ -369,11 +358,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         lock (Sync) return _state.Projects.Any(p => p.Project.Id == projectId);
     }
 
-    private CancellationToken CurrentToken()
-    {
-        lock (Sync) return _operationToken;
-    }
-
     private List<ProjectEntry> SelectProjects(string? projectId)
     {
         if (projectId is null) return _state.Projects;
@@ -385,15 +369,15 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// <summary>Build + discover the selected projects (all when null).</summary>
     public async Task DiscoverAsync(string? projectId)
     {
-        var ct = CurrentToken();
-        if (!await AcquireOpAsync("discovery", ct)) return;
+        var ct = _gate.CurrentToken();
+        if (!await _gate.AcquireAsync("discovery", ct)) return;
         try
         {
             // one build for all, then parallel discovery (Explorer.Parallel.cs)
             await BuildAndDiscoverAsync(SelectProjects(projectId).ToList(), onlyIfChanged: false, forceDiscovery: true, ct);
         }
         catch (Exception ex) { Log(null, LogLevels.Error, "Discovery failed: " + ex.Message); }
-        finally { ReleaseOp(); }
+        finally { _gate.Release(); }
     }
 
     /// <summary>Max repetitions of a repeat run (<c>run</c> with <c>repeat</c>).</summary>
@@ -1726,7 +1710,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         // Disposed twice on shutdown (LabcoatApp stops it before the host disposes its services): the second call has
         // nothing left to do, and _shutdown is disposed by then.
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        await _shutdown.CancelAsync();
+        await _gate.CancelShutdownAsync();
         StopProjectWatcher(); // Explorer.Projects.cs
         lock (Sync)
         {
@@ -1742,10 +1726,8 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         await _flushTimer.DisposeAsync();
         _history.Dispose(); // flush a pending debounced save
         _fullCoverageStore.Dispose(); // same for the full coverage report
-        // Background work still holding _shutdownToken or an operation token only reads it: cancelled tokens stay valid.
-        // _cancel and _operation stay undisposed: Cancel() may still swap them after this (a late request), and the
-        // linked _operation's registration on _shutdown goes with it.
-        _shutdown.Dispose();
+        // Background work still holding the shutdown token or an operation token only reads it: cancelled tokens stay valid.
+        _gate.Dispose();
     }
 }
 

@@ -72,8 +72,8 @@ public sealed partial class Explorer
     {
         var granularity = ImpactMapModes.Parse(mode) ?? ImpactMapMode;
         var perTest = granularity == ImpactMapModes.Test;
-        var ct = CurrentToken();
-        if (!await AcquireOpAsync("impact map build", ct)) return;
+        var ct = _gate.CurrentToken();
+        if (!await _gate.AcquireAsync("impact map build", ct)) return;
         var sw = Stopwatch.StartNew();
         var recorded = 0;
         lock (Sync)
@@ -108,7 +108,7 @@ public sealed partial class Explorer
                 PublishSettings();
             }
             Log(null, LogLevels.Info, ct.IsCancellationRequested ? "Impact map: cancelled" : ImpactMapBuiltLine(info, sw.Elapsed, perTest));
-            ReleaseOp();
+            _gate.Release();
         }
     }
 
@@ -249,7 +249,7 @@ public sealed partial class Explorer
 
     private async Task RefineWorkerAsync()
     {
-        while (!_shutdown.IsCancellationRequested)
+        while (!_gate.IsShuttingDown)
         {
             List<(string ProjectId, string ClassKey)> batch;
             lock (Sync)
@@ -263,7 +263,7 @@ public sealed partial class Explorer
                 _refineQueue.Clear();
             }
             try { await RefineClassesAsync(batch); }
-            catch (Exception ex) when (!_shutdown.IsCancellationRequested) { Log(null, LogLevels.Warning, "Impact map refinement failed: " + ex.Message); }
+            catch (Exception ex) when (!_gate.IsShuttingDown) { Log(null, LogLevels.Warning, "Impact map refinement failed: " + ex.Message); }
             catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
         }
         lock (Sync) _refineWorker = null;
@@ -287,8 +287,8 @@ public sealed partial class Explorer
     /// <summary>One coverage process per test of the given classes (skipping tests with per-test data); takes the op lock.</summary>
     private async Task RefineClassesAsync(List<(string ProjectId, string ClassKey)> classes)
     {
-        var ct = CurrentToken();
-        if (!await AcquireOpAsync("impact map refinement", ct))
+        var ct = _gate.CurrentToken();
+        if (!await _gate.AcquireAsync("impact map refinement", ct))
         {
             lock (Sync) foreach (var c in classes) _refineSeen.Remove(c); // cancelled before it started: may be queued again
             return;
@@ -311,7 +311,7 @@ public sealed partial class Explorer
                 PublishSettings();
             }
             if (refined > 0) Log(null, LogLevels.Info, $"Impact map: {refined} test{Plural(refined)} refined to per-test data in {sw.Elapsed.TotalSeconds:0.0}s");
-            ReleaseOp();
+            _gate.Release();
         }
     }
 
@@ -359,8 +359,8 @@ public sealed partial class Explorer
         var names = string.Join(", ", changed.Select(Path.GetFileName).Distinct().Take(3)) + MoreSuffix(changed.Length, 3);
 
         // Build and re-discover first so test locations (and new tests in a changed test file) are current.
-        var ct = CurrentToken();
-        if (!await AcquireOpAsync("watch rebuild", ct)) return;
+        var ct = _gate.CurrentToken();
+        if (!await _gate.AcquireAsync("watch rebuild", ct)) return;
         var buildSw = Stopwatch.StartNew();
         var ready = await RebuildForWatchAsync(p, ct);
         var buildMs = Math.Round(buildSw.Elapsed.TotalMilliseconds, 1);
@@ -400,7 +400,7 @@ public sealed partial class Explorer
             Log(p.Project.Id, LogLevels.Error, "Watch: " + ex.Message);
             return false;
         }
-        finally { ReleaseOp(); }
+        finally { _gate.Release(); }
     }
 
     /// <summary>The tests a watch run selects: test file → its tests, product file → the impact map; anything else is unknown.</summary>

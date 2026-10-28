@@ -89,7 +89,7 @@ public sealed partial class Explorer
         }
         finally
         {
-            if (warm is not null && !ct.IsCancellationRequested && !_shutdown.IsCancellationRequested && p.TargetPath is not null && File.Exists(p.TargetPath))
+            if (warm is not null && !ct.IsCancellationRequested && !_gate.IsShuttingDown && p.TargetPath is not null && File.Exists(p.TargetPath))
             {
                 try
                 {

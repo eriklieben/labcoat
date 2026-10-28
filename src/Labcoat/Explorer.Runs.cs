@@ -13,9 +13,6 @@ public sealed partial class Explorer
 
     private readonly Dictionary<string, RunRequestStatus> _runStatus = [];
     private readonly Queue<string> _runStatusOrder = new();
-    /// <summary>Name of the operation holding the op lock ("run", "discover", ...), null when idle.</summary>
-    private volatile string? _activeOp;
-
     private void SetRunStatus(string runId, string state, string? reason = null, RunSummary? run = null, string? supersededBy = null)
     {
         lock (Sync)
@@ -38,24 +35,6 @@ public sealed partial class Explorer
     {
         lock (Sync) return _runStatus.GetValueOrDefault(runId);
     }
-
-    private async Task<bool> AcquireOpAsync(string name, CancellationToken ct)
-    {
-        try { await _opLock.WaitAsync(ct); }
-        catch (OperationCanceledException) { return false; }
-        _activeOp = name;
-        return true;
-    }
-
-    private void ReleaseOp()
-    {
-        _activeOp = null;
-        _cancelling = false;
-        _opLock.Release();
-    }
-
-    /// <summary>Cancel was requested and the operation it stops has not ended yet (SummaryInfo.Cancelling).</summary>
-    private volatile bool _cancelling;
 
     /// <summary>A run request (<see cref="RequestRun(RunRequestOptions)"/>): what to run and how.</summary>
     public sealed record RunRequestOptions
@@ -112,7 +91,7 @@ public sealed partial class Explorer
                 Watch = o.WatchContext,
                 Debug = o.Debug,
             });
-            queued = _activeOp is not null || _opLock.CurrentCount == 0;
+            queued = _gate.IsBusy;
             Emit(new PendingRunEvent(req.Info()));
         }
 
@@ -137,7 +116,7 @@ public sealed partial class Explorer
         else
         {
             SetRunStatus(req.RunId, "queued");
-            _ = ProcessPendingRunAsync(CurrentToken());
+            _ = ProcessPendingRunAsync(_gate.CurrentToken());
         }
     }
 
@@ -260,7 +239,7 @@ public sealed partial class Explorer
     /// <summary>Waits for the op lock, then runs whatever request is pending at that moment (there may be none any more).</summary>
     private async Task ProcessPendingRunAsync(CancellationToken ct)
     {
-        if (!await AcquireOpAsync("run", ct)) return; // cancelled while waiting: Cancel() cleared the queue
+        if (!await _gate.AcquireAsync("run", ct)) return; // cancelled while waiting: Cancel() cleared the queue
         RunRequest? req;
         lock (Sync)
         {
@@ -270,13 +249,13 @@ public sealed partial class Explorer
         }
         if (req is null)
         {
-            ReleaseOp();
+            _gate.Release();
             return;
         }
         try { await ExecuteRunAsync(req, ct); }
         finally
         {
-            ReleaseOp();
+            _gate.Release();
             req.Completion.TrySetResult();
         }
     }
@@ -298,21 +277,14 @@ public sealed partial class Explorer
 
     public CancelResult Cancel()
     {
-        CancellationTokenSource old, oldOperation;
+        OperationGate.Cancellation cancellation;
         RunRequest? pending;
-        string? active;
         lock (Sync)
         {
-            old = _cancel;
-            oldOperation = _operation;
-            _cancel = new CancellationTokenSource();
-            _operation = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token, _shutdownToken);
-            _operationToken = _operation.Token;
+            cancellation = _gate.BeginCancel();
             pending = _state.Run.Pending;
             _state.Run.Pending = null;
-            active = _activeOp;
             if (pending is not null) Emit(new PendingRunEvent(null));
-            if (active is not null) _cancelling = true;
             // Tests of the current run that have not started will not run: cancelled now, not once the test host has
             // stopped (that can take the cancel grace period). A result that still arrives replaces it.
             if (_state.Run.CurrentRequested is { } keys)
@@ -334,12 +306,11 @@ public sealed partial class Explorer
             SetRunStatus(pending.RunId, "cancelled", "Cancelled while queued.");
             pending.Completion.TrySetResult();
         }
+        var active = cancellation.Active;
         Log(null, LogLevels.Info, "Cancellation requested" +
             (active is not null ? $" (stopping the current {active})" : " (nothing was running)") +
             (pending is not null ? $"; cleared the queued run ({pending.Requests} request{Plural(pending.Requests)})" : ""));
-        old.Cancel(); // cancels oldOperation (linked) too
-        oldOperation.Dispose(); // unregisters it from _shutdown; tokens already handed out stay cancelled
-        old.Dispose();
+        _gate.EndCancel(cancellation);
         return new CancelResult(active is not null, active, pending?.RunId, pending?.Requests ?? 0);
     }
 
@@ -374,10 +345,10 @@ public sealed partial class Explorer
             }
             return new SummaryInfo(Cli.Version, _workspaceName,
                 new OutcomeCounts(_state.Tests.Count, passed, failed, skipped, notRun, running, queued, cancelled),
-                _state.Run.Current?.Copy(), _state.Run.Last?.Copy(), _state.Run.Pending?.Info(), _activeOp, _watch, _coverageEnabled,
+                _state.Run.Current?.Copy(), _state.Run.Last?.Copy(), _state.Run.Pending?.Info(), _gate.Active, _watch, _coverageEnabled,
                 _state.Projects.Select(p => new ProjectSummary(p.Project.Id, p.Project.Name, p.Project.Status, p.Project.HostState, p.Project.LastError,
                     perProject.GetValueOrDefault(p.Project.Id), p.Project.TargetFramework)).ToList(),
-                _cancelling && _activeOp is not null ? true : null);
+                _gate.Cancelling && _gate.Active is not null ? true : null);
         }
     }
 
