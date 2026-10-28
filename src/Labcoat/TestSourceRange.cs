@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Labcoat;
 
 /// <summary>
-/// The lines a test method spans in its C# source file, for "changed tests" (GitAffected.cs). MSTest and xUnit report one
+/// The lines a test method spans in its C# source file, for "changed tests" (AffectedPlanner.cs). MSTest and xUnit report one
 /// line per test (the attribute or the declaration), NUnit none; only TUnit reports a real range. This finds the method in
 /// the file (from the reported line, else by name), extends it up over its attribute lines and brace-matches its body
 /// (skipping strings, chars and comments). Files are cached by modification time; a method it can't delimit gives null.

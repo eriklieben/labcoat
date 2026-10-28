@@ -208,7 +208,7 @@ public sealed partial class Explorer
 
     /// <summary>
     /// One repetition of a run: the projects run at the same time (up to <see cref="MaxParallelProjects"/>), each with its
-    /// own cancellation (linked to the run's) so a test timeout stops that project only (Explorer.Hang.cs). Results stream
+    /// own cancellation (linked to the run's) so a test timeout stops that project only (HangMonitor.cs). Results stream
     /// as they come; the tree keeps its order (discovery order).
     /// </summary>
     private async Task RunProjectsOfIterationAsync(RunExecution x, List<(ProjectEntry Project, HashSet<string>? Ids)> ready,

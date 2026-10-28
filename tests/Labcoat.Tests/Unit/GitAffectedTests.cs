@@ -5,7 +5,7 @@ using Labcoat;
 namespace Labcoat.Tests.Unit;
 
 /// <summary>
-/// Run affected (GitAffected.cs): changed files from a scratch git repository (working tree, branch vs base, commit
+/// Run affected (AffectedPlanner.cs, GitAffected.cs): changed files from a scratch git repository (working tree, branch vs base, commit
 /// ranges, untracked files, renames, deletions, detached HEAD, shallow clones, no commits) mapped to tests through test
 /// files, the impact map, cached per-test coverage and the project fallback.
 /// </summary>

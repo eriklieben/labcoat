@@ -870,7 +870,7 @@ accept "true"/"false" strings.
 ## Run affected tests (git)
 "Run the tests affected by my changes": the host asks `git` which files changed against a base, maps them to tests
 with the smart-watch strategy and either returns the plan (preview) or runs it. Additive (new endpoints, a new command,
-optional fields). Implementation: `src/Labcoat/GitAffected.cs`; UI: `ui/src/components/run-affected.ts`.
+optional fields). Implementation: `src/Labcoat/AffectedPlanner.cs` (git facts in `GitAffected.cs`); UI: `ui/src/components/run-affected.ts`.
 
 ### Bases
 
@@ -1070,7 +1070,7 @@ Behaviour:
 ## Live console output (added)
 Console output of tests **while they run**. Additive: old clients ignore the new event; nothing else changes. Research
 and per-framework limits: `docs/protocol.md` "Live console output". Implementation: `src/Labcoat/LiveOutput.cs`,
-`Explorer.Live.cs`; UI `ui/src/live-output.ts`, `ui/src/components/live-console.ts`.
+`LiveOutputService.cs`; UI `ui/src/live-output.ts`, `ui/src/components/live-console.ts`.
 
 ```ts
 // ---- ServerEvent gains (legacy and lean clients alike; only for tests that are currently running)

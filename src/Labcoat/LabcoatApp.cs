@@ -51,7 +51,7 @@ public static partial class LabcoatApp
 
         var aspireDashboardUrl = AspireDashboardUrl();
 
-        // Host log level and file (LabcoatApp.Diagnostics.cs); --diagnostics prints the report instead of starting.
+        // Host log level and file (StartupSettings.cs, HostLogging.cs); --diagnostics prints the report instead of starting.
         var logLevel = StartupSettings.ResolveLogLevel(options, config);
         var logFile = StartupSettings.ResolveLogFile(options, projects);
         if (options.Diagnostics)
@@ -172,7 +172,7 @@ public static partial class LabcoatApp
             ContentRootPath = AppContext.BaseDirectory,
             WebRootPath = webRoot,
         });
-        var hostLog = HostLogging.Configure(builder, o); // --verbose / LABCOAT_LOG_LEVEL, --log-file (LabcoatApp.Diagnostics.cs)
+        var hostLog = HostLogging.Configure(builder, o); // --verbose / LABCOAT_LOG_LEVEL, --log-file (HostLogging.cs)
         // A port that is already in use is reported as one line (RunAsync) instead of the host's stack trace.
         builder.Logging.AddFilter("Microsoft.Extensions.Hosting.Internal.Host", LogLevel.Critical);
         if (o.Url is not null) builder.WebHost.UseUrls(o.Url);

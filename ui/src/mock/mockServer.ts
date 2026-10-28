@@ -756,7 +756,7 @@ export class MockTransport implements Transport {
     this.log("info", enabled ? "Watch mode enabled. Re-running affected tests on file changes." : "Watch mode disabled.");
     this.emit({ type: "state", state: this.snapshot() });
     if (enabled) {
-      // like the host's "testFile" strategy (Explorer.Warm.cs): a saved test file reruns only the tests in that file
+      // like the host's "testFile" strategy (Explorer.ImpactAndWatch.cs): a saved test file reruns only the tests in that file
       const tick = () => {
         if (this.run) return;
         const file = `${ROOT}/SampleTests/Math/CalculatorTests.cs`;

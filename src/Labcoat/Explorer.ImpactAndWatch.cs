@@ -540,7 +540,7 @@ public sealed record ImpactMapInfo
 /// <summary>RunSummary.affected: set on watch-triggered runs and on "run affected" (git) runs.</summary>
 public sealed record AffectedRun
 {
-    /// <summary>"testFile" | "impactMap" | "mixed" | "all" (watch); "git" (run affected, GitAffected.cs)</summary>
+    /// <summary>"testFile" | "impactMap" | "mixed" | "all" (watch); "git" (run affected, Explorer.Affected.cs)</summary>
     public required string Strategy { get; init; }
     public required List<string> ChangedFiles { get; init; }
     /// <summary>git runs: "working" | "branch" | "range".</summary>

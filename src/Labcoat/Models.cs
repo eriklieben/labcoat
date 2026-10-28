@@ -493,7 +493,7 @@ public sealed record ClientCommand
     public bool? Quarantined { get; init; }
     /// <summary>setTargetFramework: the TFM to run a multi-targeted project on (null/empty = back to the default).</summary>
     public string? TargetFramework { get; init; }
-    /// <summary>runAffected: "working" | "branch" | "range" (GitAffected.cs).</summary>
+    /// <summary>runAffected: "working" | "branch" | "range" (AffectedPlanner.cs).</summary>
     public string? Base { get; init; }
     /// <summary>runAffected: the base ref ("branch") or the commit range ("range").</summary>
     public string? Ref { get; init; }

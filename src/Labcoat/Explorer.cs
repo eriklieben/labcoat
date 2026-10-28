@@ -284,7 +284,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// </summary>
     public Task<ServerEvent?> HandleCommandAsync(ClientCommand cmd)
     {
-        if (cmd.Type == "runAffected") return RunAffectedCommandAsync(cmd); // GitAffected.cs
+        if (cmd.Type == "runAffected") return RunAffectedCommandAsync(cmd); // Explorer.Affected.cs
         ServerEvent? reply = cmd.Type switch
         {
             "discover" => ForKnownProject(cmd, () => _ = DiscoverCommandAsync(cmd.ProjectId)),
@@ -1201,7 +1201,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 t.Outcome = Outcome.Running;
                 LiveStarted(t);
             }
-            LivePartial(t, incoming); // Explorer.Live.cs
+            LivePartial(t, incoming); // LiveOutputService.cs
             return started ? t : null;
         }
         if (Hang.IsTimedOutLocked(key)) return null; // timed out (HangMonitor.cs): a late "cancelled" keeps that

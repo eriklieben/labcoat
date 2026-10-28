@@ -72,7 +72,7 @@ public static partial class LabcoatApp
         app.MapPost("/api/target-framework", (HttpRequest req) => SetTargetFrameworkAsync(req, explorer));
     }
 
-    /// <summary>Run affected (git, GitAffected.cs): branch / dirty state, the plan (preview, never runs), plan + run.</summary>
+    /// <summary>Run affected (git, AffectedPlanner.cs): branch / dirty state, the plan (preview, never runs), plan + run.</summary>
     private static void MapAffectedEndpoints(WebApplication app, Explorer explorer)
     {
         app.MapGet("/api/git", async (CancellationToken ct) => Results.Json(await explorer.GitInfoAsync(ct), Json.Options));
