@@ -718,7 +718,7 @@ public sealed partial class Explorer
         lock (Sync)
         {
             var plan = BuildPlanLocked(kind, changes, info, repo.Root, scopes);
-            QueueImpactRefinementLocked(plan.ClassLevel); // impactMap "auto" (Explorer.Warm.cs)
+            QueueImpactRefinementLocked(plan.ClassLevel); // impactMap "auto" (Explorer.ImpactAndWatch.cs)
             return plan;
         }
     }

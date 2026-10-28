@@ -820,7 +820,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             return true;
         }
         var buildStart = DateTime.UtcNow;
-        await StopWarmBeforeBuildAsync(p); // Windows only: loaded assemblies are locked
+        await Hosts.StopBeforeBuildAsync(p); // Windows only: loaded assemblies are locked
         SetStatus(p, ProjectStatus.Building);
         Log(p.Project.Id, LogLevels.Info, $"Building {p.Project.Path}");
         var sw = Stopwatch.StartNew();
@@ -853,7 +853,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         }
         if (!AcceptsPlatformAfterBuild(p)) return false;
         p.LastBuildStartUtc = buildStart;
-        InvalidateWarmIfStale(p);
+        Hosts.InvalidateIfStale(p);
         SetStatus(p, ProjectStatus.Idle);
         return true;
     }
@@ -1021,7 +1021,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         try
         {
             var sw = Stopwatch.StartNew();
-            await RequestOnHostAsync(p, (method, prm) => CollectDiscovered(p, found, method, prm), (conn, token) => conn.DiscoverAsync(runId, token), ct);
+            await Hosts.RequestAsync(p, (method, prm) => CollectDiscovered(p, found, method, prm), (conn, token) => conn.DiscoverAsync(runId, token), ct);
             Log(p.Project.Id, LogLevels.Info, $"Discovered {found.Count} tests in {sw.Elapsed.TotalSeconds:0.0}s");
         }
         catch (Exception ex) when (ct.IsCancellationRequested && ex is OperationCanceledException or IOException)
@@ -1139,7 +1139,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             else if (coverageFile is null)
             {
                 // Warm test host: the process (and whatever its fixtures keep alive) is reused across runs.
-                await RequestOnHostAsync(p, onUpdate, (conn, token) => conn.RunAsync(runId, subset, token), ct);
+                await Hosts.RequestAsync(p, onUpdate, (conn, token) => conn.RunAsync(runId, subset, token), ct);
                 await CheckWarmAfterRunAsync(p, pr.RequestedKeys, ct);
             }
             else await RunCoverageHostAsync(p, coveragePlan!, extraArgs, onUpdate, runId, subset, ct);
@@ -1281,12 +1281,12 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// </summary>
     private async Task CheckWarmAfterRunAsync(ProjectEntry p, List<(string ProjectId, string Id)> requestedKeys, CancellationToken ct)
     {
-        var warm = CurrentWarm(p);
+        var warm = Hosts.CurrentWarm(p);
         if (warm is null || ct.IsCancellationRequested) return;
         if (warm.Watch.Check() is { } rewritten)
         {
             Log(p.Project.Id, LogLevels.Warning, $"{rewritten} was rewritten while the tests ran (a build?): results may come from a mix of old and new code. Run them again.");
-            await RenewWarmAsync(p, warm, RewrittenReason(rewritten), ct);
+            await Hosts.RenewAsync(p, warm, TestHostPool.RewrittenReason(rewritten), ct);
             return;
         }
         int corrupt;
@@ -1295,7 +1295,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         if (corrupt == 0) return;
         Log(p.Project.Id, LogLevels.Warning, $"{corrupt} test{(corrupt == 1 ? "" : "s")} failed with BadImageFormatException / \"Index not found (0x80131124)\": " +
             "the warm test host had assemblies loaded that changed on disk. Run them again.");
-        await RenewWarmAsync(p, warm, "its loaded assemblies no longer match the files on disk", ct);
+        await Hosts.RenewAsync(p, warm, "its loaded assemblies no longer match the files on disk", ct);
     }
 
     private static bool LooksLikeStaleAssembly(TestNode t) =>
@@ -1657,7 +1657,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             if (!_watch) return;
             p.PendingChanges.Add(path);
             p.Debounce?.Dispose();
-            p.Debounce = new Timer(state => _ = RunWatchAsync(p), null, 500, Timeout.Infinite); // smart watch: Explorer.Warm.cs
+            p.Debounce = new Timer(state => _ = RunWatchAsync(p), null, 500, Timeout.Infinite); // smart watch: Explorer.ImpactAndWatch.cs
         }
     }
 
@@ -1737,7 +1737,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 if (p.ActiveSession != p.Warm?.Host) p.ActiveSession?.Kill(); // warm hosts get a graceful exit below
             }
         }
-        await ShutdownWarmHostsAsync();
+        await Hosts.ShutdownAsync();
         lock (Sync) FlushTestsLocked();
         await _flushTimer.DisposeAsync();
         _history.Dispose(); // flush a pending debounced save

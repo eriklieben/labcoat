@@ -64,11 +64,11 @@ public sealed partial class Explorer
     /// </summary>
     private async Task RunCoverageProcessAsync(ProjectEntry p, CoveragePlan plan, Func<Task> run, CancellationToken ct)
     {
-        var warm = CurrentWarm(p);
+        var warm = Hosts.CurrentWarm(p);
         if (!plan.RewritesOutput)
         {
             await run();
-            await RenewWarmIfRewrittenAsync(p, warm, ct);
+            await Hosts.RenewIfRewrittenAsync(p, warm, ct);
             return;
         }
         if (warm is not null)
@@ -78,10 +78,10 @@ public sealed partial class Explorer
                 if (p.Warm == warm) p.Warm = null;
             }
             warm.Watch.Dispose();
-            SetHostState(p, "cold");
+            Hosts.SetHostState(p, "cold");
             Log(p.Project.Id, LogLevels.Info, "Stopping the warm test host for the coverage run: static instrumentation rewrites the assemblies it has loaded " +
                 "(no CLR profiler of the coverage extension for this platform, or the settings ask for static instrumentation).");
-            await StopHostAsync(warm.Host); // wait: the files it holds open must be free before the instrumentation starts
+            await TestHostPool.StopHostAsync(warm.Host); // wait: the files it holds open must be free before the instrumentation starts
         }
         try
         {
@@ -93,7 +93,7 @@ public sealed partial class Explorer
             {
                 try
                 {
-                    if (await EnsureWarmAsync(p, ct) is not null) Log(p.Project.Id, LogLevels.Info, "Test host is warm");
+                    if (await Hosts.EnsureWarmAsync(p, ct) is not null) Log(p.Project.Id, LogLevels.Info, "Test host is warm");
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested)
                 {

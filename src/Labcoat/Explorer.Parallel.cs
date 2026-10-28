@@ -114,7 +114,7 @@ public sealed partial class Explorer
         var buildStart = DateTime.UtcNow;
         foreach (var p in batch)
         {
-            await StopWarmBeforeBuildAsync(p); // Windows only: loaded assemblies are locked
+            await Hosts.StopBeforeBuildAsync(p); // Windows only: loaded assemblies are locked
             SetStatus(p, ProjectStatus.Building);
         }
         var paths = batch.Select(p => p.Project.Path).ToList();
@@ -181,7 +181,7 @@ public sealed partial class Explorer
         }
         if (!AcceptsPlatformAfterBuild(p)) return false;
         p.LastBuildStartUtc = buildStart;
-        InvalidateWarmIfStale(p);
+        Hosts.InvalidateIfStale(p);
         SetStatus(p, ProjectStatus.Idle);
         return true;
     }

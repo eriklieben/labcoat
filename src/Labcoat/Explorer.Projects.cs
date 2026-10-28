@@ -187,7 +187,7 @@ public sealed partial class Explorer
     {
         WarmSession? w;
         lock (Sync) w = p.Warm;
-        if (w is not null) RetireWarm(p, w, "the project is no longer part of the workspace");
+        if (w is not null) Hosts.Retire(p, w, "the project is no longer part of the workspace");
     }
 
     /// <summary>Where a project's first discovered tests go in the test order (caller holds Sync): after the tests of the

@@ -122,7 +122,7 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
                 // a run that is being cancelled already (Stop) is not timed out on top of that
                 if (!_projectRuns.TryGetValue(projectId, out var scope) || scope.Token.IsCancellationRequested) continue;
                 var message = $"Timed out after {RunLimits.Describe(elapsed)}: the test ran longer than the test timeout ({RunLimits.Describe(testTimeout)}, testTimeout). " +
-                    $"Labcoat cancelled the run of {scope.Run.Project.Project.Name}; a test host that does not stop within {RunLimits.Describe(Explorer.WarmCancelGrace)} is killed.";
+                    $"Labcoat cancelled the run of {scope.Run.Project.Project.Name}; a test host that does not stop within {RunLimits.Describe(TestHostPool.CancelGrace)} is killed.";
                 MarkTimedOutLocked(scope.Run, (projectId, id), elapsed, message);
                 scope.TimeoutReason ??= $"{name} timed out after {RunLimits.Describe(elapsed)} (testTimeout); the rest of {scope.Run.Project.Project.Name}'s run was cancelled.";
                 if (!cancel.Contains(scope)) cancel.Add(scope);

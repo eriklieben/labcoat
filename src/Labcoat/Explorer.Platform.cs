@@ -110,7 +110,7 @@ public sealed partial class Explorer
             Emit(new ProjectStatusEvent(p.Project.Copy()));
             PublishState();
         }
-        if (warm is not null) RetireWarm(p, warm, "the project isn't on Microsoft.Testing.Platform");
+        if (warm is not null) Hosts.Retire(p, warm, "the project isn't on Microsoft.Testing.Platform");
         if (log) Log(p.Project.Id, LogLevels.Warning, message);
     }
 

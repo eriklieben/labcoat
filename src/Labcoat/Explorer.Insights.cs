@@ -31,7 +31,7 @@ public sealed partial class Explorer
             {
                 if (fingerprints.TryGetValue(projectId, out var f)) return f;
                 var target = _state.Projects.FirstOrDefault(p => p.Project.Id == projectId)?.TargetPath;
-                f = target is not null && File.Exists(target) ? OutputFingerprint(target) : null;
+                f = target is not null && File.Exists(target) ? OutputFingerprints.Of(target) : null;
                 fingerprints[projectId] = f;
                 return f;
             }

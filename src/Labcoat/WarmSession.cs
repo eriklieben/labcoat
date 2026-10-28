@@ -10,7 +10,7 @@ internal sealed class WarmSession(MtpHost host, string fingerprint, bool tracing
     public OutputWatch Watch { get; } = watch;
     /// <summary>Trace collection state the process was started with (its LABCOAT_OTLP_* environment).</summary>
     public bool Tracing { get; } = tracing;
-    /// <summary>Explorer.OutputFingerprint of the output directory when the process was started.</summary>
+    /// <summary>OutputFingerprints.Of of the output directory when the process was started.</summary>
     public string Fingerprint { get; } = fingerprint;
     public MtpConnection? Connection;
     /// <summary>Notification sink of the request in flight (requests are serialized by the op lock).</summary>

@@ -26,7 +26,7 @@ public readonly record struct LineSpan(int Start, int End)
 /// (<see cref="Record"/>), except by an explicit rebuild.
 ///
 /// The pass runs one coverage process per test class ("class"), per test ("test"), or per class first and then per
-/// test for the classes a change maps to ("auto", the default; Explorer.Warm.cs "impact map").
+/// test for the classes a change maps to ("auto", the default; Explorer.ImpactAndWatch.cs "impact map").
 ///
 /// Granularity of the data is the method: for every test we keep the line spans of the methods it executed, plus a
 /// snapshot of each source file's text. When a file changes, the changed line range (common prefix/suffix diff against
