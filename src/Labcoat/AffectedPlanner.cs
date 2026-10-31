@@ -138,7 +138,7 @@ internal sealed class AffectedPlanner
                 if (!byFile.TryGetValue(f, out var list)) byFile[f] = list = [];
                 list.Add(_state.Tests[k]);
             }
-            foreach (var change in changes.Files.Where(c => c.Status != "deleted"))
+            foreach (var change in changes.Files.Where(c => c.Status != GitStatuses.Deleted))
             {
                 var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, change.Path.Replace('/', Path.DirectorySeparatorChar)));
                 if (byFile.TryGetValue(abs, out var inFile)) candidates.AddRange(inFile.Select(t => (t, change)));
@@ -158,8 +158,8 @@ internal sealed class AffectedPlanner
     /// </summary>
     internal static bool IsChanged(TestNode test, GitChange change)
     {
-        if (change.Status is "added" or "untracked") return true;
-        if (change.Lines is not { } spans) return change.Status is not ("renamed" or "copied"); // a pure rename changed no line
+        if (change.Status is GitStatuses.Added or GitStatuses.Untracked) return true;
+        if (change.Lines is not { } spans) return change.Status is not (GitStatuses.Renamed or GitStatuses.Copied); // a pure rename changed no line
         (int Start, int End)? range = test.Line is { } l && test.LineEnd is { } e && e > l ? (l, e) : TestSourceRange.Find(test.FilePath, test.Line, test.MethodName);
         if (range is not { } r)
         {
@@ -324,7 +324,7 @@ internal sealed class AffectedPlanner
             var ext = Path.GetExtension(abs);
             var verb = change.Status switch
             {
-                "added" or "untracked" => "added", "deleted" => "deleted", "renamed" => "renamed", _ => "changed",
+                GitStatuses.Added or GitStatuses.Untracked => "added", GitStatuses.Deleted => "deleted", GitStatuses.Renamed => "renamed", _ => "changed",
             };
             var m = new FileMatch(abs, name, verb, _scopes.Where(s => s.Dirs.Any(d => PathUtil.IsUnder(abs, d))).ToList());
 
@@ -393,7 +393,7 @@ internal sealed class AffectedPlanner
             var isCode = SourceExtensions.Code.Contains(ext) || ProductCodeExtensions.Contains(ext);
             if (isCode)
             {
-                MatchImpactMap(m, change.Status is "deleted" ? null : change.Lines);
+                MatchImpactMap(m, change.Status is GitStatuses.Deleted ? null : change.Lines);
                 if (m.Mapping == "none") MatchCachedCoverage(m);
             }
             if (m.Mapping == "none" && m.Containing.Count > 0) MatchContainingProjects(m, isCode);

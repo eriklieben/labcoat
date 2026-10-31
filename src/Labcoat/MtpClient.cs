@@ -91,7 +91,7 @@ public sealed class MtpHost : IAsyncDisposable
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var psi = new ProcessStartInfo(Explorer.DotnetPath)
+        var psi = new ProcessStartInfo(DotnetCli.Executable)
         {
             WorkingDirectory = Path.GetDirectoryName(targetPath)!,
             RedirectStandardOutput = true,

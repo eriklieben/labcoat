@@ -345,7 +345,7 @@ public sealed partial class Explorer
             }
             return new SummaryInfo(Cli.Version, _workspaceName,
                 new OutcomeCounts(_state.Tests.Count, passed, failed, skipped, notRun, running, queued, cancelled),
-                _state.Run.Current?.Copy(), _state.Run.Last?.Copy(), _state.Run.Pending?.Info(), _gate.Active, _watch, _coverageEnabled,
+                _state.Run.Current?.Copy(), _state.Run.Last?.Copy(), _state.Run.Pending?.Info(), _gate.Active, WatchMode.Enabled, _coverageEnabled,
                 _state.Projects.Select(p => new ProjectSummary(p.Project.Id, p.Project.Name, p.Project.Status, p.Project.HostState, p.Project.LastError,
                     perProject.GetValueOrDefault(p.Project.Id), p.Project.TargetFramework)).ToList(),
                 _gate.Cancelling && _gate.Active is not null ? true : null);
@@ -423,7 +423,7 @@ public sealed partial class Explorer
             FlushTestsLocked();
             _hub.Publish(new StateEvent(Snapshot()), () => new SettingsChangedEvent(new SettingsInfo
             {
-                Watch = _watch,
+                Watch = WatchMode.Enabled,
                 CoverageEnabled = _coverageEnabled,
                 TracingEnabled = _tracingEnabled,
                 Quarantined = _settings.Quarantined(),

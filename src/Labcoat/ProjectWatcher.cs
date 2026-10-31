@@ -11,9 +11,10 @@ public sealed class ProjectWatcher : IDisposable
 {
     private readonly List<FileSystemWatcher> _watchers = [];
     private readonly Action<IReadOnlyCollection<string>> _changed;
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
-    private readonly Timer _timer;
+    private readonly TimeProvider _time;
+    private readonly ITimer _timer;
     private DateTime? _firstPending;
     private bool _disposed;
 
@@ -25,10 +26,12 @@ public sealed class ProjectWatcher : IDisposable
     /// <param name="roots">Directories watched recursively (missing ones are skipped).</param>
     /// <param name="changed">Called (on a timer thread) with the changed paths of a burst.</param>
     /// <param name="warn">A root that could not be watched (e.g. the inotify limit).</param>
-    public ProjectWatcher(IEnumerable<string> roots, Action<IReadOnlyCollection<string>> changed, Action<string>? warn = null)
+    /// <param name="time">The clock and the timer (tests: a fake one).</param>
+    public ProjectWatcher(IEnumerable<string> roots, Action<IReadOnlyCollection<string>> changed, Action<string>? warn = null, TimeProvider? time = null)
     {
         _changed = changed;
-        _timer = new Timer(_ => Flush(), null, Timeout.Infinite, Timeout.Infinite);
+        _time = time ?? TimeProvider.System;
+        _timer = _time.CreateTimer(_ => Flush(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         foreach (var root in roots.Distinct())
         {
             if (!Directory.Exists(root)) continue;
@@ -111,7 +114,7 @@ public sealed class ProjectWatcher : IDisposable
         {
             if (_disposed) return;
             _pending.Add(path);
-            var now = DateTime.UtcNow;
+            var now = _time.GetUtcNow().UtcDateTime;
             _firstPending ??= now;
             var due = Quiet;
             var latest = _firstPending.Value + MaxDelay - now;

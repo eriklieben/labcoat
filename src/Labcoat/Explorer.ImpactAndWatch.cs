@@ -120,7 +120,7 @@ public sealed partial class Explorer
     private async Task<int> BuildProjectImpactMapAsync(ProjectEntry p, bool perTest, CancellationToken ct)
     {
         if (!await BuildAsync(p, ct, onlyIfChanged: true) || !await EnsureDiscoveredAsync(p, ct)) return 0;
-        if (!await SupportsCoverageAsync(p, ct))
+        if (!await Coverage.SupportsAsync(p, ct))
         {
             Log(p.Project.Id, LogLevels.Warning, "Impact map needs code coverage (Microsoft.Testing.Extensions.CodeCoverage); skipping this project.");
             return 0;
@@ -145,11 +145,11 @@ public sealed partial class Explorer
     private async Task<int> RunImpactGroupsAsync(ProjectEntry p, List<ImpactGroup> groups, bool replacePerTest, CancellationToken ct)
     {
         if (groups.Count == 0) return 0;
-        var plan = CoveragePlanFor(p);
+        var plan = Coverage.PlanFor(p);
         var parallel = plan.RewritesOutput ? 1 : Math.Max(1, ImpactParallelism);
         var progress = new ImpactProgress(groups.Count);
-        // What happens to the warm host meanwhile: RunCoverageProcessAsync (Explorer.Coverage.cs).
-        await RunCoverageProcessAsync(p, plan, async () =>
+        // What happens to the warm host meanwhile: CoverageService.RunProcessAsync.
+        await Coverage.RunProcessAsync(p, plan, async () =>
         {
             using var gate = new SemaphoreSlim(parallel);
             var tasks = groups.Select(group => RunImpactGroupGatedAsync(p, plan, group, gate, progress, replacePerTest, ct)).ToList();
@@ -195,7 +195,7 @@ public sealed partial class Explorer
 
     private async Task<bool> RunImpactGroupAsync(ProjectEntry p, CoveragePlan plan, ImpactGroup group, bool replacePerTest, CancellationToken ct)
     {
-        var file = CoverageFilePath(p.Project.Id, Guid.NewGuid().ToString("N"));
+        var file = CoverageService.FilePath(p.Project.Id, Guid.NewGuid().ToString("N"));
         try
         {
             var runId = Guid.NewGuid();
@@ -328,7 +328,7 @@ public sealed partial class Explorer
                 .Select(k => _state.Tests[k]).Where(t => wanted.Contains(ClassKeyOf(t))), perTest: true);
         }
         if (p?.TargetPath is null || !File.Exists(p.TargetPath) || groups.Count == 0) return 0;
-        if (!await SupportsCoverageAsync(p, ct)) return 0;
+        if (!await Coverage.SupportsAsync(p, ct)) return 0;
         lock (Sync)
         {
             _impact.Building = true;
@@ -459,7 +459,7 @@ public sealed record ImpactMapInfo
 /// <summary>RunSummary.affected: set on watch-triggered runs and on "run affected" (git) runs.</summary>
 public sealed record AffectedRun
 {
-    /// <summary>"testFile" | "impactMap" | "mixed" | "all" (watch); "git" (run affected, Explorer.Affected.cs)</summary>
+    /// <summary>"testFile" | "impactMap" | "mixed" | "all" (watch); "git" (run affected, AffectedService.cs)</summary>
     public required string Strategy { get; init; }
     public required List<string> ChangedFiles { get; init; }
     /// <summary>git runs: "working" | "branch" | "range".</summary>

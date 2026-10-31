@@ -73,8 +73,8 @@ public class LiveOutputBenchmarks
 
     private int Run(LiveOutputSupport support, Action<LiveOutput, int> feed)
     {
-        var now = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc);
-        var output = new LiveOutput(flush: null, clock: () => now);
+        var clock = new ManualClock(new DateTimeOffset(2026, 9, 1, 10, 0, 0, TimeSpan.Zero));
+        var output = new LiveOutput(flush: null, clock);
         output.Configure(ProjectId, support);
         foreach (var t in _tests) output.Started(t);
         var events = 0;
@@ -83,10 +83,18 @@ public class LiveOutputBenchmarks
             feed(output, i);
             if ((i + 1) % LinesPerFlush == 0)
             {
-                now += LiveOutput.FlushInterval + LiveOutput.AttributionDelay;
+                clock.Now += LiveOutput.FlushInterval + LiveOutput.AttributionDelay;
                 events += output.Drain().Count;
             }
         }
         return events;
+    }
+
+    /// <summary>Time only: without a flush callback LiveOutput starts no timer.</summary>
+    private sealed class ManualClock(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 }

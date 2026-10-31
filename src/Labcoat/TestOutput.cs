@@ -26,7 +26,7 @@ public static class TestOutput
 /// <summary>Full stdOut/stdErr of tests whose live output was cut; least recently stored entries go first beyond the budget.</summary>
 public sealed class OutputStore(long maxChars = 32L * 1024 * 1024)
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly LinkedList<(string ProjectId, string Id)> _lru = new();
     private readonly Dictionary<(string, string), (string? StdOut, string? StdErr, LinkedListNode<(string, string)> Node)> _entries = [];
     private long _size;

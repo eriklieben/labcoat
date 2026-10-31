@@ -176,7 +176,7 @@ public static class Diagnostics
     {
         try
         {
-            var psi = new ProcessStartInfo(Explorer.DotnetPath)
+            var psi = new ProcessStartInfo(DotnetCli.Executable)
             {
                 WorkingDirectory = Directory.Exists(directory) ? directory : System.Environment.CurrentDirectory,
                 RedirectStandardOutput = true,

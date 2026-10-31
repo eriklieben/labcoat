@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -26,9 +25,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     private readonly EventHub _hub;
     private readonly OperationGate _gate; // the operation lock and the cancellation tokens (OperationGate.cs)
     private int _disposed;
-    private bool _watch;
     private bool _coverageEnabled;
-    private CoverageReport? _coverage;
     /// <summary>The Coverage page's report (FullCoverage.cs): never replaced by a run of selected tests.</summary>
     private readonly FullCoverage _fullCoverage; // persisted in coverage.json next to the history (FullCoverageStore.cs)
     private readonly FullCoverageStore _fullCoverageStore;
@@ -110,10 +107,10 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 PendingRun = _state.Run.Pending?.Info(),
                 CurrentRun = _state.Run.Current?.Copy(),
                 LastRun = _state.Run.Last?.Copy(),
-                Watch = _watch,
+                Watch = WatchMode.Enabled,
                 AspireDashboardUrl = _aspireDashboardUrl,
                 CoverageEnabled = _coverageEnabled,
-                Coverage = _coverage,
+                Coverage = Coverage.Last,
                 FullCoverage = _fullCoverage.Report,
                 ImpactMap = _impact.Info(),
                 Runs = _history.Runs(),
@@ -216,7 +213,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 
     // Console lines logged before the startup banner is printed (e.g. "Loaded test history…" from the constructor) are
     // held back and written right after it (ReleaseConsole), so the banner is the first thing on the console.
-    private readonly object _consoleGate = new();
+    private readonly Lock _consoleGate = new();
     private List<string>? _consoleBacklog = [];
 
     /// <summary>Writes the log lines held back during startup and prints further lines directly.</summary>
@@ -288,7 +285,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// </summary>
     public Task<ServerEvent?> HandleCommandAsync(ClientCommand cmd)
     {
-        if (cmd.Type == "runAffected") return RunAffectedCommandAsync(cmd); // Explorer.Affected.cs
+        if (cmd.Type == "runAffected") return Affected.CommandAsync(cmd); // AffectedService.cs
         ServerEvent? reply = cmd.Type switch
         {
             "discover" => ForKnownProject(cmd, () => _ = DiscoverCommandAsync(cmd.ProjectId)),
@@ -545,10 +542,10 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         CoveragePlan? coveragePlan = null;
         if (x.CollectCoverage)
         {
-            if (await SupportsCoverageAsync(p, ct))
+            if (await Coverage.SupportsAsync(p, ct))
             {
-                coverageFile = CoverageFilePath(p.Project.Id, project.Run.RunId);
-                coveragePlan = CoveragePlanFor(p);
+                coverageFile = CoverageService.FilePath(p.Project.Id, project.Run.RunId);
+                coveragePlan = Coverage.PlanFor(p);
             }
             else Log(p.Project.Id, LogLevels.Warning, "Code coverage requested but the test app has no --coverage option " +
                 "(add a reference to Microsoft.Testing.Extensions.CodeCoverage); running without coverage.");
@@ -683,10 +680,10 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     {
         if (x.CoveredProjects.Count > 0 && !ct.IsCancellationRequested)
         {
-            try { PublishCoverage(x, run.RunId); }
+            try { Coverage.Publish(x, run.RunId); }
             catch (Exception ex) { Log(null, LogLevels.Error, "Could not publish the coverage report: " + ex.Message); }
         }
-        else RefreshFullCoverageStale();
+        else Coverage.RefreshFullStale();
         // Every requested test leaves queued / running, whichever way the run ended (cancelled before a project's
         // turn, an exception, ...): cancelled when the run was cancelled, else its result from before the run.
         FinishTests(x, x.Requested, ct.IsCancellationRequested ? Outcome.Cancelled : null);
@@ -765,7 +762,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     private static string MoreSuffix(int count, int shown) => count > shown ? $" (+{count - shown} more)" : "";
 
     /// <summary>"s" unless <paramref name="count"/> is 1.</summary>
-    private static string Plural(int count) => count == 1 ? "" : "s";
+    internal static string Plural(int count) => count == 1 ? "" : "s";
 
     /// <summary>Assembly names of all test projects; excluded from coverage reports.</summary>
     private HashSet<string> TestAssemblyNames()
@@ -779,7 +776,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 
     private async Task<bool> BuildAsync(ProjectEntry p, CancellationToken ct, bool onlyIfChanged = false)
     {
-        if (!await CheckPlatformAsync(p, ct)) return false; // not on Microsoft.Testing.Platform: never built or started
+        if (!await PlatformCheck.CheckAsync(p, ct)) return false; // not on Microsoft.Testing.Platform: never built or started
         if (onlyIfChanged && p.LastBuildStartUtc is { } last && p.TargetPath is not null && File.Exists(p.TargetPath)
             && !SourcesChangedSince(p, last))
         {
@@ -818,7 +815,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             Log(p.Project.Id, LogLevels.Error, ex.Message);
             return false;
         }
-        if (!AcceptsPlatformAfterBuild(p)) return false;
+        if (!PlatformCheck.AcceptsAfterBuild(p)) return false;
         p.LastBuildStartUtc = buildStart;
         Hosts.InvalidateIfStale(p);
         SetStatus(p, ProjectStatus.Idle);
@@ -827,7 +824,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 
     private void ReportBuildFailure(ProjectEntry p, int code, string output, TimeSpan elapsed)
     {
-        var tail = TailLines(output, 60);
+        var tail = DotnetCli.TailLines(output, 60);
         var diagnostics = BuildOutputParser.Parse(output, out var errorCount, out var warningCount);
         var firstError = FirstBuildError(diagnostics);
         lock (Sync)
@@ -876,7 +873,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             var d = stack.Pop();
             try
             {
-                if (Directory.EnumerateFiles(d).Any(f => WatchedExtensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
+                if (Directory.EnumerateFiles(d).Any(f => WatchMode.Extensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
                     return true;
                 foreach (var sub in Directory.EnumerateDirectories(d).Where(sub => !IsIgnoredSourceDir(Path.GetFileName(sub))))
                     stack.Push(sub);
@@ -901,7 +898,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         string[] args = ["msbuild", p.Project.Path, "-getProperty:TargetPath", "-getProperty:TargetFrameworks", "-getProperty:TargetFramework", "-getItem:ProjectReference",
             "-getProperty:TestingPlatformCommandLineArguments", .. ProjectDiagnostics.Properties.Select(n => "-getProperty:" + n), "-getItem:PackageReference"];
         var (code, output) = await RunDotnetAsync(args, dir, ct);
-        if (code != 0) throw new InvalidOperationException("Could not evaluate project: " + TailLines(output, 20));
+        if (code != 0) throw new InvalidOperationException("Could not evaluate project: " + DotnetCli.TailLines(output, 20));
         var json = JsonNode.Parse(output)!;
         var targetPath = json[EvaluatedProperties]?["TargetPath"]?.GetValue<string>();
         ApplyEvaluation(p, json);
@@ -922,7 +919,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         p.TargetPathStamp = stamp;
         var changedWatch = !watchDirs.SequenceEqual(p.WatchDirs);
         p.WatchDirs = watchDirs;
-        if (changedWatch && _watch) StartWatching(p);
+        if (changedWatch && WatchMode.Enabled) WatchMode.Start(p);
     }
 
     /// <summary>The evaluated properties and items of <c>dotnet msbuild -getProperty/-getItem</c> kept for diagnostics and runs.</summary>
@@ -933,7 +930,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             if (json[EvaluatedProperties]?[n] is JsonValue v && v.TryGetValue<string>(out var sv)) props[n] = sv;
         p.Properties = props;
         p.TestingPlatformArguments = json[EvaluatedProperties]?["TestingPlatformCommandLineArguments"]?.GetValue<string>() is { Length: > 0 } tpa ? tpa : null;
-        p.ReferencedAssemblies = ProjectReferences.Closure(json[EvaluatedItems]?["ProjectReference"], assembliesOnly: true).Select(AssemblyNameOf)
+        p.ReferencedAssemblies = ProjectReferences.Closure(json[EvaluatedItems]?["ProjectReference"], assembliesOnly: true).Select(CoverageService.AssemblyNameOf)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         p.PackageReferences = json[EvaluatedItems]?["PackageReference"] is JsonArray pkgs
             ? pkgs.Select(x => x?["Identity"]?.GetValue<string>()).OfType<string>().ToList()
@@ -1223,12 +1220,12 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 
     /// <summary>
     /// Coverage needs the controller launch (out-of-process extension): one-off process, never the warm host (see
-    /// docs/troubleshooting.md). What happens to the warm host meanwhile: RunCoverageProcessAsync.
+    /// docs/troubleshooting.md). What happens to the warm host meanwhile: CoverageService.RunProcessAsync.
     /// </summary>
     private async Task RunCoverageHostAsync(ProjectEntry p, CoveragePlan coveragePlan, string[] extraArgs, Action<string, JsonNode?> onUpdate, Guid runId,
         List<(string, string)>? subset, CancellationToken ct)
     {
-        await RunCoverageProcessAsync(p, coveragePlan, async () =>
+        await Coverage.RunProcessAsync(p, coveragePlan, async () =>
         {
             await using var host = StartHost(p, extraArgs, onUpdate);
             await host.RunOperationAsync(async (conn, token) =>
@@ -1364,84 +1361,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 
     // ------------------------------------------------------------------ coverage
 
-    /// <summary>
-    /// After a coverage run: the run's own report (state.coverage, <c>coverageUpdated</c>: a subset run gives that
-    /// subset's coverage) and the full report of the Coverage page (state.fullCoverage, <c>fullCoverageUpdated</c>):
-    /// a project that ran every test replaces its part of it, a project that ran selected tests is merged in where
-    /// the code is unchanged (FullCoverage.cs).
-    /// </summary>
-    private void PublishCoverage(RunExecution x, string runId)
-    {
-        // Subset as soon as any covered project ran selected tests (testIds then lists every test of the run).
-        var subset = x.ProjectCoverage.Any(c => c.Ids is not null);
-        var subsetIds = subset ? x.Requested.Select(k => k.Id).Distinct().ToList() : null;
-        var report = x.Accumulator.Build(runId, x.CoveredProjects, subsetIds) with { Settings = x.CoverageSettings };
-
-        CoverageReport? full = null;
-        var notes = new List<string>();
-        foreach (var (projectId, ids, data, settings) in x.ProjectCoverage)
-        {
-            if (ids is null)
-            {
-                full = _fullCoverage.SetFull(projectId, data, runId, settings);
-                continue;
-            }
-            var (merge, merged) = _fullCoverage.MergeSubset(projectId, data, runId, ids.Count);
-            full = merged ?? full;
-            notes.AddRange(MergeNotes(projectId, merge));
-        }
-        full = _fullCoverage.RefreshStale() ?? full; // the other projects' files may have changed meanwhile
-
-        lock (Sync)
-        {
-            _coverage = report;
-            if (full is not null) Emit(new FullCoverageUpdatedEvent(full));
-            Emit(new CoverageUpdatedEvent(report));
-        }
-        Log(null, LogLevels.Info, CoverageLine(report, subsetIds, notes));
-    }
-
-    private static IEnumerable<string> MergeNotes(string projectId, FullCoverage.MergeResult merge)
-    {
-        if (!merge.HasFull)
-        {
-            yield return $"{projectId}: no full coverage run yet (Run all with coverage)";
-            yield break;
-        }
-        if (merge.FilesChanged > 0) yield return $"{projectId}: merged into {merge.FilesChanged} unchanged file{Plural(merge.FilesChanged)}";
-        if (merge.ChangedFiles.Count > 0)
-            yield return $"{projectId}: {merge.ChangedFiles.Count} file{Plural(merge.ChangedFiles.Count)} changed since the full run " +
-                         $"({string.Join(", ", merge.ChangedFiles.Select(Path.GetFileName).Distinct().Take(3))}), not merged: run all with coverage to refresh";
-    }
-
-    /// <summary>The log line of a run's coverage; <paramref name="subsetIds"/> set when the run covered selected tests.</summary>
-    private string CoverageLine(CoverageReport report, List<string>? subsetIds, List<string> notes)
-    {
-        var what = report.NoCoverableLines == true
-            ? $"Coverage: no coverable lines in {report.Files.Count} files (with Labcoat's defaults, test assemblies are left out; put the code under test in a separate project, or check the coverage settings)"
-            : $"Coverage: {report.LineRate:P1} lines ({report.LinesCovered}/{report.LinesValid}), {report.BranchRate:P1} branches in {report.Files.Count} files";
-        if (subsetIds is null) return what;
-        what += $" of this run's {subsetIds.Count} test{Plural(subsetIds.Count)}";
-        if (_fullCoverage.Report is { } current)
-            return what + "; the Coverage page keeps the full report: " +
-                   $"{current.LineRate:P1} lines ({current.LinesCovered}/{current.LinesValid})" + (notes.Count > 0 ? "; " + string.Join("; ", notes) : "");
-        return what + "; no full report yet for the Coverage page (Run all with coverage)";
-    }
-
-    /// <summary>After a run: marks the full report's files that changed since their full run (FullCoverage.cs).</summary>
-    private void RefreshFullCoverageStale()
-    {
-        try
-        {
-            if (_fullCoverage.RefreshStale() is not { } full) return;
-            lock (Sync) Emit(new FullCoverageUpdatedEvent(full));
-        }
-        catch (Exception ex)
-        {
-            Log(null, LogLevels.Warning, "Could not check the coverage report's files for changes: " + ex.Message);
-        }
-    }
-
     public void SetCoverage(bool enabled)
     {
         lock (Sync)
@@ -1451,25 +1370,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             PublishSettings();
         }
         Log(null, LogLevels.Info, enabled ? "Code coverage enabled (applies to the next run)" : "Code coverage disabled");
-    }
-
-    /// <summary>Does the test app support <c>--coverage</c> (Microsoft.Testing.Extensions.CodeCoverage)? Cached per build.</summary>
-    private async Task<bool> SupportsCoverageAsync(ProjectEntry p, CancellationToken ct)
-    {
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
-        if (p.SupportsCoverage is { } cached && p.SupportsCoverageStamp == stamp) return cached;
-        var (_, output) = await RunDotnetAsync([p.TargetPath!, "--help"], Path.GetDirectoryName(p.TargetPath!)!, ct);
-        var supported = output.Contains("--coverage-output-format", StringComparison.Ordinal);
-        p.SupportsCoverage = supported;
-        p.SupportsCoverageStamp = stamp;
-        return supported;
-    }
-
-    private static string CoverageFilePath(string projectId, string runId)
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "labcoat", "coverage");
-        Directory.CreateDirectory(dir);
-        return Path.Combine(dir, $"{projectId}-{runId}.cobertura.xml");
     }
 
     /// <summary>
@@ -1489,7 +1389,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         List<string> roots;
         lock (Sync)
         {
-            known = (_coverage?.Files.Any(f => string.Equals(PathUtil.CanonicalizeOrSelf(f.Path), full, cmp)) ?? false)
+            known = (Coverage.Last?.Files.Any(f => string.Equals(PathUtil.CanonicalizeOrSelf(f.Path), full, cmp)) ?? false)
                     || (_fullCoverage.Report?.Files.Any(f => string.Equals(PathUtil.CanonicalizeOrSelf(f.Path), full, cmp)) ?? false)
                     || _state.Tests.Values.Any(t => t.FilePath is not null && string.Equals(PathUtil.CanonicalizeOrSelf(t.FilePath), full, cmp));
             roots = SourceRootsLocked();
@@ -1565,128 +1465,14 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 
     // ------------------------------------------------------------------ watch
 
-    public void SetWatch(bool enabled)
-    {
-        lock (Sync)
-        {
-            if (_watch == enabled) return;
-            _watch = enabled;
-            foreach (var p in _state.Projects)
-            {
-                if (enabled) StartWatching(p);
-                else StopWatching(p);
-            }
-            PublishSettings();
-        }
-        Log(null, LogLevels.Info, enabled ? "Watch mode enabled" : "Watch mode disabled");
-    }
+    private WatchMode? _watchMode;
 
-    private void StartWatching(ProjectEntry p)
-    {
-        StopWatching(p);
-        var dirs = p.WatchDirs.Count > 0 ? p.WatchDirs : [Path.GetDirectoryName(p.Project.Path)!];
-        foreach (var dir in dirs.Distinct())
-        {
-            if (!Directory.Exists(dir)) continue;
-            var w = new FileSystemWatcher(dir)
-            {
-                IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName,
-            };
-            FileSystemEventHandler h = (_, e) => OnFileChanged(p, e.FullPath);
-            w.Changed += h;
-            w.Created += h;
-            w.Deleted += h;
-            w.Renamed += (_, e) => OnFileChanged(p, e.FullPath);
-            w.EnableRaisingEvents = true;
-            p.Watchers.Add(w);
-        }
-    }
+    /// <summary>Watch mode (WatchMode.cs): its file changes start the smart watch run (Explorer.ImpactAndWatch.cs).</summary>
+    private WatchMode WatchMode => LazyInitializer.EnsureInitialized(ref _watchMode, () => new WatchMode(_state, this, PublishSettings, RunWatchAsync));
 
-    private static void StopWatching(ProjectEntry p)
-    {
-        foreach (var w in p.Watchers) w.Dispose();
-        p.Watchers.Clear();
-        p.Debounce?.Dispose();
-        p.Debounce = null;
-    }
+    public void SetWatch(bool enabled) => WatchMode.Set(enabled);
 
-    private static readonly HashSet<string> WatchedExtensions = new(StringComparer.OrdinalIgnoreCase)
-        { ".cs", ".csproj", ".fs", ".fsproj", ".vb", ".vbproj", ".props", ".targets", ".json", ".razor" };
-
-    private void OnFileChanged(ProjectEntry p, string path)
-    {
-        if (!WatchedExtensions.Contains(Path.GetExtension(path))) return;
-        var sep = Path.DirectorySeparatorChar;
-        if (path.Contains($"{sep}bin{sep}") || path.Contains($"{sep}obj{sep}")) return;
-        lock (Sync)
-        {
-            if (!_watch) return;
-            p.PendingChanges.Add(path);
-            p.Debounce?.Dispose();
-            p.Debounce = new Timer(state => _ = RunWatchAsync(p), null, 500, Timeout.Infinite); // smart watch: Explorer.ImpactAndWatch.cs
-        }
-    }
-
-    // ------------------------------------------------------------------ helpers
-
-    public static string DotnetPath { get; } = ResolveDotnet();
-
-    private static string ResolveDotnet()
-    {
-        var hostPath = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
-        if (!string.IsNullOrEmpty(hostPath) && File.Exists(hostPath)) return hostPath;
-        var processPath = Environment.ProcessPath;
-        if (processPath is not null && Path.GetFileNameWithoutExtension(processPath).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
-            return processPath;
-        var root = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-        if (!string.IsNullOrEmpty(root))
-        {
-            var candidate = Path.Combine(root, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
-            if (File.Exists(candidate)) return candidate;
-        }
-        return "dotnet";
-    }
-
-    private static async Task<(int ExitCode, string Output)> DotnetAsync(string[] args, string cwd, CancellationToken ct)
-    {
-        var psi = new ProcessStartInfo(DotnetPath)
-        {
-            WorkingDirectory = cwd,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        foreach (var a in args) psi.ArgumentList.Add(a);
-        psi.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
-        psi.Environment["DOTNET_NOLOGO"] = "1";
-        psi.Environment["MSBUILDTERMINALLOGGER"] = "off";
-
-        var sb = new StringBuilder();
-        using var proc = new Process { StartInfo = psi };
-        proc.OutputDataReceived += (_, e) => { if (e.Data is not null) lock (sb) sb.AppendLine(e.Data); };
-        proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) lock (sb) sb.AppendLine(e.Data); };
-        proc.Start();
-        proc.BeginOutputReadLine();
-        proc.BeginErrorReadLine();
-        try
-        {
-            await proc.WaitForExitAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
-            return (-1, "cancelled");
-        }
-        await proc.WaitForExitAsync(CancellationToken.None); // flush async output (the redirected streams' last lines)
-        lock (sb) return (proc.ExitCode, sb.ToString());
-    }
-
-    private static string TailLines(string s, int lines)
-    {
-        var all = s.TrimEnd().Split('\n');
-        return string.Join('\n', all.Skip(Math.Max(0, all.Length - lines))).TrimEnd();
-    }
+    // ------------------------------------------------------------------ shutdown
 
     public async ValueTask DisposeAsync()
     {
@@ -1701,7 +1487,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             LiveService.Dispose(); // same for the live output flush timer
             foreach (var p in _state.Projects)
             {
-                StopWatching(p);
+                WatchMode.Stop(p);
                 if (p.ActiveSession != p.Warm?.Host) p.ActiveSession?.Kill(); // warm hosts get a graceful exit below
             }
         }

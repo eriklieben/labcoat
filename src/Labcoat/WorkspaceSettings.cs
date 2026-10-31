@@ -36,7 +36,7 @@ public sealed class WorkspaceSettings
         public string Id { get; set; } = "";
     }
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly FileModel _model;
     private readonly Action<string, string>? _log;
     private readonly IProjectKeys? _keys;

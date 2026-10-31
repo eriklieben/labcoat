@@ -242,7 +242,7 @@ public static partial class ProjectDiscovery
     /// <summary>The <c>dotnet msbuild</c> evaluation of <see cref="EvaluateAsync"/>: English output (Labcoat parses it).</summary>
     internal static ProcessStartInfo EvaluationStartInfo(string projectPath)
     {
-        var psi = new ProcessStartInfo(Explorer.DotnetPath)
+        var psi = new ProcessStartInfo(DotnetCli.Executable)
         {
             WorkingDirectory = Path.GetDirectoryName(projectPath)!,
             RedirectStandardOutput = true,

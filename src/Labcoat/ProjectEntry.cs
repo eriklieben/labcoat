@@ -28,7 +28,7 @@ internal sealed class ProjectEntry(TestProject project)
     public TestingPlatformArguments? HostArguments;
     public string? HostArgumentsFrom;
 
-    /// <summary>The last pre-build check (Explorer.CheckPlatformAsync) and the stamp it was made for.</summary>
+    /// <summary>The last pre-build check (PlatformCheck.CheckAsync) and the stamp it was made for.</summary>
     public TestPlatformInfo? Platform;
     public string? PlatformStamp;
     public bool PlatformRestored;

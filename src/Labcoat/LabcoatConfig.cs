@@ -644,7 +644,7 @@ public sealed partial class IndexPage(string webRoot, JsonObject? uiDefaults)
 {
     private readonly string? _attribute = uiDefaults is null ? null
         : $" data-labcoat-defaults=\"{System.Net.WebUtility.HtmlEncode(uiDefaults.ToJsonString())}\"";
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private DateTime _stamp;
     private string? _html;
 

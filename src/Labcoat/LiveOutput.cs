@@ -98,10 +98,10 @@ public sealed partial class LiveOutput : IDisposable
         public bool Xunit;       // parse "OUTPUT: [name] text"
     }
 
-    private readonly object _gate = new();
-    private readonly Func<DateTime> _clock;
+    private readonly Lock _gate = new();
+    private readonly TimeProvider _time;
     private readonly Action? _flush;
-    private readonly Timer? _timer;
+    private readonly ITimer? _timer;
     private bool _scheduled;
     private bool _disposed;
     private readonly Dictionary<(string ProjectId, string Id), TestBuffer> _running = [];
@@ -111,12 +111,12 @@ public sealed partial class LiveOutput : IDisposable
     private const int MaxQueued = 10_000;
 
     /// <param name="flush">Called by the flush timer (the owner takes its lock and publishes <see cref="Drain"/>); null = no timer (tests).</param>
-    /// <param name="clock">UTC clock (tests).</param>
-    public LiveOutput(Action? flush = null, Func<DateTime>? clock = null)
+    /// <param name="time">The clock and the flush timer (tests: a fake one).</param>
+    public LiveOutput(Action? flush = null, TimeProvider? time = null)
     {
-        _clock = clock ?? (() => DateTime.UtcNow);
+        _time = time ?? TimeProvider.System;
         _flush = flush;
-        if (flush is not null) _timer = new Timer(_ => OnTimer(), null, Timeout.Infinite, Timeout.Infinite);
+        if (flush is not null) _timer = _time.CreateTimer(_ => OnTimer(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     // ------------------------------------------------------------------ project / test lifecycle
@@ -188,7 +188,7 @@ public sealed partial class LiveOutput : IDisposable
     /// <summary>A line the test host process wrote to its stdout (<paramref name="err"/> false) or stderr.</summary>
     public void HostLine(string projectId, string line, bool err)
     {
-        var now = _clock();
+        var now = _time.GetUtcNow().UtcDateTime;
         lock (_gate)
         {
             var marker = line.IndexOf(Marker, StringComparison.Ordinal);
@@ -275,7 +275,7 @@ public sealed partial class LiveOutput : IDisposable
     /// <summary>Attributes queued lines and returns the events to publish (one per test and stream run, in order).</summary>
     public List<TestOutputEvent> Drain()
     {
-        var now = _clock();
+        var now = _time.GetUtcNow().UtcDateTime;
         var events = new List<TestOutputEvent>();
         lock (_gate)
         {

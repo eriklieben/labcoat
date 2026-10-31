@@ -560,7 +560,7 @@ interface TelemetryLog {
   (MSTest.Sdk / EnableMSTestRunner / EnableNUnitRunner / xunit.v3 / TUnit / Microsoft.Testing.Platform), no tests found.
 - **VSTest projects:** test projects on VSTest (Microsoft.NET.Test.Sdk with MSTest.TestAdapter / NUnit3TestAdapter /
   xunit.runner.visualstudio and no MTP switch, MSTest.Sdk with UseVSTest) are listed but never built or started
-  (TestPlatform.cs, Explorer.Platform.cs): before a build from the project and Directory.* files (confirmed by an MSBuild
+  (TestPlatform.cs, PlatformCheck.cs): before a build from the project and Directory.* files (confirmed by an MSBuild
   evaluation, no restore needed), after a build from the restored evaluation. The project gets `testPlatform`, one
   `warning` log line (the first for the project) and `diagnostics` with the switch for its framework.
 - **Open in editor (F8):** launched without a shell (argument list), via `setsid` on Linux so Ctrl+C on Labcoat does not

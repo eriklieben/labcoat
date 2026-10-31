@@ -151,8 +151,9 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
             "TestingPlatformCommandLineArguments). Labcoat cancelled the project's run while this test was running.";
         var runningNow = _runningTests?.OfProject(p.Project.Id) ?? [];
         foreach (var (id, elapsed) in runningNow) MarkTimedOutLocked(scope.Run, (p.Project.Id, id), elapsed, message);
+        var tests = runningNow.Count == 1 ? "test" : "tests";
         scope.TimeoutReason = $"The run of {p.Project.Name} exceeded its --timeout {scope.SessionTimeoutText} ({limit}) and was cancelled" +
-            (runningNow.Count > 0 ? $" while {runningNow.Count} test{(runningNow.Count == 1 ? "" : "s")} ran." : ".");
+            (runningNow.Count > 0 ? $" while {runningNow.Count} {tests} ran." : ".");
     }
 
     /// <summary>Marks a running test as timed out (caller holds Sync).</summary>

@@ -75,9 +75,9 @@ public static partial class LabcoatApp
     /// <summary>Run affected (git, AffectedPlanner.cs): branch / dirty state, the plan (preview, never runs), plan + run.</summary>
     private static void MapAffectedEndpoints(WebApplication app, Explorer explorer)
     {
-        app.MapGet("/api/git", async (CancellationToken ct) => Results.Json(await explorer.GitInfoAsync(ct), Json.Options));
+        app.MapGet("/api/git", async (CancellationToken ct) => Results.Json(await explorer.Affected.GitInfoAsync(ct), Json.Options));
         app.MapGet("/api/affected", (string? @base, string? @ref, CancellationToken ct) => PlanAffectedAsync(explorer, @base, @ref, ct));
-        app.MapGet("/api/changed-tests", async (CancellationToken ct) => Results.Json(await explorer.ChangedTestsAsync(ct), Json.Options));
+        app.MapGet("/api/changed-tests", async (CancellationToken ct) => Results.Json(await explorer.Affected.ChangedTestsAsync(ct), Json.Options));
         app.MapPost("/api/run-affected", (HttpRequest req, CancellationToken ct) => RunAffectedAsync(req, explorer, ct));
     }
 
@@ -177,7 +177,7 @@ public static partial class LabcoatApp
 
     private static async Task<IResult> PlanAffectedAsync(Explorer explorer, string? baseKind, string? reference, CancellationToken ct)
     {
-        try { return Results.Json(await explorer.PlanAffectedAsync(baseKind, reference, ct), Json.Options); }
+        try { return Results.Json(await explorer.Affected.PlanAsync(baseKind, reference, ct), Json.Options); }
         catch (AffectedException ex) { return AffectedError(ex); }
     }
 
@@ -185,8 +185,8 @@ public static partial class LabcoatApp
     {
         var (body, error) = await ReadBody(req);
         if (error is not null) return error;
-        Explorer.RunAffectedResult r;
-        try { r = await explorer.RunAffectedAsync(body?.Base, body?.Ref, body?.Coverage, body?.BuildImpactMap ?? false, "api", ct); }
+        RunAffectedResult r;
+        try { r = await explorer.Affected.RunAsync(body?.Base, body?.Ref, body?.Coverage, body?.BuildImpactMap ?? false, "api", ct); }
         catch (AffectedException ex) { return AffectedError(ex); }
         var counts = r.Plan!.Counts;
         if (r.ImpactMapFirst)

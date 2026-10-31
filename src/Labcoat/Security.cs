@@ -173,7 +173,7 @@ public sealed class RequestGuard
 /// <summary>Response headers: CSP (incl. hashes of index.html's inline scripts), nosniff, no-referrer, no framing.</summary>
 public sealed partial class SecurityHeaders(string webRoot)
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private DateTime _indexStamp;
     private string _scriptHashes = "";
 

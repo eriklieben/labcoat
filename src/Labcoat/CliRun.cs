@@ -45,9 +45,12 @@ public sealed partial class StartOptions
                 Shard = ShardSpec.Parse(args.Value());
                 return Shard is null ? "--shard needs index/count with 1 <= index <= count, e.g. 2/4." : null;
             case "--shard-by":
-                var by = args.Value()?.ToLowerInvariant();
-                if (by is not ("class" or "test" or "project")) return "--shard-by needs class, test or project.";
-                ShardBy = by == "test" ? ShardBy.Test : by == "project" ? ShardBy.Project : ShardBy.Class;
+                ShardBy? by = args.Value()?.ToLowerInvariant() switch
+                {
+                    "class" => ShardBy.Class, "test" => ShardBy.Test, "project" => ShardBy.Project, _ => null,
+                };
+                if (by is null) return "--shard-by needs class, test or project.";
+                ShardBy = by.Value;
                 return null;
             case "--shard-timings":
                 var timings = args.Value();
@@ -124,30 +127,8 @@ public static class CliRun
         var sw = Stopwatch.StartNew();
         await explorer.DiscoverAsync(null);
         if (ct.IsCancellationRequested) return ExitFailed;
-        var broken = BrokenProjects(explorer);
-        List<string>? ids = null;
-        if (options.Filters.Count > 0)
-        {
-            ids = Matching(explorer.Snapshot().Tests, options.Filters);
-            Console.WriteLine($"  --filter {string.Join(",", options.Filters)}: {ids.Count} test{(ids.Count == 1 ? "" : "s")}");
-            if (ids.Count == 0)
-            {
-                await Console.Error.WriteLineAsync($"{ErrorLabel} No test matches --filter.");
-                return broken.Count > 0 ? ExitBuildError : ExitFailed;
-            }
-        }
-        if (options.Shard is { } shard)
-        {
-            var plan = PlanShard(explorer, options, shard, ids);
-            if (plan is null) return ExitBuildError;
-            if (plan.TestIds.Count == 0)
-            {
-                Console.WriteLine("  This shard has no tests: nothing to run.");
-                WriteExports(explorer, options, null);
-                return BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed;
-            }
-            ids = plan.TestIds;
-        }
+        var (ids, exit) = await SelectTestsAsync(explorer, options);
+        if (exit is { } exitCode) return exitCode;
         var wantCoverage = coverage || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
         var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
         if (request.Status != 202)
@@ -160,10 +141,36 @@ public static class CliRun
         var status = explorer.GetRunStatus(request.RunId!);
         var last = status?.Run ?? explorer.Summary().LastRun;
         var run = last?.RunId == request.RunId ? last : null; // null: nothing ran (e.g. every build failed)
-        broken = BrokenProjects(explorer);
+        var broken = BrokenProjects(explorer);
         PrintResult(run, status, broken, sw.Elapsed);
         var exportsOk = WriteExports(explorer, options, run?.RunId);
         return ExitCode(run, broken, exportsOk);
+    }
+
+    /// <summary>
+    /// The tests to run: null = all, else the --filter matches and of those this --shard's part. Or the exit code (after
+    /// its message) when there is nothing to run.
+    /// </summary>
+    private static async Task<(List<string>? Ids, int? Exit)> SelectTestsAsync(Explorer explorer, StartOptions options)
+    {
+        List<string>? ids = null;
+        if (options.Filters.Count > 0)
+        {
+            ids = Matching(explorer.Snapshot().Tests, options.Filters);
+            Console.WriteLine($"  --filter {string.Join(",", options.Filters)}: {ids.Count} test{(ids.Count == 1 ? "" : "s")}");
+            if (ids.Count == 0)
+            {
+                await Console.Error.WriteLineAsync($"{ErrorLabel} No test matches --filter.");
+                return (null, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitFailed);
+            }
+        }
+        if (options.Shard is not { } shard) return (ids, null);
+        var plan = PlanShard(explorer, options, shard, ids);
+        if (plan is null) return (null, ExitBuildError);
+        if (plan.TestIds.Count > 0) return (plan.TestIds, null);
+        Console.WriteLine("  This shard has no tests: nothing to run.");
+        WriteExports(explorer, options, null);
+        return (null, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed);
     }
 
     /// <summary>This shard's tests of those that would run; null (after an error message) when the timings cannot be read.</summary>

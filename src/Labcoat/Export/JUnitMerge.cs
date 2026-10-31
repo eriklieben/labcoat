@@ -38,6 +38,9 @@ public sealed class JUnitMerge
 
     private sealed record Case(XElement Element, string Source);
 
+    private const string SuiteElement = "testsuite";
+    private const string SuitesElement = "testsuites";
+
     private readonly List<Suite> _suites = [];
     private readonly Dictionary<string, Suite> _byName = new(StringComparer.Ordinal);
     private string? _name;
@@ -53,11 +56,11 @@ public sealed class JUnitMerge
     {
         var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, IgnoreComments = true, IgnoreProcessingInstructions = true };
         using var reader = XmlReader.Create(stream, settings);
-        if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName is not ("testsuites" or "testsuite"))
+        if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName is not (SuitesElement or SuiteElement))
             throw new XmlException("the root element is not <testsuites> or <testsuite>");
         Inputs++;
         var touched = new HashSet<Suite>();
-        if (reader.LocalName == "testsuites")
+        if (reader.LocalName == SuitesElement)
         {
             _name ??= reader.GetAttribute("name");
             ReadSuites(reader, source, touched);
@@ -72,7 +75,7 @@ public sealed class JUnitMerge
         r.Read();
         while (r.Depth > depth)
         {
-            if (r.NodeType == XmlNodeType.Element && r.LocalName == "testsuite") ReadSuite(r, source, touched);
+            if (r.NodeType == XmlNodeType.Element && r.LocalName == SuiteElement) ReadSuite(r, source, touched);
             else r.Skip();
         }
     }
@@ -89,39 +92,52 @@ public sealed class JUnitMerge
         }
         suite.Package ??= r.GetAttribute("package");
         if (r.GetAttribute("timestamp") is { Length: > 0 } stamp && (suite.Timestamp is null || string.CompareOrdinal(stamp, suite.Timestamp) < 0)) suite.Timestamp = stamp;
-        var mergedFrom = 1;
+        int mergedFrom;
         if (r.IsEmptyElement)
         {
+            mergedFrom = 1;
             r.Read();
         }
-        else
-        {
-            var depth = r.Depth;
-            r.Read();
-            while (r.Depth > depth)
-            {
-                if (r.NodeType != XmlNodeType.Element) { r.Skip(); continue; }
-                switch (r.LocalName)
-                {
-                    case "testcase":
-                        AddCase(suite, (XElement)XNode.ReadFrom(r), source);
-                        break;
-                    case "properties":
-                        var properties = ReadProperties((XElement)XNode.ReadFrom(r));
-                        if (properties.Find(p => p.Name == MergedFromProperty) is { } m && int.TryParse(m.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0) mergedFrom = n;
-                        suite.Properties ??= properties.Where(p => p.Name != MergedFromProperty).ToList();
-                        break;
-                    case "testsuite":
-                        ReadSuite(r, source, touched);
-                        break;
-                    default:
-                        r.Skip();
-                        break;
-                }
-            }
-            r.Read(); // the end tag
-        }
+        else mergedFrom = ReadSuiteContent(r, suite, source, touched);
         if (touched.Add(suite)) suite.MergedFrom += mergedFrom;
+    }
+
+    /// <summary>A suite's child elements, up to and past its end tag; returns how many suites it was merged from (1 unless its properties say so).</summary>
+    private int ReadSuiteContent(XmlReader r, Suite suite, string source, HashSet<Suite> touched)
+    {
+        var mergedFrom = 1;
+        var depth = r.Depth;
+        r.Read();
+        while (r.Depth > depth)
+        {
+            if (r.NodeType != XmlNodeType.Element) { r.Skip(); continue; }
+            switch (r.LocalName)
+            {
+                case "testcase":
+                    AddCase(suite, (XElement)XNode.ReadFrom(r), source);
+                    break;
+                case "properties":
+                    mergedFrom = AddProperties(suite, (XElement)XNode.ReadFrom(r)) ?? mergedFrom;
+                    break;
+                case SuiteElement:
+                    ReadSuite(r, source, touched);
+                    break;
+                default:
+                    r.Skip();
+                    break;
+            }
+        }
+        r.Read(); // the end tag
+        return mergedFrom;
+    }
+
+    /// <summary>Keeps the first properties of a suite; returns the merged-from count they hold, if any.</summary>
+    private static int? AddProperties(Suite suite, XElement element)
+    {
+        var properties = ReadProperties(element);
+        suite.Properties ??= properties.Where(p => p.Name != MergedFromProperty).ToList();
+        return properties.Find(p => p.Name == MergedFromProperty) is { } m
+               && int.TryParse(m.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n > 0 ? n : null;
     }
 
     private static List<(string Name, string Value)> ReadProperties(XElement properties) =>
@@ -171,7 +187,7 @@ public sealed class JUnitMerge
         using var w = XmlWriter.Create(stream, Settings);
         var totals = Totals();
         w.WriteStartDocument();
-        w.WriteStartElement("testsuites");
+        w.WriteStartElement(SuitesElement);
         w.WriteAttributeString("name", Export.ExportText.Clean(_name is { Length: > 0 } ? _name : "Labcoat merged"));
         w.WriteAttributeString("tests", Int(totals.Tests));
         w.WriteAttributeString("failures", Int(totals.Failures));
@@ -186,7 +202,7 @@ public sealed class JUnitMerge
     private static void WriteSuite(XmlWriter w, Suite suite, int index)
     {
         var cases = suite.Cases.Select(c => c.Element).ToList();
-        w.WriteStartElement("testsuite");
+        w.WriteStartElement(SuiteElement);
         w.WriteAttributeString("name", Export.ExportText.Clean(suite.Name));
         w.WriteAttributeString("tests", Int(cases.Count));
         w.WriteAttributeString("failures", Int(Count(cases, "failure")));

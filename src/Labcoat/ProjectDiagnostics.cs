@@ -7,7 +7,7 @@ internal static class ProjectDiagnostics
 
     /// <summary>
     /// MSBuild properties read when the project is evaluated, for <see cref="Diagnose"/> and
-    /// Explorer.AcceptsPlatformAfterBuild (the test platform settings and the restore output).
+    /// PlatformCheck.AcceptsAfterBuild (the test platform settings and the restore output).
     /// </summary>
     public static readonly string[] Properties =
         ["OutputType", .. TestPlatform.Properties, ProjectAssetsFile];

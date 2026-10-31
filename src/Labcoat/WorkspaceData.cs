@@ -216,7 +216,7 @@ public static class WorkspaceLock
         public int Refs;
     }
 
-    private static readonly object s_gate = new();
+    private static readonly Lock s_gate = new();
     private static readonly Dictionary<string, Holder> s_held = new(WorkspaceIdentity.PathComparer);
     private static readonly HashSet<string> s_denied = new(WorkspaceIdentity.PathComparer);
 

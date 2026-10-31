@@ -1,4 +1,5 @@
 using Labcoat;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Labcoat.Tests.Unit;
 
@@ -313,17 +314,23 @@ public class RunLimitsTests
     }
 
     [TestMethod]
-    public async Task The_project_watcher_reports_at_the_latest_after_MaxDelay_and_nothing_after_dispose()
+    public void The_project_watcher_reports_at_the_latest_after_MaxDelay_and_nothing_after_dispose()
     {
+        var time = new FakeTimeProvider();
         var bursts = 0;
-        var w = new ProjectWatcher([], _ => Interlocked.Increment(ref bursts)) { Quiet = TimeSpan.FromSeconds(10), MaxDelay = TimeSpan.FromMilliseconds(200) };
+        var w = new ProjectWatcher([], _ => bursts++, time: time) { Quiet = TimeSpan.FromSeconds(10), MaxDelay = TimeSpan.FromMilliseconds(200) };
         w.OnChange("/x/A.csproj");
-        await WaitUntilAsync(() => Volatile.Read(ref bursts) == 1);
+        time.Advance(TimeSpan.FromMilliseconds(150));
+        w.OnChange("/x/B.csproj"); // still changing: Quiet would wait another 10 s
+        time.Advance(TimeSpan.FromMilliseconds(49));
+        Assert.AreEqual(0, bursts);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.AreEqual(1, bursts, "MaxDelay after the first change");
         w.Dispose();
-        w.OnChange("/x/B.csproj");
+        w.OnChange("/x/C.csproj");
         w.Dispose(); // twice is fine
-        await Task.Delay(300);
-        Assert.AreEqual(1, Volatile.Read(ref bursts));
+        time.Advance(TimeSpan.FromSeconds(20));
+        Assert.AreEqual(1, bursts);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 10_000)

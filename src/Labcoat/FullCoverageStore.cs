@@ -155,7 +155,7 @@ public sealed class FullCoverageStore : IDisposable
     public static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(2);
 
     private readonly Action<string, string>? _log;
-    private readonly object _saveGate = new();
+    private readonly Lock _saveGate = new();
     private readonly Timer _timer;
     private Func<FullCoverage.PersistedReport?>? _capture;
     private volatile bool _dirty;

@@ -91,8 +91,8 @@ public sealed partial class HistoryStore : IProjectKeys, IDisposable
         }
     }
 
-    private readonly object _gate = new();
-    private readonly object _saveGate = new();
+    private readonly Lock _gate = new();
+    private readonly Lock _saveGate = new();
     private readonly Dictionary<(string ProjectId, string Id), Entry> _tests;
     private readonly List<StoredRun> _runs; // oldest first
     private readonly List<string> _projects;

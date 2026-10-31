@@ -55,7 +55,7 @@ public sealed partial class Explorer
         lock (Sync)
         {
             // Watch mode rebuilds a project whose file changed by itself.
-            if (!_watch)
+            if (!WatchMode.Enabled)
                 touched.AddRange(_state.Projects.Where(p => !added.Contains(p) && changed.Any(c => string.Equals(PathUtil.CanonicalizeOrSelf(c), PathUtil.CanonicalizeOrSelf(p.Project.Path), PathUtil.Comparison))));
         }
         if (touched.Count > 0) await DiscoverProjectsAsync(touched);
@@ -130,7 +130,7 @@ public sealed partial class Explorer
                 _state.Projects.Add(p);
                 added.Add(p);
                 AdoptProjectDataLocked(p);
-                if (_watch) StartWatching(p);
+                if (WatchMode.Enabled) WatchMode.Start(p);
             }
             if (added.Count > 0)
             {
@@ -178,7 +178,7 @@ public sealed partial class Explorer
         var id = p.Project.Id;
         foreach (var key in _state.Order.Where(k => k.ProjectId == id).ToList()) _state.Tests.Remove(key);
         _state.Order.RemoveAll(k => k.ProjectId == id);
-        StopWatching(p);
+        WatchMode.Stop(p);
         ReleaseProjectDataLocked(p);
     }
 

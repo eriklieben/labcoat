@@ -114,6 +114,20 @@ internal static class AffectedBases
     public const string Range = "range";
 }
 
+/// <summary>GitChange.status: how git changed the file.</summary>
+internal static class GitStatuses
+{
+    public const string Added = "added";
+    public const string Deleted = "deleted";
+    public const string Modified = "modified";
+    public const string Renamed = "renamed";
+    public const string Copied = "copied";
+    public const string TypeChanged = "typeChanged";
+    public const string Unmerged = "unmerged";
+    /// <summary>Not tracked by git yet (a new file that isn't added).</summary>
+    public const string Untracked = "untracked";
+}
+
 /// <summary>One file git reports as changed (paths relative to the repository root, '/' separators).</summary>
 public sealed record GitChange(string Path, string Status, string? OldPath = null)
 {
@@ -408,7 +422,7 @@ public sealed partial class GitRepo
         if (code2 == 0)
         {
             var hunks = ParseHunks(patch);
-            foreach (var f in files.Where(f => f.Status is "modified" or "renamed" or "copied" or "typeChanged"))
+            foreach (var f in files.Where(f => f.Status is GitStatuses.Modified or GitStatuses.Renamed or GitStatuses.Copied or GitStatuses.TypeChanged))
                 if (hunks.TryGetValue(f.Path, out var lines)) f.Lines = lines;
         }
         return files;
@@ -418,7 +432,7 @@ public sealed partial class GitRepo
     {
         var (code, output, _) = await Git(ct, "ls-files", "--others", "--exclude-standard", "-z", "--full-name");
         if (code != 0) return [];
-        return output.Split('\0', StringSplitOptions.RemoveEmptyEntries).Select(p => new GitChange(p, "untracked")).ToList();
+        return output.Split('\0', StringSplitOptions.RemoveEmptyEntries).Select(p => new GitChange(p, GitStatuses.Untracked)).ToList();
     }
 
     /// <summary>Parses <c>git diff --name-status -z</c>: status NUL path [NUL new path for R/C] NUL …</summary>
@@ -437,7 +451,7 @@ public sealed partial class GitRepo
             }
             if (status[0] is 'R' or 'C' && i + 2 < parts.Length)
             {
-                result.Add(new GitChange(parts[i + 2], status[0] == 'R' ? "renamed" : "copied", parts[i + 1]));
+                result.Add(new GitChange(parts[i + 2], status[0] == 'R' ? GitStatuses.Renamed : GitStatuses.Copied, parts[i + 1]));
                 i += 3; // status, old path, new path
             }
             else
@@ -451,7 +465,7 @@ public sealed partial class GitRepo
 
     private static string StatusName(char status) => status switch
     {
-        'A' => "added", 'D' => "deleted", 'T' => "typeChanged", 'U' => "unmerged", _ => "modified",
+        'A' => GitStatuses.Added, 'D' => GitStatuses.Deleted, 'T' => GitStatuses.TypeChanged, 'U' => GitStatuses.Unmerged, _ => GitStatuses.Modified,
     };
 
     [GeneratedRegex(@"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", RegexOptions.CultureInvariant, RegexTimeout.Milliseconds)]

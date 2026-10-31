@@ -117,9 +117,10 @@ public static class Cli
           merge --export <format>=<file> <inputs...>
                            Combines the report files of a split run into one: JUnit XML, lcov and Cobertura
                            inputs are found by content. Inputs are paths (a shell-expanded list) or a pattern with
-                           * / ? in the file name part (shards/results-*.xml; not in the folders). --export is repeatable: junit, lcov or cobertura (lcov and cobertura inputs merge
-                           into one coverage report that either is written from). A test seen twice keeps the last
-                           one (with a warning); coverage hit counts are summed per source file and line.
+                           * / ? in the file name part (shards/results-*.xml; not in the folders). --export is
+                           repeatable: junit, lcov or cobertura (lcov and cobertura inputs merge into one coverage
+                           report that either is written from). A test seen twice keeps the last one (with a
+                           warning); coverage hit counts are summed per source file and line.
                            Exit codes: 0 when no merged test failed, 1 when one failed or errored (or a report could
                            not be written), 2 for a usage error or an input that is missing or unreadable.
 

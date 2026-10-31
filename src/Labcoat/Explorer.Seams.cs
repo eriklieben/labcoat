@@ -26,7 +26,7 @@ public sealed partial class Explorer
     /// <summary>Tests only: the current coverage report (as a coverage run would set it).</summary>
     internal void SetCoverageReport(CoverageReport? report)
     {
-        lock (Sync) _coverage = report;
+        lock (Sync) Coverage.Last = report;
     }
 
     /// <summary>Tests only: the run request waiting behind the current run.</summary>
@@ -50,7 +50,7 @@ public sealed partial class Explorer
     internal Func<string[], string, CancellationToken, Task<(int ExitCode, string Output)>>? DotnetOverride { get; set; }
 
     private Task<(int ExitCode, string Output)> RunDotnetAsync(string[] args, string cwd, CancellationToken ct) =>
-        DotnetOverride is { } fake ? fake(args, cwd, ct) : DotnetAsync(args, cwd, ct);
+        DotnetOverride is { } fake ? fake(args, cwd, ct) : DotnetCli.RunAsync(args, cwd, ct);
 
     /// <summary>Tests only: holds the operation lock (as a running build / run would) until the result is disposed.</summary>
     internal async Task<IDisposable> HoldOperationAsync(string name)

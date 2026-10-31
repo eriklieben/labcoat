@@ -20,7 +20,7 @@ public sealed partial class Explorer
     private async Task<List<ProjectEntry>> BuildAndDiscoverAsync(IReadOnlyList<ProjectEntry> projects, bool onlyIfChanged, bool forceDiscovery,
         CancellationToken ct)
     {
-        // projects that aren't on Microsoft.Testing.Platform are never built or started (Explorer.Platform.cs)
+        // projects that aren't on Microsoft.Testing.Platform are never built or started (PlatformCheck.cs)
         projects = await ProjectsOnMtpAsync(projects, ct);
         var built = await BuildProjectsAsync(projects, onlyIfChanged, ct);
         if (ct.IsCancellationRequested || built.Count == 0) return [];
@@ -179,7 +179,7 @@ public sealed partial class Explorer
             Log(p.Project.Id, "error", ex.Message);
             return false;
         }
-        if (!AcceptsPlatformAfterBuild(p)) return false;
+        if (!PlatformCheck.AcceptsAfterBuild(p)) return false;
         p.LastBuildStartUtc = buildStart;
         Hosts.InvalidateIfStale(p);
         SetStatus(p, ProjectStatus.Idle);
