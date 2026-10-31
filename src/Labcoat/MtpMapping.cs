@@ -6,6 +6,10 @@ namespace Labcoat;
 /// <summary>Maps MTP server-mode test node JSON onto the contract's TestNode.</summary>
 public static partial class MtpMapping
 {
+    /// <summary>A test (no node-type, or "action"), not a group node.</summary>
+    public static bool IsTestNode(JsonObject node) =>
+        node["node-type"]?.GetValue<string>() is null or "action";
+
     public static TestNode ToTestNode(string projectId, JsonObject node)
     {
         string? Str(string key) => node[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;

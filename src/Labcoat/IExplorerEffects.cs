@@ -10,4 +10,8 @@ internal interface IExplorerEffects
 
     /// <summary>Sends an event to all clients (ordered after pending test updates); the caller holds <see cref="Explorer.Sync"/>.</summary>
     void Emit(ServerEvent evt);
+
+    /// <summary>Sets a project's status (and its error, build output and build errors unless <paramref name="keepError"/>) and sends it.</summary>
+    void SetStatus(ProjectEntry p, ProjectStatus status, string? error = null, string? buildOutput = null, bool keepError = false,
+        BuildFailure? build = null);
 }

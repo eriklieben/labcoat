@@ -120,7 +120,7 @@ public sealed partial class Explorer
     /// <summary>One project's part of the impact-map pass; returns the number of coverage processes recorded.</summary>
     private async Task<int> BuildProjectImpactMapAsync(ProjectEntry p, bool perTest, CancellationToken ct)
     {
-        if (!await BuildAsync(p, ct, onlyIfChanged: true) || !await EnsureDiscoveredAsync(p, ct)) return 0;
+        if (!await Builder.BuildAsync(p, ct, onlyIfChanged: true) || !await Discovery.EnsureDiscoveredAsync(p, ct)) return 0;
         if (!await Coverage.SupportsAsync(p, ct))
         {
             Log(p.Project.Id, LogLevels.Warning, "Impact map needs code coverage (Microsoft.Testing.Extensions.CodeCoverage); skipping this project.");
@@ -393,7 +393,7 @@ public sealed partial class Explorer
     /// <summary>Build + re-discover for a watch run; the caller acquired the op lock, released here.</summary>
     private async Task<bool> RebuildForWatchAsync(ProjectEntry p, CancellationToken ct)
     {
-        try { return await BuildAsync(p, ct, onlyIfChanged: true) && await EnsureDiscoveredAsync(p, ct); }
+        try { return await Builder.BuildAsync(p, ct, onlyIfChanged: true) && await Discovery.EnsureDiscoveredAsync(p, ct); }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             Log(p.Project.Id, LogLevels.Error, "Watch: " + ex.Message);

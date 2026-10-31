@@ -191,17 +191,6 @@ public sealed partial class Explorer
         if (w is not null) Hosts.Retire(p, w, "the project is no longer part of the workspace");
     }
 
-    /// <summary>Where a project's first discovered tests go in the test order (caller holds Sync): after the tests of the
-    /// projects before it, so the tree keeps the project order however discoveries finish in parallel.</summary>
-    private int FirstTestIndexLocked(ProjectEntry p)
-    {
-        var existing = _state.Order.FindIndex(k => k.ProjectId == p.Project.Id);
-        if (existing >= 0) return existing;
-        var before = _state.Projects.TakeWhile(x => x != p).Select(x => x.Project.Id).ToHashSet(StringComparer.Ordinal);
-        var last = _state.Order.FindLastIndex(k => before.Contains(k.ProjectId));
-        return last + 1;
-    }
-
     private void StopProjectWatcher()
     {
         _projectWatcher?.Dispose();

@@ -40,8 +40,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     private readonly TestUpdateCoalescer _pendingTests = new(TimeSpan.FromMilliseconds(50));
     // full entries vs. result patches per flush (TestUpdateEncoder.cs, contract "Round 7")
     private readonly TestUpdateEncoder _encoder = new();
-    // ExplorerState.historyStamps: per project, bumped when discovery restored a previous session's history
-    private readonly Dictionary<string, int> _historyStamps = [];
     private readonly string _instance = Guid.NewGuid().ToString("N")[..8];
     private readonly Timer _flushTimer;
 
@@ -104,7 +102,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 Tests = tests,
                 Lean = lean ? true : null,
                 Files = files,
-                HistoryStamps = lean ? _state.Projects.ToDictionary(p => p.Project.Id, p => $"{_instance}.{_historyStamps.GetValueOrDefault(p.Project.Id)}") : null,
+                HistoryStamps = lean ? _state.Projects.ToDictionary(p => p.Project.Id, p => $"{_instance}.{Discovery.HistoryStampLocked(p.Project.Id)}") : null,
                 PendingRun = _state.Run.Pending?.Info(),
                 CurrentRun = _state.Run.Current?.Copy(),
                 LastRun = _state.Run.Last?.Copy(),
@@ -248,9 +246,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         }
     }
 
-    /// <summary>A failed build's diagnostics and its error / warning counts (<see cref="SetStatus"/>).</summary>
-    private sealed record BuildFailure(List<BuildDiagnostic> Diagnostics, int ErrorCount, int WarningCount);
-
     private void SetStatus(ProjectEntry p, ProjectStatus status, string? error = null, string? buildOutput = null, bool keepError = false,
         BuildFailure? build = null)
     {
@@ -268,6 +263,9 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             Emit(new ProjectStatusEvent(p.Project.Copy()));
         }
     }
+
+    void IExplorerEffects.SetStatus(ProjectEntry p, ProjectStatus status, string? error, string? buildOutput, bool keepError, BuildFailure? build) =>
+        SetStatus(p, status, error, buildOutput, keepError, build);
 
     private void PublishTests(IEnumerable<TestNode> nodes)
     {
@@ -775,313 +773,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    // ------------------------------------------------------------------ build
-
-    private async Task<bool> BuildAsync(ProjectEntry p, CancellationToken ct, bool onlyIfChanged = false)
-    {
-        if (!await PlatformCheck.CheckAsync(p, ct)) return false; // not on Microsoft.Testing.Platform: never built or started
-        if (onlyIfChanged && p.LastBuildStartUtc is { } last && p.TargetPath is not null && File.Exists(p.TargetPath)
-            && !SourcesChangedSince(p, last))
-        {
-            Log(p.Project.Id, LogLevels.Info, "No source changes since last build; skipping build");
-            return true;
-        }
-        var buildStart = DateTime.UtcNow;
-        await Hosts.StopBeforeBuildAsync(p); // Windows only: loaded assemblies are locked
-        SetStatus(p, ProjectStatus.Building);
-        Log(p.Project.Id, LogLevels.Info, $"Building {p.Project.Path}");
-        var sw = Stopwatch.StartNew();
-        // Multi-targeted: build only the framework the tests run on (known after the first evaluation).
-        string[] tfmArgs;
-        lock (Sync) tfmArgs = p.Project.AvailableFrameworks is { Count: > 1 } && p.Project.TargetFramework is { } tfm ? ["-f", tfm] : [];
-        var (code, output) = await RunDotnetAsync(["build", p.Project.Path, "-nologo", "-tl:off", "-v:minimal", .. tfmArgs], Path.GetDirectoryName(p.Project.Path)!, ct);
-        if (ct.IsCancellationRequested)
-        {
-            SetStatus(p, ProjectStatus.Idle);
-            return false;
-        }
-        if (code != 0)
-        {
-            ReportBuildFailure(p, code, output, sw.Elapsed);
-            return false;
-        }
-        Log(p.Project.Id, LogLevels.Info, $"Build succeeded in {sw.Elapsed.TotalSeconds:0.0}s");
-        lock (Sync) p.Project.ResultsOutdated = null; // published with the Idle status below
-
-        try
-        {
-            await ResolveTargetPathAsync(p, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            SetStatus(p, ProjectStatus.Error, ex.Message);
-            Log(p.Project.Id, LogLevels.Error, ex.Message);
-            return false;
-        }
-        if (!PlatformCheck.AcceptsAfterBuild(p)) return false;
-        p.LastBuildStartUtc = buildStart;
-        Hosts.InvalidateIfStale(p);
-        SetStatus(p, ProjectStatus.Idle);
-        return true;
-    }
-
-    private void ReportBuildFailure(ProjectEntry p, int code, string output, TimeSpan elapsed)
-    {
-        var tail = DotnetCli.TailLines(output, 60);
-        var diagnostics = BuildOutputParser.Parse(output, out var errorCount, out var warningCount);
-        var firstError = FirstBuildError(diagnostics);
-        lock (Sync)
-        {
-            // Results produced before this build are from older code now.
-            var hadResults = _state.Tests.Values.Any(t => t.ProjectId == p.Project.Id && t.Outcome is not (Outcome.NotRun or Outcome.Queued or Outcome.Running));
-            if (hadResults) p.Project.ResultsOutdated = true;
-        }
-        SetStatus(p, ProjectStatus.Error, firstError ?? $"Build failed (exit code {code})", tail,
-            build: new BuildFailure(diagnostics, errorCount, warningCount));
-        Log(p.Project.Id, LogLevels.Error, $"Build failed after {elapsed.TotalSeconds:0.0}s ({errorCount} error{Words.Plural(errorCount)}, " +
-            $"{warningCount} warning{Words.Plural(warningCount)})" + (firstError is null ? "" : ": " + firstError));
-    }
-
-    /// <summary>The first build error as one line: <c>file(line,column): error CODE: message</c>.</summary>
-    private static string? FirstBuildError(List<BuildDiagnostic> diagnostics)
-    {
-        var first = diagnostics.FirstOrDefault(d => d.Severity == "error");
-        if (first is null) return null;
-        var location = first.File is null ? "" : first.File + LinePosition(first) + ": ";
-        return location + "error " + (first.Code is null ? "" : first.Code + ": ") + first.Message;
-    }
-
-    private static string LinePosition(BuildDiagnostic d)
-    {
-        if (d.Line is not { } line) return "";
-        return d.Column is { } column ? $"({line},{column})" : $"({line})";
-    }
-
-    /// <summary>
-    /// Cheap up-to-date check: any watched source file (project dir + direct ProjectReference dirs, excluding bin/obj)
-    /// modified after the last successful build started? Files outside those dirs (e.g. Directory.Build.props higher up)
-    /// are not considered; use "discover" to force a build.
-    /// </summary>
-    private static bool SourcesChangedSince(ProjectEntry p, DateTime sinceUtc)
-    {
-        var dirs = p.WatchDirs.Count > 0 ? p.WatchDirs : [Path.GetDirectoryName(p.Project.Path)!];
-        return dirs.Distinct().Any(dir => SourcesChangedUnder(dir, sinceUtc));
-    }
-
-    private static bool SourcesChangedUnder(string dir, DateTime sinceUtc)
-    {
-        var stack = new Stack<string>([dir]);
-        while (stack.Count > 0)
-        {
-            var d = stack.Pop();
-            try
-            {
-                if (Directory.EnumerateFiles(d).Any(f => WatchMode.Extensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
-                    return true;
-                foreach (var sub in Directory.EnumerateDirectories(d).Where(sub => !IsIgnoredSourceDir(Path.GetFileName(sub))))
-                    stack.Push(sub);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* unreadable folder: skip it */ }
-        }
-        return false;
-    }
-
-    private static bool IsIgnoredSourceDir(string name) => name is "bin" or "obj" or "node_modules" || name.StartsWith('.');
-
-    // The JSON of `dotnet msbuild -getProperty:… -getItem:…`.
-    private const string EvaluatedProperties = "Properties";
-    private const string EvaluatedItems = "Items";
-
-    private async Task ResolveTargetPathAsync(ProjectEntry p, CancellationToken ct)
-    {
-        var stamp = File.GetLastWriteTimeUtc(p.Project.Path);
-        if (p.TargetPath is not null && stamp == p.TargetPathStamp && File.Exists(p.TargetPath)) return;
-
-        var dir = Path.GetDirectoryName(p.Project.Path)!;
-        string[] args = ["msbuild", p.Project.Path, "-getProperty:TargetPath", "-getProperty:TargetFrameworks", "-getProperty:TargetFramework", "-getItem:ProjectReference",
-            "-getProperty:TestingPlatformCommandLineArguments", .. ProjectDiagnostics.Properties.Select(n => "-getProperty:" + n), "-getItem:PackageReference"];
-        var (code, output) = await RunDotnetAsync(args, dir, ct);
-        if (code != 0) throw new InvalidOperationException("Could not evaluate project: " + DotnetCli.TailLines(output, 20));
-        var json = JsonNode.Parse(output)!;
-        var targetPath = json[EvaluatedProperties]?["TargetPath"]?.GetValue<string>();
-        ApplyEvaluation(p, json);
-        var single = json[EvaluatedProperties]?["TargetFramework"]?.GetValue<string>();
-        var frameworks = (json[EvaluatedProperties]?["TargetFrameworks"]?.GetValue<string>() ?? "")
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (frameworks.Count == 0 && !string.IsNullOrEmpty(single)) frameworks.Add(single);
-        var chosen = single;
-        if (string.IsNullOrEmpty(targetPath)) (targetPath, chosen) = await ResolveMultiTargetAsync(p, dir, frameworks, ct);
-        lock (Sync)
-        {
-            p.Project.TargetFramework = chosen;
-            p.Project.AvailableFrameworks = frameworks.Count > 0 ? frameworks : null;
-        }
-
-        var watchDirs = WatchDirsOf(json, dir);
-        p.TargetPath = targetPath;
-        p.TargetPathStamp = stamp;
-        var changedWatch = !watchDirs.SequenceEqual(p.WatchDirs);
-        p.WatchDirs = watchDirs;
-        if (changedWatch && WatchMode.Enabled) WatchMode.Start(p);
-    }
-
-    /// <summary>The evaluated properties and items of <c>dotnet msbuild -getProperty/-getItem</c> kept for diagnostics and runs.</summary>
-    private static void ApplyEvaluation(ProjectEntry p, JsonNode json)
-    {
-        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var n in ProjectDiagnostics.Properties)
-            if (json[EvaluatedProperties]?[n] is JsonValue v && v.TryGetValue<string>(out var sv)) props[n] = sv;
-        p.Properties = props;
-        p.TestingPlatformArguments = json[EvaluatedProperties]?["TestingPlatformCommandLineArguments"]?.GetValue<string>() is { Length: > 0 } tpa ? tpa : null;
-        p.ReferencedAssemblies = ProjectReferences.Closure(json[EvaluatedItems]?["ProjectReference"], assembliesOnly: true).Select(CoverageService.AssemblyNameOf)
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        p.PackageReferences = json[EvaluatedItems]?["PackageReference"] is JsonArray pkgs
-            ? pkgs.Select(x => x?["Identity"]?.GetValue<string>()).OfType<string>().ToList()
-            : [];
-    }
-
-    /// <summary>
-    /// Multi-targeted project (no single TargetPath): the framework chosen with setTargetFramework, else the highest .NET
-    /// version (not just the first), and the TargetPath for it.
-    /// </summary>
-    private async Task<(string TargetPath, string Framework)> ResolveMultiTargetAsync(ProjectEntry p, string dir, List<string> frameworks, CancellationToken ct)
-    {
-        var wanted = _settings.TargetFramework(p.Project.Path);
-        var chosen = wanted is not null && frameworks.Contains(wanted, StringComparer.OrdinalIgnoreCase) ? wanted : PickTargetFramework(frameworks);
-        if (chosen is null) throw new InvalidOperationException("Could not determine TargetPath of the project.");
-        var (code, output) = await RunDotnetAsync(["msbuild", p.Project.Path, "-getProperty:TargetPath", $"-p:TargetFramework={chosen}"], dir, ct);
-        var targetPath = output.Trim();
-        if (code != 0 || targetPath.Length == 0) throw new InvalidOperationException("Could not determine TargetPath of the project.");
-        if (frameworks.Count > 1)
-            Log(p.Project.Id, LogLevels.Info, $"Multi-targeted project ({string.Join(", ", frameworks)}); running on {chosen}" +
-                (wanted is null ? " (highest; pick another with setTargetFramework)" : ""));
-        return (targetPath, chosen);
-    }
-
-    /// <summary>The project directory, its direct ProjectReference directories and the transitive ones.</summary>
-    private static List<string> WatchDirsOf(JsonNode json, string dir)
-    {
-        var watchDirs = new List<string> { dir };
-        if (json[EvaluatedItems]?["ProjectReference"] is JsonArray refs)
-            watchDirs.AddRange(refs.Select(r => r?["FullPath"]?.GetValue<string>()).OfType<string>().Select(full => Path.GetDirectoryName(full)!));
-        // Transitive references too (product code two hops away still affects the tests).
-        foreach (var d in ProjectReferences.ClosureDirs(json[EvaluatedItems]?["ProjectReference"]).Where(d => !watchDirs.Contains(d)))
-            watchDirs.Add(d);
-        return watchDirs;
-    }
-
-    // ------------------------------------------------------------------ discovery
-
-    private async Task<bool> EnsureDiscoveredAsync(ProjectEntry p, CancellationToken ct)
-    {
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
-        if (stamp == p.DiscoveredDllStamp) return true;
-        return await DiscoverProjectAsync(p, ct);
-    }
-
-    private async Task<bool> DiscoverProjectAsync(ProjectEntry p, CancellationToken ct)
-    {
-        SetStatus(p, ProjectStatus.Discovering);
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
-        var found = new List<TestNode>();
-        var runId = Guid.NewGuid();
-        try
-        {
-            var sw = Stopwatch.StartNew();
-            await Hosts.RequestAsync(p, (method, prm) => CollectDiscovered(p, found, method, prm), (conn, token) => conn.DiscoverAsync(runId, token), ct);
-            Log(p.Project.Id, LogLevels.Info, $"Discovered {found.Count} tests in {sw.Elapsed.TotalSeconds:0.0}s");
-        }
-        catch (Exception ex) when (ct.IsCancellationRequested && ex is OperationCanceledException or IOException)
-        {
-            SetStatus(p, ProjectStatus.Idle);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            lock (Sync) p.Project.Diagnostics = ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, ex);
-            SetStatus(p, ProjectStatus.Error, "Discovery failed: " + ex.Message);
-            Log(p.Project.Id, LogLevels.Error, "Discovery failed: " + ex.Message);
-            return false;
-        }
-
-        ReplaceProjectTests(p, found, stamp);
-        return true;
-    }
-
-    private static void CollectDiscovered(ProjectEntry p, List<TestNode> found, string method, JsonNode? prm)
-    {
-        if (method != "testing/testUpdates/tests" || prm?["changes"] is not JsonArray changes) return;
-        lock (found)
-        {
-            foreach (var c in changes)
-            {
-                if (c?["node"] is JsonObject node && IsTestNode(node))
-                    found.Add(MtpMapping.ToTestNode(p.Project.Id, node));
-            }
-        }
-    }
-
-    /// <summary>Replaces the project's tests with the discovered ones, keeping previous results for tests that still exist.</summary>
-    private void ReplaceProjectTests(ProjectEntry p, List<TestNode> found, DateTime stamp)
-    {
-        lock (Sync)
-        {
-            var newKeys = new HashSet<(string, string)>();
-            var newOrder = new List<(string, string)>();
-            var restoredHistory = false;
-            foreach (var n in found)
-            {
-                var key = (p.Project.Id, n.Id);
-                if (!newKeys.Add(key)) continue;
-                if (_state.Tests.TryGetValue(key, out var old)) CarryOverResult(old, n);
-                else
-                {
-                    _history.Restore(n); // previous session's result + history
-                    if (n.History is { Count: > 0 }) restoredHistory = true;
-                }
-                _state.Tests[key] = n;
-                newOrder.Add(key);
-            }
-            foreach (var key in _state.Order.Where(k => k.ProjectId == p.Project.Id && !newKeys.Contains(k)).ToList())
-                _state.Tests.Remove(key);
-
-            // Keep project grouping order: insert at the position of the project's first test (or the end).
-            var firstIndex = FirstTestIndexLocked(p); // a new project: after the projects before it (Explorer.Projects.cs)
-            _state.Order.RemoveAll(k => k.ProjectId == p.Project.Id);
-            _state.Order.InsertRange(firstIndex < 0 ? _state.Order.Count : Math.Min(firstIndex, _state.Order.Count), newOrder);
-
-            // lean clients fetch history on demand: tell them this project's changed (ExplorerState.historyStamps)
-            if (restoredHistory) _historyStamps[p.Project.Id] = _historyStamps.GetValueOrDefault(p.Project.Id) + 1;
-            p.DiscoveredDllStamp = stamp;
-            p.Project.Status = ProjectStatus.Idle;
-            p.Project.LastError = null;
-            p.Project.BuildOutput = null;
-            p.Project.BuildErrors = null;
-            p.Project.BuildErrorCount = null;
-            p.Project.BuildWarningCount = null;
-            p.Project.Diagnostics = found.Count == 0 ? ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, null) : null;
-            Emit(new ProjectStatusEvent(p.Project.Copy()));
-            PublishState();
-        }
-    }
-
-    private static void CarryOverResult(TestNode old, TestNode n)
-    {
-        n.Outcome = old.Outcome;
-        n.DurationMs = old.DurationMs;
-        n.ErrorMessage = old.ErrorMessage;
-        n.ErrorType = old.ErrorType;
-        n.StackTrace = old.StackTrace;
-        n.StdOut = old.StdOut;
-        n.TraceId = old.TraceId;
-        n.StdErr = old.StdErr;
-        n.LastRunAt = old.LastRunAt;
-        HistoryStore.CarryOver(old, n);
-    }
-
-    private static bool IsTestNode(JsonObject node) =>
-        node["node-type"]?.GetValue<string>() is null or "action";
-
     // ------------------------------------------------------------------ run
 
     /// <param name="coverageFile">When set, the run collects Cobertura coverage into this file.</param>
@@ -1150,7 +841,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             var changed = new List<TestNode>(); // deduped below: a batch can hold in-progress + final for one test
             foreach (var c in changes)
             {
-                if (c?["node"] is not JsonObject node || !IsTestNode(node)) continue;
+                if (c?["node"] is not JsonObject node || !MtpMapping.IsTestNode(node)) continue;
                 if (ApplyRunUpdateLocked(pr, node) is { } t && !changed.Contains(t)) changed.Add(t);
             }
             PublishTests(changed);

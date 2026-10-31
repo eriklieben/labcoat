@@ -8,12 +8,13 @@ the commit format are there. This file adds what an agent tends to get wrong in 
 - **Match the code around you**: its naming, its comment density, its idioms. `...Locked` methods expect the caller to
   hold `Sync`; say "(caller holds Sync)" when a method relies on it.
 - **Look for what exists before adding something.** Static helpers live in their own classes in `src/Labcoat`
-  (`PathUtil`, `ProjectReferences`, `RunCounts`, `SourceExtensions`, `Words`, `DotnetCli` for dotnet child processes,
-  ...); search before writing a new one.
+  (`PathUtil`, `ProjectReferences`, `RunCounts`, `SourceExtensions`, `Words`, `BoundedParallel`, `DotnetCli` for dotnet
+  child processes, ...); search before writing a new one.
 - **Don't grow `Explorer`.** It is over the class coupling limit (CA1506, see `src/CodeMetricsConfig.txt`). A feature
   goes into a service that takes `WorkspaceState` and `IExplorerEffects`, like `AffectedService`, `CoverageService`,
-  `PlatformCheck`, `TestHostPool`, `HangMonitor`, `LiveOutputService`, `ExportService`, `SnapshotService` and
-  `WatchMode`; `Explorer` only delegates to it, and an endpoint calls the service directly (`explorer.Affected.*`).
+  `PlatformCheck`, `ProjectBuilder`, `TestDiscovery`, `TestHostPool`, `HangMonitor`, `LiveOutputService`,
+  `ExportService`, `SnapshotService` and `WatchMode`; `Explorer` only delegates to it, and an endpoint calls the service
+  directly (`explorer.Affected.*`).
 - **A change to an endpoint, a WebSocket message or an event** updates [docs/contract.md](docs/contract.md);
   host internals and the MTP protocol are in [docs/protocol.md](docs/protocol.md), the UI in
   [ui/ARCHITECTURE.md](ui/ARCHITECTURE.md).
