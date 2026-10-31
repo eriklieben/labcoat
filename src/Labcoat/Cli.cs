@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -363,7 +364,7 @@ public static class Cli
             }
             Launch(command, args, url, displayName);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
             NoBrowser(url, ex.Message);
         }
@@ -422,7 +423,7 @@ public static class Cli
         {
             // xdg-open exits non-zero when it found nothing to open the URL with.
             int code;
-            try { code = process.ExitCode; } catch { return; }
+            try { code = process.ExitCode; } catch (InvalidOperationException) { return; }
             if (code != 0) NoBrowser(url, $"{displayName} exited with code {code}");
         };
         process.Start();

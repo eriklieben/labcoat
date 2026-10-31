@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Labcoat;
@@ -49,7 +50,7 @@ public sealed partial class Explorer
                 PublishSettings();
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
         {
             Log(p.Project.Id, LogLevels.Warning, "Impact map: could not read coverage: " + ex.Message);
         }
@@ -220,7 +221,7 @@ public sealed partial class Explorer
             Log(p.Project.Id, LogLevels.Warning, $"Impact map: {group.Label} failed: {ex.Message}");
         }
         catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
-        finally { try { File.Delete(file); } catch { /* best effort: a temp file left in the temp folder */ } }
+        finally { try { File.Delete(file); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* best effort: a temp file left in the temp folder */ } }
         return false;
     }
 
@@ -393,11 +394,12 @@ public sealed partial class Explorer
     private async Task<bool> RebuildForWatchAsync(ProjectEntry p, CancellationToken ct)
     {
         try { return await BuildAsync(p, ct, onlyIfChanged: true) && await EnsureDiscoveredAsync(p, ct); }
-        catch (Exception ex)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             Log(p.Project.Id, LogLevels.Error, "Watch: " + ex.Message);
             return false;
         }
+        catch (Exception) { return false; /* cancelled (shutdown or a newer request): not an error */ }
         finally { _gate.Release(); }
     }
 

@@ -67,7 +67,8 @@ public sealed partial class Explorer
         var ct = _gate.CurrentToken();
         if (!await _gate.AcquireAsync("discovery", ct)) return;
         try { await BuildAndDiscoverAsync(projects, onlyIfChanged: false, forceDiscovery: true, ct); }
-        catch (Exception ex) { Log(null, LogLevels.Error, "Discovery failed: " + ex.Message); }
+        catch (Exception ex) when (!ct.IsCancellationRequested) { Log(null, LogLevels.Error, "Discovery failed: " + ex.Message); }
+        catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
         finally { _gate.Release(); }
     }
 
@@ -92,7 +93,7 @@ public sealed partial class Explorer
             foreach (var p in removed) StopProject(p);
             return (added, removed.Count);
         }
-        catch (OperationCanceledException) { return ([], 0); }
+        catch (Exception) when (ct.IsCancellationRequested) { return ([], 0); }
         catch (Exception ex)
         {
             Log(null, LogLevels.Warning, "Looking for test projects failed: " + ex.Message);

@@ -103,7 +103,10 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
     {
         if (_disposed != 0) return;
         try { CheckRunningTests(); }
-        catch (Exception ex) { effects.Log(null, LogLevels.Warning, "Checking the running tests failed: " + ex.Message); }
+        catch (Exception ex) // a timer callback: whatever went wrong, it must not end the process
+        {
+            effects.Log(null, LogLevels.Warning, "Checking the running tests failed: " + ex.Message);
+        }
     }
 
     private void CheckRunningTests()

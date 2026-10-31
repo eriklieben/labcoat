@@ -179,15 +179,8 @@ internal sealed class CoverageService(WorkspaceState state, IExplorerEffects eff
     /// <summary>After a run: marks the full report's files that changed since their full run (FullCoverage.cs).</summary>
     public void RefreshFullStale()
     {
-        try
-        {
-            if (fullCoverage.RefreshStale() is not { } full) return;
-            lock (state.Sync) effects.Emit(new FullCoverageUpdatedEvent(full));
-        }
-        catch (Exception ex)
-        {
-            effects.Log(null, LogLevels.Warning, "Could not check the coverage report's files for changes: " + ex.Message);
-        }
+        if (fullCoverage.RefreshStale() is not { } full) return;
+        lock (state.Sync) effects.Emit(new FullCoverageUpdatedEvent(full));
     }
 
     /// <summary>Assembly name of a project file: a literal &lt;AssemblyName&gt;, else the file name.</summary>

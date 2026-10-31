@@ -1,3 +1,5 @@
+using System.Xml;
+
 namespace Labcoat;
 
 /// <summary>
@@ -80,7 +82,7 @@ public sealed partial class Explorer
             var stamp = OutputFingerprints.Of(p.TargetPath);
             lock (Sync) _coverageCache.Store(p.Project.Id, report, stamp);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
         {
             Log(p.Project.Id, LogLevels.Warning, "Per-test coverage cache: could not read coverage: " + ex.Message);
         }

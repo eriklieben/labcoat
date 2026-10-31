@@ -492,7 +492,10 @@ public sealed class MtpConnection : IAsyncDisposable
                 {
                     // parsed straight from the UTF-8 bytes: a discovery / results batch can be MBs, no string copy of it
                     try { Dispatch(JsonNode.Parse(data.GetBuffer().AsSpan(consumed + bodyStart, bodyLength))); }
-                    catch (Exception ex) { _log(LogLevels.Error, "Failed to handle message from test host: " + ex.Message); }
+                    catch (Exception ex) // one bad message (or a failing handler) must not end the read loop
+                    {
+                        _log(LogLevels.Error, "Failed to handle message from test host: " + ex.Message);
+                    }
                     consumed += bodyStart + bodyLength;
                 }
                 data = Consume(data, consumed);

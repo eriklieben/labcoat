@@ -659,12 +659,12 @@ public sealed partial class IndexPage(string webRoot, JsonObject? uiDefaults)
             if (!File.Exists(Path)) return null;
             stamp = File.GetLastWriteTimeUtc(Path);
         }
-        catch { return null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
         lock (_gate)
         {
             if (_html is not null && stamp == _stamp) return _html;
             string raw;
-            try { raw = File.ReadAllText(Path); } catch { return null; }
+            try { raw = File.ReadAllText(Path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
             _html = Inject(raw, _attribute);
             _stamp = stamp;
             return _html;

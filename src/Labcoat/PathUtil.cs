@@ -30,7 +30,7 @@ public static class PathUtil
 
     public static string CanonicalizeOrSelf(string path)
     {
-        try { return Canonicalize(path); } catch { return path; }
+        try { return Canonicalize(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return path; }
     }
 
     public static bool IsUnder(string path, string root)

@@ -243,6 +243,9 @@ public class PersistenceTests
     [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"z"}]}""", DisplayName = "unknown outcome code")]
     [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":3,"id":"a","outcomes":""}]}""", DisplayName = "project index out of range")]
     [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[0],"outcomes":"pp"}]}""", DisplayName = "columns of different lengths")]
+    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"pp","durations":[1]}]}""", DisplayName = "history columns of different lengths")]
+    [DataRow("""{"version":2,"projectIds":["P"],"runIds":["r"],"history":[{"project":0,"id":"a","outcomes":"p","runIds":[5]}]}""", DisplayName = "run index out of range")]
+    [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[4],"outcomes":"p"}]}""", DisplayName = "test key out of range")]
     public void A_damaged_version_2_file_is_a_warning(string json)
     {
         var ws = Directory.CreateTempSubdirectory("labcoat-hist-").FullName;

@@ -126,11 +126,11 @@ public sealed partial class HistoryStore
         var keys = new List<(string ProjectId, string Id)>();
         foreach (var t in model.History ?? [])
         {
-            var projectId = projectIds[t.Project];
+            var projectId = Item(projectIds, t.Project, "project");
             keys.Add((projectId, t.Id));
             tests[(projectId, t.Id)] = new Entry(projectId, t.Id) { Runs = HistoryEntries(t, runIds), Last = t.Last };
         }
-        foreach (var k in model.ExtraKeys ?? []) keys.Add((projectIds[k.Project], k.Id));
+        foreach (var k in model.ExtraKeys ?? []) keys.Add((Item(projectIds, k.Project, "project"), k.Id));
         var runs = (model.PastRuns ?? []).Where(r => r.Run is not null).Select(r => StoredRunOf(r, keys)).ToList();
         return (tests, runs);
     }
@@ -138,19 +138,26 @@ public sealed partial class HistoryStore
     private static List<HistoryEntry> HistoryEntries(TestModel t, List<string?> runIds)
     {
         var n = t.Outcomes.Length;
+        if (t.Durations?.Length is { } d && d != n || t.At?.Length is { } a && a != n || t.RunIds?.Length is { } r && r != n)
+            throw new JsonException($"Test {t.Id}: the columns differ in length.");
         var entries = new List<HistoryEntry>(n);
         for (var i = 0; i < n; i++)
         {
-            var run = t.RunIds is { } ri && ri[i] >= 0 ? runIds[ri[i]] : null;
+            var run = t.RunIds is { } ri && ri[i] >= 0 ? Item(runIds, ri[i], "run") : null;
             entries.Add(new HistoryEntry(FromCode(t.Outcomes[i]), t.Durations?[i], t.At?[i]!, run, t.Flaky is { } f && Array.IndexOf(f, i) >= 0 ? true : null));
         }
         return entries;
     }
 
+    /// <summary><paramref name="list"/>[<paramref name="i"/>]; a damaged file when there is no such item.</summary>
+    private static T Item<T>(IReadOnlyList<T> list, int i, string what) =>
+        (uint)i < (uint)list.Count ? list[i] : throw new JsonException($"Unknown {what} {i} (the file has {list.Count}).");
+
     private static StoredRun StoredRunOf(RunModel r, List<(string ProjectId, string Id)> keys)
     {
         var n = r.Tests.Length;
         if (r.Outcomes.Length != n) throw new JsonException($"Run {r.Run!.RunId}: {n} tests but {r.Outcomes.Length} outcomes.");
+        if (r.Durations is { } durations && durations.Length != n) throw new JsonException($"Run {r.Run!.RunId}: {n} tests but {durations.Length} durations.");
         var stored = new StoredRun
         {
             Run = r.Run!,
@@ -162,7 +169,7 @@ public sealed partial class HistoryStore
         };
         for (var i = 0; i < n; i++)
         {
-            (stored.ProjectIds[i], stored.Ids[i]) = keys[r.Tests[i]];
+            (stored.ProjectIds[i], stored.Ids[i]) = Item(keys, r.Tests[i], "test key");
             stored.Outcomes[i] = FromCode(r.Outcomes[i]);
             stored.Durations[i] = r.Durations?[i] ?? double.NaN;
         }

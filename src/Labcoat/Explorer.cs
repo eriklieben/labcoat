@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace Labcoat;
 
@@ -377,7 +378,8 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             // one build for all, then parallel discovery (Explorer.Parallel.cs)
             await BuildAndDiscoverAsync(SelectProjects(projectId).ToList(), onlyIfChanged: false, forceDiscovery: true, ct);
         }
-        catch (Exception ex) { Log(null, LogLevels.Error, "Discovery failed: " + ex.Message); }
+        catch (Exception ex) when (!ct.IsCancellationRequested) { Log(null, LogLevels.Error, "Discovery failed: " + ex.Message); }
+        catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
         finally { _gate.Release(); }
     }
 
@@ -420,10 +422,11 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
                 FinishTests(x, x.Requested, ct.IsCancellationRequested ? Outcome.Cancelled : null);
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
             Log(null, LogLevels.Error, "Run failed: " + ex.Message);
         }
+        catch (Exception) { /* cancelled (shutdown or a newer request): not an error */ }
         finally
         {
             if (x.Run is not null) FinishRun(x, x.Run, ct);
@@ -585,13 +588,13 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
             RecordImpact(p, project.Ids, coverageFile); // per-test/subset coverage feeds the watch impact map
             CacheTestCoverage(p, project.Ids, coverageFile, project.Run.RunId, coveragePlan); // per-test coverage cache (CoverageCache.cs)
         }
-        catch (Exception ex) { Log(p.Project.Id, LogLevels.Error, "Could not parse coverage file: " + ex.Message); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException) { Log(p.Project.Id, LogLevels.Error, "Could not parse coverage file: " + ex.Message); }
         finally { DeleteCoverageFile(coverageFile); }
     }
 
     private static void DeleteCoverageFile(string coverageFile)
     {
-        try { File.Delete(coverageFile); } catch { /* best effort: a temp file left in the temp folder */ }
+        try { File.Delete(coverageFile); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* best effort: a temp file left in the temp folder */ }
     }
 
     /// <summary>Repeat run: one repetition's results go into the per-test statistics and the aggregated results.</summary>
@@ -678,12 +681,15 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// <summary>The end of a run that started, whichever way it ended: coverage, final counts, history and the summary log line.</summary>
     private void FinishRun(RunExecution x, RunSummary run, CancellationToken ct)
     {
-        if (x.CoveredProjects.Count > 0 && !ct.IsCancellationRequested)
+        try
         {
-            try { Coverage.Publish(x, run.RunId); }
-            catch (Exception ex) { Log(null, LogLevels.Error, "Could not publish the coverage report: " + ex.Message); }
+            if (x.CoveredProjects.Count > 0 && !ct.IsCancellationRequested) Coverage.Publish(x, run.RunId);
+            else Coverage.RefreshFullStale();
         }
-        else Coverage.RefreshFullStale();
+        catch (Exception ex) // whatever went wrong with the coverage reports, the run still ends below
+        {
+            Log(null, LogLevels.Error, "Could not update the coverage report: " + ex.Message);
+        }
         // Every requested test leaves queued / running, whichever way the run ended (cancelled before a project's
         // turn, an exception, ...): cancelled when the run was cancelled, else its result from before the run.
         FinishTests(x, x.Requested, ct.IsCancellationRequested ? Outcome.Cancelled : null);
@@ -1379,7 +1385,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     {
         if (string.IsNullOrWhiteSpace(path)) return new(SourceAccessResult.Forbidden, null);
         string full;
-        try { full = PathUtil.Canonicalize(path); } catch { return new(SourceAccessResult.Forbidden, null); }
+        try { full = PathUtil.Canonicalize(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return new(SourceAccessResult.Forbidden, null); }
         var cmp = PathUtil.Comparison;
 
         bool known;

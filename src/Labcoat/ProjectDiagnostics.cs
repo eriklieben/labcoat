@@ -78,6 +78,6 @@ internal static class ProjectDiagnostics
                                          || r.Equals("Microsoft.Testing.Platform", StringComparison.OrdinalIgnoreCase)))
             return true;
         try { return File.ReadAllText(projectPath).Contains("MSTest.Sdk", StringComparison.OrdinalIgnoreCase); }
-        catch { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 }

@@ -60,7 +60,7 @@ public sealed class WorkspaceSettings
             if (File.Exists(FilePath))
                 return JsonSerializer.Deserialize<FileModel>(File.ReadAllText(FilePath), Json.Options) ?? new FileModel();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             _log?.Invoke(LogLevels.Warning, $"Could not read workspace settings ({FilePath}): {ex.Message}");
         }
@@ -176,7 +176,7 @@ public sealed class WorkspaceSettings
             File.WriteAllText(tmp, JsonSerializer.Serialize(_model, Json.Options));
             File.Move(tmp, FilePath, overwrite: true);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _log?.Invoke(LogLevels.Warning, $"Could not save workspace settings ({FilePath}): {ex.Message}");
         }

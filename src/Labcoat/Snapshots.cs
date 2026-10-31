@@ -231,12 +231,12 @@ public static partial class VerifySnapshots
     {
         if (!File.Exists(receivedPath)) return null;
         string received;
-        try { received = PathUtil.Canonicalize(receivedPath); } catch { return null; }
+        try { received = PathUtil.Canonicalize(receivedPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
         var dir = Path.GetDirectoryName(received);
         var verifiedName = VerifiedNameFor(Path.GetFileName(received));
         if (dir is null || verifiedName is null || !PathUtil.IsUnder(received, root)) return null;
         string verified;
-        try { verified = PathUtil.Canonicalize(Path.Combine(dir, verifiedName)); } catch { return null; }
+        try { verified = PathUtil.Canonicalize(Path.Combine(dir, verifiedName)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
         if (!PathUtil.IsUnder(verified, root) || !string.Equals(Path.GetDirectoryName(verified), dir, PathUtil.Comparison)) return null;
         var exists = File.Exists(verified);
         return new SnapshotFile(verifiedName, received, verified, KindOf(received, exists ? verified : null), !exists || new FileInfo(verified).Length == 0);
@@ -253,7 +253,7 @@ public static partial class VerifySnapshots
         if (new FileInfo(f.ReceivedPath).LinkTarget is not null) return "The received file is a link.";
         string received, verified;
         try { (received, verified) = (PathUtil.Canonicalize(f.ReceivedPath), PathUtil.Canonicalize(f.VerifiedPath)); }
-        catch { return "The path could not be resolved."; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return "The path could not be resolved."; }
         if (!PathUtil.IsUnder(received, root) || !PathUtil.IsUnder(verified, root)) return "The snapshot is outside the test project.";
         if (!string.Equals(Path.GetDirectoryName(received), Path.GetDirectoryName(verified), PathUtil.Comparison)
             || VerifiedNameFor(Path.GetFileName(received)) != Path.GetFileName(verified))

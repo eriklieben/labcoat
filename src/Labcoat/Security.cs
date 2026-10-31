@@ -211,12 +211,12 @@ public sealed partial class SecurityHeaders(string webRoot)
     {
         var path = Path.Combine(webRoot, "index.html");
         DateTime stamp;
-        try { stamp = File.GetLastWriteTimeUtc(path); } catch { return ""; }
+        try { stamp = File.GetLastWriteTimeUtc(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return ""; }
         lock (_gate)
         {
             if (stamp == _indexStamp) return _scriptHashes;
             string html;
-            try { html = File.ReadAllText(path); } catch { return ""; }
+            try { html = File.ReadAllText(path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return ""; }
             _scriptHashes = string.Concat(InlineScripts(html).Select(s => $" 'sha256-{ScriptHash(s)}'"));
             _indexStamp = stamp;
             return _scriptHashes;

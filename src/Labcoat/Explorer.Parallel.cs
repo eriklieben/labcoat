@@ -168,7 +168,7 @@ public sealed partial class Explorer
         {
             await ResolveTargetPathAsync(p, ct);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (Exception) when (ct.IsCancellationRequested)
         {
             SetStatus(p, ProjectStatus.Idle);
             return false;

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Labcoat;
@@ -72,7 +73,7 @@ public static class EditorLauncher
         {
             return Launch(exe, Arguments(editor, file, line, column));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {
             return (false, $"Could not start {Path.GetFileName(exe)}: {ex.Message}");
         }
@@ -245,7 +246,7 @@ public static class EditorLauncher
             var path = output.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.EndsWith("devenv.exe", StringComparison.OrdinalIgnoreCase));
             return path is not null && File.Exists(path) ? path : null;
         }
-        catch { return null; }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException) { return null; }
     }
 
     private static List<string> FindUnder(string root, string fileName)

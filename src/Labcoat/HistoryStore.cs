@@ -130,7 +130,7 @@ public sealed partial class HistoryStore : IProjectKeys, IDisposable
             _log?.Invoke(LogLevels.Info, $"Loaded test history for {tests.Count} tests and {runs.Count} runs from {FilePath}");
             return (tests, runs);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             _log?.Invoke(LogLevels.Warning, $"Could not read test history ({FilePath}): {ex.Message}");
             return ([], []);
@@ -319,11 +319,11 @@ public sealed partial class HistoryStore : IProjectKeys, IDisposable
                 File.Move(tmp, FilePath, overwrite: true);
                 _saveFailed = false;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 _saveFailed = true;
                 _log?.Invoke(LogLevels.Warning, $"Could not save test history ({FilePath}): {ex.Message}");
-                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort: a leftover temp file is overwritten by the next save */ }
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* best effort: a leftover temp file is overwritten by the next save */ }
             }
         }
     }
