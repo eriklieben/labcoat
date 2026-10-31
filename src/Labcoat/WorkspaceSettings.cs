@@ -62,7 +62,7 @@ public sealed class WorkspaceSettings
         }
         catch (Exception ex)
         {
-            _log?.Invoke("warning", $"Could not read workspace settings ({FilePath}): {ex.Message}");
+            _log?.Invoke(LogLevels.Warning, $"Could not read workspace settings ({FilePath}): {ex.Message}");
         }
         return new FileModel();
     }
@@ -178,7 +178,7 @@ public sealed class WorkspaceSettings
         }
         catch (Exception ex)
         {
-            _log?.Invoke("warning", $"Could not save workspace settings ({FilePath}): {ex.Message}");
+            _log?.Invoke(LogLevels.Warning, $"Could not save workspace settings ({FilePath}): {ex.Message}");
         }
     }
 }

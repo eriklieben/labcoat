@@ -252,7 +252,7 @@ public sealed class FullCoverageStore : IDisposable
             }
             var report = FromModel(model);
             var files = report.Parts.Sum(p => p.Files.Count);
-            _log?.Invoke("info", $"Restored the coverage report of {string.Join(", ", report.Parts.Select(p => p.ProjectId))} ({files} files, " +
+            _log?.Invoke(LogLevels.Info, $"Restored the coverage report of {string.Join(", ", report.Parts.Select(p => p.ProjectId))} ({files} files, " +
                                  $"full run {string.Join(", ", report.Parts.Select(p => p.GeneratedAt).Distinct())}) from {FilePath}");
             return report;
         }

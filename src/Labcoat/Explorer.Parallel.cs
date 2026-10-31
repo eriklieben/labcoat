@@ -84,7 +84,7 @@ public sealed partial class Explorer
         {
             if (onlyIfChanged && IsBuildUpToDate(p))
             {
-                Log(p.Project.Id, "info", "No source changes since last build; skipping build");
+                Log(p.Project.Id, LogLevels.Info, "No source changes since last build; skipping build");
                 upToDate.Add(p);
             }
             else if (BuildsOneFramework(p)) separate.Add(p);
@@ -118,13 +118,13 @@ public sealed partial class Explorer
             SetStatus(p, ProjectStatus.Building);
         }
         var paths = batch.Select(p => p.Project.Path).ToList();
-        Log(null, "info", $"Building {batch.Count} projects in one build: {string.Join(", ", batch.Select(p => p.Project.Name))}");
+        Log(null, LogLevels.Info, $"Building {batch.Count} projects in one build: {string.Join(", ", batch.Select(p => p.Project.Name))}");
         var cwd = Path.GetDirectoryName(paths[0])!;
         string solution;
         try { solution = BuildBatch.WriteSolution(paths, Path.Combine(cwd, "obj", "labcoat")); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log(null, "warning", $"Could not write the build solution ({ex.Message}); building the projects one by one.");
+            Log(null, LogLevels.Warning, $"Could not write the build solution ({ex.Message}); building the projects one by one.");
             return await BuildOneByOneAsync(batch, ct);
         }
         var sw = Stopwatch.StartNew();
@@ -162,7 +162,7 @@ public sealed partial class Explorer
     /// <summary>After a successful build of the project: its evaluation (TargetPath, frameworks, references), then idle.</summary>
     private async Task<bool> CompleteBuildAsync(ProjectEntry p, DateTime buildStart, TimeSpan elapsed, CancellationToken ct)
     {
-        Log(p.Project.Id, "info", $"Build succeeded in {elapsed.TotalSeconds:0.0}s");
+        Log(p.Project.Id, LogLevels.Info, $"Build succeeded in {elapsed.TotalSeconds:0.0}s");
         lock (Sync) p.Project.ResultsOutdated = null; // published with the Idle status below
         try
         {
@@ -176,7 +176,7 @@ public sealed partial class Explorer
         catch (Exception ex)
         {
             SetStatus(p, ProjectStatus.Error, ex.Message);
-            Log(p.Project.Id, "error", ex.Message);
+            Log(p.Project.Id, LogLevels.Error, ex.Message);
             return false;
         }
         if (!PlatformCheck.AcceptsAfterBuild(p)) return false;

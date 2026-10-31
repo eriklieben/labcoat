@@ -193,7 +193,7 @@ public sealed partial class HistoryStore
             MergeLocked(saved);
             _dirty = true;
         }
-        _log?.Invoke("info", $"The other Labcoat ended: this one saves the workspace history again ({DataDirectory}).");
+        _log?.Invoke(LogLevels.Info, $"The other Labcoat ended: this one saves the workspace history again ({DataDirectory}).");
         return true;
     }
 
@@ -324,7 +324,7 @@ public sealed partial class HistoryStore
             CopyNewest(sources, "coverage.json");
             foreach (var dir in sources)
                 TryWrite(Path.Combine(dir, MigratedFileName), new JsonObject { ["migratedTo"] = Workspace.FolderName, ["at"] = Json.Now() });
-            _log?.Invoke("info", $"Merged the test history of {sources.Count} earlier folder(s) into {DataDirectory}");
+            _log?.Invoke(LogLevels.Info, $"Merged the test history of {sources.Count} earlier folder(s) into {DataDirectory}");
         }
         var description = Workspace.Describe();
         description["createdAt"] = Json.Now();

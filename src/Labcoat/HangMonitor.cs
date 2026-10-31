@@ -103,7 +103,7 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
     {
         if (_disposed != 0) return;
         try { CheckRunningTests(); }
-        catch (Exception ex) { effects.Log(null, "warning", "Checking the running tests failed: " + ex.Message); }
+        catch (Exception ex) { effects.Log(null, LogLevels.Warning, "Checking the running tests failed: " + ex.Message); }
     }
 
     private void CheckRunningTests()
@@ -134,10 +134,10 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
             }
             if (state.Run.IsRunning && running.Changed() is { } info) effects.Emit(new RunningNowEvent(info));
         }
-        foreach (var line in slowLines) effects.Log(null, "warning", line);
+        foreach (var line in slowLines) effects.Log(null, LogLevels.Warning, line);
         foreach (var scope in cancel)
         {
-            effects.Log(scope.Run.Project.Project.Id, "warning", scope.TimeoutReason!);
+            effects.Log(scope.Run.Project.Project.Id, LogLevels.Warning, scope.TimeoutReason!);
             scope.Cancel();
         }
     }

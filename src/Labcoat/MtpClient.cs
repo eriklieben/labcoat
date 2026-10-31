@@ -106,7 +106,7 @@ public sealed class MtpHost : IAsyncDisposable
         psi.ArgumentList.Add(port.ToString());
         foreach (var a in extraArgs) psi.ArgumentList.Add(a);
         var removed = ConfigureTestHostEnvironment(psi.Environment, environment, tracingEnabled, traceFilter);
-        if (TestHostEnvironment.DescribeOnce(removed) is { } removedInfo) log("info", removedInfo);
+        if (TestHostEnvironment.DescribeOnce(removed) is { } removedInfo) log(LogLevels.Info, removedInfo);
 
         var output = new StringBuilder();
         var stderr = new Queue<string>();
@@ -143,7 +143,7 @@ public sealed class MtpHost : IAsyncDisposable
             process.Dispose();
             throw;
         }
-        log("info", $"Started test host (pid {process.Id}): dotnet {Path.GetFileName(targetPath)} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
+        log(LogLevels.Info, $"Started test host (pid {process.Id}): dotnet {Path.GetFileName(targetPath)} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
         return new MtpHost(process, listener, output, stderr, onNotification, log, sink);
     }
 
@@ -563,7 +563,7 @@ public sealed class MtpConnection : IAsyncDisposable
         if (method is not null && idNode is not null)
         {
             // Request from the test host to us (e.g. client/attachDebugger). We support none of them.
-            _log("info", $"Test host sent request '{method}', which is not supported; replying with an error.");
+            _log(LogLevels.Info, $"Test host sent request '{method}', which is not supported; replying with an error.");
             _ = SendAsync(new JsonObject
             {
                 [JsonRpc] = JsonRpcVersion,

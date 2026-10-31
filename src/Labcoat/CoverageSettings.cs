@@ -215,7 +215,7 @@ public static class CoverageSettingsResolver
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
         {
-            log?.Invoke("warning", $"Coverage settings {path}: {ex.Message}; passed on as it is.");
+            log?.Invoke(LogLevels.Warning, $"Coverage settings {path}: {ex.Message}; passed on as it is.");
         }
         return (effective, mode);
     }
@@ -232,13 +232,13 @@ public static class CoverageSettingsResolver
             var s = options.Settings.Trim();
             var candidates = SettingsCandidates(s, projectDir, options.BaseDirectory);
             if (candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists) is { } explicitFile) return (explicitFile, "option");
-            log?.Invoke("warning", $"Coverage.Settings: {s} was not found (looked in {string.Join(", ", candidates.Select(c => Path.GetDirectoryName(Path.GetFullPath(c))).Distinct())}); looking for the project's own settings instead.");
+            log?.Invoke(LogLevels.Warning, $"Coverage.Settings: {s} was not found (looked in {string.Join(", ", candidates.Select(c => Path.GetDirectoryName(Path.GetFullPath(c))).Distinct())}); looking for the project's own settings instead.");
         }
         if (SettingsArgument(project.TestingPlatformArguments) is { } fromMsBuild)
         {
             var full = Path.GetFullPath(Path.Combine(projectDir, fromMsBuild));
             if (File.Exists(full)) return (full, "msbuild");
-            log?.Invoke("warning", $"TestingPlatformCommandLineArguments names --coverage-settings {fromMsBuild}, which does not exist.");
+            log?.Invoke(LogLevels.Warning, $"TestingPlatformCommandLineArguments names --coverage-settings {fromMsBuild}, which does not exist.");
         }
         var testConfig = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(project.TargetPath) + ".testconfig.json");
         if (HasCodeCoverageSection(testConfig, json: true)) return (testConfig, "testconfig");

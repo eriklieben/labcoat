@@ -127,7 +127,7 @@ public sealed partial class HistoryStore : IProjectKeys, IDisposable
             using (var stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024))
                 model = JsonSerializer.Deserialize<FileModel>(stream, Json.Options);
             var (tests, runs) = model is null ? ([], []) : Adopt(FromModel(model), model);
-            _log?.Invoke("info", $"Loaded test history for {tests.Count} tests and {runs.Count} runs from {FilePath}");
+            _log?.Invoke(LogLevels.Info, $"Loaded test history for {tests.Count} tests and {runs.Count} runs from {FilePath}");
             return (tests, runs);
         }
         catch (Exception ex)

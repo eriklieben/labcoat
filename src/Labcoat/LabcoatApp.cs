@@ -158,8 +158,8 @@ public static partial class LabcoatApp
     private static void LogStartupNotes(Explorer explorer, LabcoatConfig config, List<string> startupNotes)
     {
         foreach (var note in startupNotes) Console.WriteLine(Cli.Dim("  " + note));
-        foreach (var warning in config.Warnings) explorer.Log(null, "warning", "Settings: " + warning);
-        if (config.UiDefaults is not null) explorer.Log(null, "info", "UI defaults: " + UiLayer.Describe(config.UiDefaults));
+        foreach (var warning in config.Warnings) explorer.Log(null, LogLevels.Warning, "Settings: " + warning);
+        if (config.UiDefaults is not null) explorer.Log(null, LogLevels.Info, "UI defaults: " + UiLayer.Describe(config.UiDefaults));
     }
 
     /// <summary>

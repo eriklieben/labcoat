@@ -78,7 +78,7 @@ public sealed partial class Explorer
             p.HostArguments = parsed;
             p.HostArgumentsFrom = raw;
         }
-        if (parsed.Describe() is { } line) Log(p.Project.Id, "info", line);
+        if (parsed.Describe() is { } line) Log(p.Project.Id, LogLevels.Info, line);
         return parsed;
     }
 

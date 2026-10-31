@@ -67,7 +67,7 @@ public sealed partial class Explorer
         var ct = _gate.CurrentToken();
         if (!await _gate.AcquireAsync("discovery", ct)) return;
         try { await BuildAndDiscoverAsync(projects, onlyIfChanged: false, forceDiscovery: true, ct); }
-        catch (Exception ex) { Log(null, "error", "Discovery failed: " + ex.Message); }
+        catch (Exception ex) { Log(null, LogLevels.Error, "Discovery failed: " + ex.Message); }
         finally { _gate.Release(); }
     }
 
