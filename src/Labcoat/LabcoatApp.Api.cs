@@ -193,7 +193,7 @@ public static partial class LabcoatApp
             return Results.Json(new { accepted = true, impactMapFirst = true, tests = counts.Tests, files = counts.Files, projects = counts.Projects },
                 Json.Options, statusCode: StatusCodes.Status202Accepted);
         if (r.Run is null)
-            return Results.Json(new { accepted = false, reason = $"No tests are affected by the {counts.Files} changed file{(counts.Files == 1 ? "" : "s")}.", files = counts.Files }, Json.Options);
+            return Results.Json(new { accepted = false, reason = $"No tests are affected by the {counts.Files} changed file{Words.Plural(counts.Files)}.", files = counts.Files }, Json.Options);
         if (r.Run.Status != 202) return RunResult(r.Run);
         return Results.Json(new { accepted = true, runId = r.Run.RunId, queued = r.Run.Queued, merged = r.Run.Merged, tests = counts.Tests, files = counts.Files, projects = counts.Projects },
             Json.Options, statusCode: StatusCodes.Status202Accepted);

@@ -89,7 +89,7 @@ public static class CliMerge
         var files = ExpandInputs(options.Inputs, options.Exports, out error);
         if (files is null) return Fail(error!);
 
-        Console.WriteLine($"{Cli.Bold("Labcoat " + Cli.Version)} {Cli.Dim(Command)}: {files.Count} file{Plural(files.Count)}");
+        Console.WriteLine($"{Cli.Bold("Labcoat " + Cli.Version)} {Cli.Dim(Command)}: {files.Count} file{Words.Plural(files.Count)}");
         var junit = new JUnitMerge();
         var coverage = new Export.CoverageMerge();
         var counts = ReadAll(files, junit, coverage, out var readError);
@@ -135,8 +135,6 @@ public static class CliMerge
         return counts;
     }
 
-    private static string Plural(int count) => count == 1 ? "" : "s";
-
     private const int MaxWarnings = 20;
 
     /// <summary>"81.2%" whatever the culture.</summary>
@@ -148,13 +146,13 @@ public static class CliMerge
     private static void PrintTests(JUnitTotals t)
     {
         var verdict = t.Failed > 0 ? Cli.Red($"{t.Failed} failed") : Cli.Bold("no failures");
-        Console.WriteLine($"  Tests: {verdict}, {t.Passed} passed, {t.Skipped} skipped ({t.Tests} total) in {t.Suites} suite{Plural(t.Suites)}");
+        Console.WriteLine($"  Tests: {verdict}, {t.Passed} passed, {t.Skipped} skipped ({t.Tests} total) in {t.Suites} suite{Words.Plural(t.Suites)}");
     }
 
     private static void PrintCoverage(CoverageTotals t)
     {
         var branches = t.BranchesValid > 0 ? $", {Percent(t.BranchRate)} of branches ({t.BranchesCovered}/{t.BranchesValid})" : "";
-        Console.WriteLine($"  Coverage: {Percent(t.LineRate)} of lines ({t.LinesCovered}/{t.LinesValid}){branches} in {t.Files} file{Plural(t.Files)}");
+        Console.WriteLine($"  Coverage: {Percent(t.LineRate)} of lines ({t.LinesCovered}/{t.LinesValid}){branches} in {t.Files} file{Words.Plural(t.Files)}");
     }
 
     private static string Name(ReportKind kind) => kind switch
@@ -288,7 +286,7 @@ public static class CliMerge
                     }
                 }
                 var what = target.Format == ExportFormats.JUnit
-                    ? $"{tests!.Tests} tests in {tests.Suites} suite{Plural(tests.Suites)}"
+                    ? $"{tests!.Tests} tests in {tests.Suites} suite{Words.Plural(tests.Suites)}"
                     : $"{totals!.Files} files, {Percent(totals.LineRate)} of lines";
                 Console.WriteLine($"  Wrote {target.Format}: {target.Path} ({what})");
             }

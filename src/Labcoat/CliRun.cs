@@ -157,7 +157,7 @@ public static class CliRun
         if (options.Filters.Count > 0)
         {
             ids = Matching(explorer.Snapshot().Tests, options.Filters);
-            Console.WriteLine($"  --filter {string.Join(",", options.Filters)}: {ids.Count} test{(ids.Count == 1 ? "" : "s")}");
+            Console.WriteLine($"  --filter {string.Join(",", options.Filters)}: {ids.Count} test{Words.Plural(ids.Count)}");
             if (ids.Count == 0)
             {
                 await Console.Error.WriteLineAsync($"{ErrorLabel} No test matches --filter.");

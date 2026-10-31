@@ -761,9 +761,6 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// <summary>" (+N more)" when <paramref name="count"/> items were cut to <paramref name="shown"/>, else "".</summary>
     private static string MoreSuffix(int count, int shown) => count > shown ? $" (+{count - shown} more)" : "";
 
-    /// <summary>"s" unless <paramref name="count"/> is 1.</summary>
-    internal static string Plural(int count) => count == 1 ? "" : "s";
-
     /// <summary>Assembly names of all test projects; excluded from coverage reports.</summary>
     private HashSet<string> TestAssemblyNames()
     {
@@ -835,8 +832,8 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         }
         SetStatus(p, ProjectStatus.Error, firstError ?? $"Build failed (exit code {code})", tail,
             build: new BuildFailure(diagnostics, errorCount, warningCount));
-        Log(p.Project.Id, LogLevels.Error, $"Build failed after {elapsed.TotalSeconds:0.0}s ({errorCount} error{Plural(errorCount)}, " +
-            $"{warningCount} warning{Plural(warningCount)})" + (firstError is null ? "" : ": " + firstError));
+        Log(p.Project.Id, LogLevels.Error, $"Build failed after {elapsed.TotalSeconds:0.0}s ({errorCount} error{Words.Plural(errorCount)}, " +
+            $"{warningCount} warning{Words.Plural(warningCount)})" + (firstError is null ? "" : ": " + firstError));
     }
 
     /// <summary>The first build error as one line: <c>file(line,column): error CODE: message</c>.</summary>
@@ -1257,7 +1254,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         lock (Sync)
             corrupt = requestedKeys.Count(k => _state.Tests.TryGetValue(k, out var t) && t.Outcome is Outcome.Failed && LooksLikeStaleAssembly(t));
         if (corrupt == 0) return;
-        Log(p.Project.Id, LogLevels.Warning, $"{corrupt} test{(corrupt == 1 ? "" : "s")} failed with BadImageFormatException / \"Index not found (0x80131124)\": " +
+        Log(p.Project.Id, LogLevels.Warning, $"{corrupt} test{Words.Plural(corrupt)} failed with BadImageFormatException / \"Index not found (0x80131124)\": " +
             "the warm test host had assemblies loaded that changed on disk. Run them again.");
         await Hosts.RenewAsync(p, warm, "its loaded assemblies no longer match the files on disk", ct);
     }
@@ -1321,7 +1318,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         var what = running.Count > 0
             ? $" while running {string.Join(", ", running.Take(3))}{MoreSuffix(running.Count, 3)}"
             : " before it reported which test was running";
-        var rest = skipped > 0 ? $"; {skipped} test{Plural(skipped)} did not run." : ".";
+        var rest = skipped > 0 ? $"; {skipped} test{Words.Plural(skipped)} did not run." : ".";
         return $"Test host of {projectName} exited with code {code}" + what + rest;
     }
 

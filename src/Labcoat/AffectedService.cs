@@ -96,14 +96,14 @@ internal sealed class AffectedService(IExplorerEffects effects, OperationGate ga
             AffectedBases.Range => plan.Ref ?? "range",
             _ => BaseLabels[plan.Base],
         };
-        var fileCount = $"{plan.Counts.Files} file{(plan.Counts.Files == 1 ? "" : "s")}";
+        var fileCount = $"{plan.Counts.Files} file{Words.Plural(plan.Counts.Files)}";
         if (plan.Selection.Count == 0)
         {
             effects.Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} changed → no affected tests");
             return null;
         }
-        effects.Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} → {plan.Counts.Tests} test{(plan.Counts.Tests == 1 ? "" : "s")} in " +
-            $"{plan.Counts.Projects} project{(plan.Counts.Projects == 1 ? "" : "s")} ({plan.Strategy})");
+        effects.Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} → {plan.Counts.Tests} test{Words.Plural(plan.Counts.Tests)} in " +
+            $"{plan.Counts.Projects} project{Words.Plural(plan.Counts.Projects)} ({plan.Strategy})");
         var affected = new AffectedRun
         {
             Strategy = "git",

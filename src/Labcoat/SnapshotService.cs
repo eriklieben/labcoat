@@ -82,7 +82,7 @@ internal sealed class SnapshotService(WorkspaceState state, IExplorerEffects eff
         var files = ResolveSnapshotFiles(t, projectDir, selected, accept, errors);
         if (files.Count > 0 || found.Count == 0) done.Add(new SnapshotTestResult(t.ProjectId, t.Id, files));
         if (files.Count > 0)
-            effects.Log(t.ProjectId, LogLevels.Info, $"{(accept ? "Accepted" : "Rejected")} {files.Count} snapshot{(files.Count == 1 ? "" : "s")} of {t.DisplayName}: {string.Join(", ", files)}");
+            effects.Log(t.ProjectId, LogLevels.Info, $"{(accept ? "Accepted" : "Rejected")} {files.Count} snapshot{Words.Plural(files.Count)} of {t.DisplayName}: {string.Join(", ", files)}");
         return null;
     }
 

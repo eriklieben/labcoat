@@ -89,7 +89,7 @@ public static partial class HtmlReport
         if (run.DurationMs is { } ms) meta.Add($"took {Duration(ms)}");
         meta.Add(run.Scope == "subset" ? $"partial run ({run.Total} selected)" : "all tests");
         meta.Add($"trigger: {run.Trigger ?? "user"}");
-        meta.Add($"{export.Projects.Count} project{Plural(export.Projects.Count)}");
+        meta.Add($"{export.Projects.Count} project{Words.Plural(export.Projects.Count)}");
         o.Write($"<p class=\"meta\">{E(string.Join(" · ", meta))}</p>\n");
         Banner(export, o, failed, passed);
         o.Write("<dl class=\"cards\">\n");
@@ -107,7 +107,7 @@ public static partial class HtmlReport
     {
         var run = export.Run;
         string tone, text;
-        if (failed > 0) (tone, text) = ("bad", $"{failed} test{Plural(failed)} failed");
+        if (failed > 0) (tone, text) = ("bad", $"{failed} test{Words.Plural(failed)} failed");
         else if (run.Aborted == true) (tone, text) = ("warn", "The run was aborted");
         else if (run.Cancelled == true) (tone, text) = ("warn", "The run was cancelled");
         else if (export.Tests.Count == 0) (tone, text) = ("warn", "No test results in this run");
@@ -259,7 +259,7 @@ public static partial class HtmlReport
         var failed = tests.Count(t => ExportKinds.IsFailed(t.Kind));
         var passed = tests.Count(t => t.Kind == ExportKind.Passed);
         var other = tests.Count - failed - passed;
-        var parts = new List<string> { $"{tests.Count} test{Plural(tests.Count)}" };
+        var parts = new List<string> { $"{tests.Count} test{Words.Plural(tests.Count)}" };
         if (failed > 0) parts.Add($"{failed} failed");
         if (passed > 0 && passed < tests.Count) parts.Add($"{passed} passed");
         if (other > 0) parts.Add($"{other} skipped");
@@ -284,6 +284,4 @@ public static partial class HtmlReport
         DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)
             ? at.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture)
             : iso;
-
-    private static string Plural(int n) => n == 1 ? "" : "s";
 }

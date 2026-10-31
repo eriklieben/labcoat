@@ -310,7 +310,7 @@ public sealed partial class Explorer
                 _impact.Building = false;
                 PublishSettings();
             }
-            if (refined > 0) Log(null, LogLevels.Info, $"Impact map: {refined} test{Plural(refined)} refined to per-test data in {sw.Elapsed.TotalSeconds:0.0}s");
+            if (refined > 0) Log(null, LogLevels.Info, $"Impact map: {refined} test{Words.Plural(refined)} refined to per-test data in {sw.Elapsed.TotalSeconds:0.0}s");
             _gate.Release();
         }
     }
@@ -335,7 +335,7 @@ public sealed partial class Explorer
             PublishSettings();
         }
         var names = string.Join(", ", byProject.Select(c => c.ClassKey.Split('.')[^1]).Distinct().Take(3));
-        Log(p.Project.Id, LogLevels.Info, $"Impact map: refining {names} per test ({groups.Count} test{Plural(groups.Count)})…");
+        Log(p.Project.Id, LogLevels.Info, $"Impact map: refining {names} per test ({groups.Count} test{Words.Plural(groups.Count)})…");
         return await RunImpactGroupsAsync(p, groups, replacePerTest: true, ct);
     }
 
@@ -384,7 +384,7 @@ public sealed partial class Explorer
             Log(p.Project.Id, LogLevels.Info, $"Watch: {names} changed → no affected tests ({how})");
             return;
         }
-        Log(p.Project.Id, LogLevels.Info, $"Watch: {names} changed → rerunning {ids.Count} affected test{Plural(ids.Count)} ({how})");
+        Log(p.Project.Id, LogLevels.Info, $"Watch: {names} changed → rerunning {ids.Count} affected test{Words.Plural(ids.Count)} ({how})");
         await RunAsync(p.Project.Id, ids, null, new AffectedRun { Strategy = strategy, ChangedFiles = [.. changed] }, trigger: WatchTrigger,
             watchContext: new WatchContext { ChangedFiles = [.. changed], BuildMs = buildMs, Strategy = strategy });
     }

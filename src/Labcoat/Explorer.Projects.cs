@@ -108,7 +108,7 @@ public sealed partial class Explorer
     private static string ProjectListLine(List<ProjectEntry> added, List<ProjectEntry> removed)
     {
         var parts = new List<string>();
-        if (added.Count > 0) parts.Add($"new test project{Plural(added.Count)}: {string.Join(", ", added.Select(p => p.Project.Name))}");
+        if (added.Count > 0) parts.Add($"new test project{Words.Plural(added.Count)}: {string.Join(", ", added.Select(p => p.Project.Name))}");
         if (removed.Count > 0) parts.Add($"removed: {string.Join(", ", removed.Select(p => p.Project.Name))}");
         return "Test projects changed: " + string.Join("; ", parts);
     }

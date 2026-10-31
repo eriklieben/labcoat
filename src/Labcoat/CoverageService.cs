@@ -156,9 +156,9 @@ internal sealed class CoverageService(WorkspaceState state, IExplorerEffects eff
             yield return $"{projectId}: no full coverage run yet (Run all with coverage)";
             yield break;
         }
-        if (merge.FilesChanged > 0) yield return $"{projectId}: merged into {merge.FilesChanged} unchanged file{Explorer.Plural(merge.FilesChanged)}";
+        if (merge.FilesChanged > 0) yield return $"{projectId}: merged into {merge.FilesChanged} unchanged file{Words.Plural(merge.FilesChanged)}";
         if (merge.ChangedFiles.Count > 0)
-            yield return $"{projectId}: {merge.ChangedFiles.Count} file{Explorer.Plural(merge.ChangedFiles.Count)} changed since the full run " +
+            yield return $"{projectId}: {merge.ChangedFiles.Count} file{Words.Plural(merge.ChangedFiles.Count)} changed since the full run " +
                          $"({string.Join(", ", merge.ChangedFiles.Select(Path.GetFileName).Distinct().Take(3))}), not merged: run all with coverage to refresh";
     }
 
@@ -169,7 +169,7 @@ internal sealed class CoverageService(WorkspaceState state, IExplorerEffects eff
             ? $"Coverage: no coverable lines in {report.Files.Count} files (with Labcoat's defaults, test assemblies are left out; put the code under test in a separate project, or check the coverage settings)"
             : $"Coverage: {report.LineRate:P1} lines ({report.LinesCovered}/{report.LinesValid}), {report.BranchRate:P1} branches in {report.Files.Count} files";
         if (subsetIds is null) return what;
-        what += $" of this run's {subsetIds.Count} test{Explorer.Plural(subsetIds.Count)}";
+        what += $" of this run's {subsetIds.Count} test{Words.Plural(subsetIds.Count)}";
         if (fullCoverage.Report is { } current)
             return what + "; the Coverage page keeps the full report: " +
                    $"{current.LineRate:P1} lines ({current.LinesCovered}/{current.LinesValid})" + (notes.Count > 0 ? "; " + string.Join("; ", notes) : "");
