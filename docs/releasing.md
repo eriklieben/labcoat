@@ -145,6 +145,10 @@ the config: `pnpm dlx --package renovate@44.115.1 -- renovate-config-validator -
 
 ## Code analysis
 
+- **The .NET analyzers** run in every build: the recommended rules (`AnalysisLevel=latest-recommended`) and, for
+  `src/`, class coupling (CA1506, limit in `src/CodeMetricsConfig.txt`); the build job's `-warnaserror` gates them.
+  `Explorer`, `LabcoatApp`, `Diagnostics` and `LabcoatResourceBuilderExtensions` were over the coupling limit when it
+  was turned on and suppress it, each with its reason.
 - **CodeQL** (GitHub code scanning) analyses the C#, the JavaScript/TypeScript and the GitHub Actions workflows on
   every push and pull request.
 - **SonarQube Cloud** analyses `main` and pull requests from branches of this repository in CI's `sonar` job:

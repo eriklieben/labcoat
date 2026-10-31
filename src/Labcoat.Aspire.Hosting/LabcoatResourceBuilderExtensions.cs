@@ -9,6 +9,10 @@ namespace Aspire.Hosting;
 /// <summary>
 /// Extension methods for adding Labcoat to an Aspire AppHost.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+    Justification = "The whole Aspire integration: the resource, its options, commands and dashboard state. "
+        + "Over the limit since before CA1506 was on: don't add to it, and remove this once a split brings it "
+        + "under (src/CodeMetricsConfig.txt).")]
 public static class LabcoatResourceBuilderExtensions
 {
     /// <summary>Folder (next to the AppHost binaries) that the Labcoat.Aspire.Hosting package copies the explorer into.</summary>

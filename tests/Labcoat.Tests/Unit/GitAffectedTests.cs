@@ -460,7 +460,7 @@ public class GitAffectedTests
         CollectionAssert.AreEqual(new[] { "Shop.Tests" }, result.Plan!.ProjectsNeedingImpactMap);
         // the pass (build fails here) and the run after it happen in the background; wait until the log says so
         var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (DateTime.UtcNow < deadline && !r.Explorer.Snapshot(includeLogs: true).Logs!.Any(l => l.Message.StartsWith("Run affected (uncommitted changes)")))
+        while (DateTime.UtcNow < deadline && !r.Explorer.Snapshot(includeLogs: true).Logs!.Any(l => l.Message.StartsWith("Run affected (uncommitted changes)", StringComparison.Ordinal)))
             await Task.Delay(50, TestContext.CancellationToken);
         Assert.Contains("building the impact map for Shop.Tests first", string.Join("\n", r.Explorer.Snapshot(includeLogs: true).Logs!.Select(l => l.Message)));
         r.Explorer.Cancel();

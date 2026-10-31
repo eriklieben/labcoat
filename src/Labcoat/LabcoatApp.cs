@@ -6,6 +6,10 @@ namespace Labcoat;
 /// The Labcoat host: <see cref="RunAsync"/> is the whole program (command line, discovery, settings, port, banner,
 /// start); <see cref="Build"/> creates the web app (services, security middleware, UI, REST API and WebSocket).
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+    Justification = "The whole program: command line, services, middleware and every API endpoint. "
+        + "Over the limit since before CA1506 was on: don't add to it, and remove this once a split brings it "
+        + "under (src/CodeMetricsConfig.txt).")]
 public static partial class LabcoatApp
 {
     /// <summary>Runs Labcoat until shutdown (Ctrl+C / SIGTERM, or <paramref name="ct"/>); returns the exit code.</summary>

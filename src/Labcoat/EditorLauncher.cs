@@ -179,11 +179,13 @@ public static class EditorLauncher
         return null;
     }
 
+    private static readonly string[] VsCodeMacApps = ["Visual Studio Code.app", "Visual Studio Code - Insiders.app"];
+
     private static string? FindVsCodeOnMac()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var clis = from app in new[] { "/Applications", Path.Combine(home, "Applications") }
-                   from name in new[] { "Visual Studio Code.app", "Visual Studio Code - Insiders.app" }
+                   from name in VsCodeMacApps
                    select Path.Combine(app, name, "Contents", "Resources", "app", "bin", name.Contains("Insiders") ? "code-insiders" : "code");
         return clis.FirstOrDefault(File.Exists);
     }

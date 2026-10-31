@@ -1,0 +1,7 @@
+<Project>
+  <!-- The analyzers of src/Directory.Build.props ("Code analysis"); CA1707 (underscores in names) is off for tests in
+       .editorconfig. Not for AotSmoke: a Native AOT app that stands in for a user's project, built on its own. -->
+  <PropertyGroup Label="Code analysis" Condition="'$(MSBuildProjectName)' != 'AotSmoke'">
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+</Project>

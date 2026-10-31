@@ -87,7 +87,7 @@ internal sealed class OperationGate : IDisposable
         return result;
     }
 
-    public void EndCancel(Cancellation c)
+    public static void EndCancel(Cancellation c)
     {
         c.Old.Cancel(); // cancels OldOperation (linked) too
         c.OldOperation.Dispose(); // unregisters it from the shutdown source; tokens already handed out stay cancelled

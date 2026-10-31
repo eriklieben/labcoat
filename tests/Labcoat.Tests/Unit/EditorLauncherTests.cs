@@ -108,7 +108,7 @@ public class EditorLauncherTests
         var (ok, message) = EditorLauncher.Open("vscode", "/src/A.cs", 1, null);
         Assert.IsFalse(ok);
         // Linux starts editors through setsid (which then fails with "permission denied"); elsewhere Process.Start throws.
-        Assert.IsTrue(message!.StartsWith("Could not start code") || message.StartsWith("code exited with code"), message);
+        Assert.IsTrue(message!.StartsWith("Could not start code", StringComparison.Ordinal) || message.StartsWith("code exited with code", StringComparison.Ordinal), message);
     }
 
     [TestMethod]

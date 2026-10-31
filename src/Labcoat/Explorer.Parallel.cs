@@ -22,7 +22,7 @@ public sealed partial class Explorer
     {
         // projects that aren't on Microsoft.Testing.Platform are never built or started (Explorer.Platform.cs)
         projects = await ProjectsOnMtpAsync(projects, ct);
-        var built = await BuildProjectsAsync(projects, ct, onlyIfChanged);
+        var built = await BuildProjectsAsync(projects, onlyIfChanged, ct);
         if (ct.IsCancellationRequested || built.Count == 0) return [];
         return await ForEachProjectAsync(built, p => forceDiscovery ? DiscoverProjectAsync(p, ct) : EnsureDiscoveredAsync(p, ct), ct);
     }
@@ -65,7 +65,7 @@ public sealed partial class Explorer
     /// shared dependency once (never two builds of one project at the same time). A multi-targeted project that builds
     /// one framework (<c>-f</c>) builds on its own afterwards.
     /// </summary>
-    private async Task<List<ProjectEntry>> BuildProjectsAsync(IReadOnlyList<ProjectEntry> projects, CancellationToken ct, bool onlyIfChanged)
+    private async Task<List<ProjectEntry>> BuildProjectsAsync(IReadOnlyList<ProjectEntry> projects, bool onlyIfChanged, CancellationToken ct)
     {
         if (projects.Count <= 1) return await BuildOneByOneAsync(projects, ct, onlyIfChanged);
         var (ready, batch, separate) = PlanBuilds(projects, onlyIfChanged);

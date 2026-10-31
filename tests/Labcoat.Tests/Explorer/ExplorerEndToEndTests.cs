@@ -1,3 +1,4 @@
+using System.Globalization;
 using Labcoat;
 
 namespace Labcoat.Tests.ExplorerTests;
@@ -253,7 +254,7 @@ public partial class ExplorerEndToEndTests
         Assert.Contains("Stopping the warm test host: trace collection was turned off", ScratchWorkspace.Logs(explorer));
 
         // ---- the warm host dies on its own: state goes cold, the next request starts a new one
-        var pid = int.Parse(StartedHostPid().Matches(ScratchWorkspace.Logs(explorer))[^1].Groups[1].Value);
+        var pid = int.Parse(StartedHostPid().Matches(ScratchWorkspace.Logs(explorer))[^1].Groups[1].Value, CultureInfo.InvariantCulture);
         using (var process = System.Diagnostics.Process.GetProcessById(pid)) process.Kill();
         await ScratchWorkspace.WaitUntilAsync(() => explorer.Summary().Projects[0].HostState == "cold", "host state cold");
         Assert.Contains("the next request starts a new one", ScratchWorkspace.Logs(explorer));
@@ -463,7 +464,7 @@ public partial class ExplorerEndToEndTests
     }
 
     private static int LastHostPid(Labcoat.Explorer e) =>
-        int.Parse(StartedHostPid().Matches(ScratchWorkspace.Logs(e))[^1].Groups[1].Value);
+        int.Parse(StartedHostPid().Matches(ScratchWorkspace.Logs(e))[^1].Groups[1].Value, CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Microsoft.CodeCoverage's static instrumentation rewrites the product assemblies of the output folder in place on
@@ -500,7 +501,7 @@ public partial class ExplorerEndToEndTests
         Assert.AreEqual("warm", explorer.Summary().Projects[0].HostState);
         var pidsAfter = StartedBigTestsWarmHostPid().Matches(ScratchWorkspace.Logs(explorer));
         Assert.HasCount(replaced ? 2 : 1, pidsAfter, "warm hosts started: the first, plus one after a static-instrumentation coverage run");
-        Assert.AreEqual(warmPid, int.Parse(pidsAfter[0].Groups[1].Value));
+        Assert.AreEqual(warmPid, int.Parse(pidsAfter[0].Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
     /// <summary>

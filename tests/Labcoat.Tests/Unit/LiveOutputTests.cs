@@ -270,6 +270,20 @@ public class LiveOutputTests
     }
 
     [TestMethod]
+    public async Task The_flush_timer_stops_on_dispose()
+    {
+        var flushes = 0;
+        var live = new LiveOutput(() => Interlocked.Increment(ref flushes));
+        live.Started(Test("A"));
+        live.Dispose();
+        live.Partial("P", "A", "after dispose\n", null);
+        live.HostLine("P", "after dispose", false);
+        // nothing to wait for: give a flush that would wrongly be scheduled a few intervals to happen
+        await Task.Delay(LiveOutput.FlushInterval * 3, TestContext.CancellationToken);
+        Assert.AreEqual(0, Volatile.Read(ref flushes));
+    }
+
+    [TestMethod]
     [DataRow("plain\n", "plain\n")]
     [DataRow("labcoat:traceId=0af7651916cd43dd8448eb211c80319c\n", "")]
     [DataRow("before\nlabcoat:traceId=0af7651916cd43dd8448eb211c80319c\nafter\n", "before\nafter\n")]

@@ -310,7 +310,7 @@ public sealed partial class Explorer
         Log(null, LogLevels.Info, "Cancellation requested" +
             (active is not null ? $" (stopping the current {active})" : " (nothing was running)") +
             (pending is not null ? $"; cleared the queued run ({pending.Requests} request{Plural(pending.Requests)})" : ""));
-        _gate.EndCancel(cancellation);
+        OperationGate.EndCancel(cancellation);
         return new CancelResult(active is not null, active, pending?.RunId, pending?.Requests ?? 0);
     }
 

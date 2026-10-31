@@ -40,6 +40,17 @@
     <ApiCompatPermitUnnecessarySuppressions>true</ApiCompatPermitUnnecessarySuppressions>
   </PropertyGroup>
 
+  <!-- The recommended set of the .NET analyzers (CA rules) as warnings, which CI's -warnaserror turns into errors; tests
+       use the same (tests/Directory.Build.props). Class coupling (CA1506) is on for src/ only (.editorconfig), with the
+       limit in CodeMetricsConfig.txt: types only, at the default 95; methods are left to SonarQube's cognitive
+       complexity. -->
+  <PropertyGroup Label="Code analysis">
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+  <ItemGroup Label="Code analysis">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)CodeMetricsConfig.txt" Visible="false" />
+  </ItemGroup>
+
   <PropertyGroup Label="Native AOT" Condition="'$(MSBuildProjectName)' != 'Labcoat'">
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>

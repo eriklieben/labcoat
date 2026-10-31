@@ -7,6 +7,9 @@ using System.Xml.Linq;
 namespace Labcoat;
 
 // Which tests a git change affects (docs/features.md "Run affected"), the branch's changed tests, and the repository facts the UI shows.
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "Its SemaphoreSlims are only awaited (WaitAsync), so they never create a wait handle: "
+        + "there is nothing to release.")]
 internal sealed class AffectedPlanner
 {
     private readonly WorkspaceState _state;
@@ -39,7 +42,7 @@ internal sealed class AffectedPlanner
         lock (_state.Sync)
         {
             var paths = _state.Projects.Select(p => p.Project.Path).ToList();
-            if (paths.Count == 0) return _inputRoots.FirstOrDefault();
+            if (paths.Count == 0) return _inputRoots.Count > 0 ? _inputRoots[0] : null;
             return PathUtil.CommonRoot(paths);
         }
     }

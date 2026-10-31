@@ -42,9 +42,9 @@ public sealed record LiveOutputSupport(bool XunitLiveOption, bool TUnit)
 /// Output is buffered per running test and flushed (<see cref="Drain"/>) at most every <see cref="FlushInterval"/>, at most
 /// <see cref="MaxCharsPerFlush"/> characters per test and flush (the tail is kept). Thread safe; <see cref="Drain"/>,
 /// <see cref="Started"/> and <see cref="Finished"/> are called by the Explorer under its lock, <see cref="HostLine"/> from
-/// the process output readers.
+/// the process output readers. <see cref="Dispose"/> stops the flush timer (shutdown).
 /// </summary>
-public sealed partial class LiveOutput
+public sealed partial class LiveOutput : IDisposable
 {
     public const string Marker = "labcoat:live:";
     public const string XunitPrefix = "OUTPUT: [";
@@ -103,6 +103,7 @@ public sealed partial class LiveOutput
     private readonly Action? _flush;
     private readonly Timer? _timer;
     private bool _scheduled;
+    private bool _disposed;
     private readonly Dictionary<(string ProjectId, string Id), TestBuffer> _running = [];
     private readonly Dictionary<string, ProjectMode> _modes = [];
     private readonly Queue<QueuedLine> _hostQueue = new();
@@ -450,18 +451,32 @@ public sealed partial class LiveOutput
         if (_timer is null) return;
         lock (_gate)
         {
-            if (_scheduled) return;
+            if (_scheduled || _disposed) return;
             _scheduled = true;
+            _timer.Change(FlushInterval, Timeout.InfiniteTimeSpan); // under the lock: never on a disposed timer
         }
-        _timer.Change(FlushInterval, Timeout.InfiniteTimeSpan);
     }
 
     private void OnTimer()
     {
-        lock (_gate) _scheduled = false;
+        lock (_gate)
+        {
+            if (_disposed) return; // a callback that was already queued when Dispose ran
+            _scheduled = false;
+        }
         try { _flush?.Invoke(); }
         catch { /* never let a timer callback crash the process */ }
         if (HasWork) Schedule();
+    }
+
+    /// <summary>Stops the flush timer: nothing is flushed after it, buffered output is dropped.</summary>
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _disposed = true;
+            _timer?.Dispose();
+        }
     }
 
     // ------------------------------------------------------------------ detection

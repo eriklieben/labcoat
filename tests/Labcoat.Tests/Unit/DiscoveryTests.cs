@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Labcoat;
 using Microsoft.AspNetCore.Http;
@@ -188,7 +189,7 @@ public class DiscoveryTests
     {
         var files = new List<string> { project, Path.Combine(Path.GetDirectoryName(project)!, "obj", "project.assets.json") };
         files.AddRange(ProjectDiscovery.DirectoryFiles(project));
-        return string.Join("|", files.Select(f => File.Exists(f) ? File.GetLastWriteTimeUtc(f).Ticks.ToString() : "-"));
+        return string.Join("|", files.Select(f => File.Exists(f) ? File.GetLastWriteTimeUtc(f).Ticks.ToString(CultureInfo.InvariantCulture) : "-"));
     }
 
     [TestMethod]

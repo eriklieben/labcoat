@@ -2,7 +2,7 @@ namespace Labcoat;
 
 // Live console output of running tests (LiveOutput.cs; docs/contract.md "Live console output"): testOutput events, the
 // test host options that make frameworks stream (xUnit --show-live-output, TUnit IDE streaming), GET /api/tests/live-output.
-internal sealed class LiveOutputService(WorkspaceState state, IExplorerEffects effects)
+internal sealed class LiveOutputService(WorkspaceState state, IExplorerEffects effects) : IDisposable
 {
     private LiveOutput? _liveOutput;
 
@@ -60,6 +60,9 @@ internal sealed class LiveOutputService(WorkspaceState state, IExplorerEffects e
         var projectId = p.Project.Id;
         host.OutputLine = (line, err) => Live.HostLine(projectId, line, err);
     }
+
+    /// <summary>Stops the flush timer; also when no test produced output yet, so a later access doesn't start one.</summary>
+    public void Dispose() => Live.Dispose();
 
     /// <summary>GET /api/tests/live-output: the output streamed so far for a running test; null when it is not running.</summary>
     public LiveOutputSnapshot? Get(string? projectId, string id)

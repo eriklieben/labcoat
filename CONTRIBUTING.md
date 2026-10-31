@@ -312,6 +312,9 @@ to satisfy a tool. Match the code around you.
 
 - **C#:** file-scoped namespaces, nullable enabled, `var`, `_camelCase` private fields, `s_camelCase` private static
   fields, `PascalCase` constants, 4-space indent, ~120 columns. CI builds with `-warnaserror`.
+- **Analyzers** run in the build, unlike the style: the recommended .NET analyzer rules (`AnalysisLevel` in
+  `src/Directory.Build.props` and `tests/Directory.Build.props`) and, for `src/`, class coupling (CA1506, at most 95
+  types per class, `src/CodeMetricsConfig.txt`). Fix a finding; suppress one only with a `Justification`.
 - **TypeScript:** strict mode, no UI framework: custom elements from the design system, `h()` for DOM, signals for
   state (never import `alien-signals` directly). 2-space indent, double quotes, semicolons.
 - **CSS:** component CSS uses semantic `--lc-*` tokens only, never raw colors (see the design-system README).

@@ -42,7 +42,7 @@ public class PersistenceTests
 
             var log = new List<string>();
             using var reloaded = Store(ws, log);
-            Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 2 tests and 1 runs")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 2 tests and 1 runs", StringComparison.Ordinal)), string.Join("\n", log));
             CollectionAssert.AreEqual(new[] { "r1" }, reloaded.Runs().Select(r => r.RunId).ToArray());
 
             var restored = Node("b", Outcome.NotRun) with { DurationMs = null, LastRunAt = null };
@@ -119,7 +119,7 @@ public class PersistenceTests
             File.WriteAllText(file, "{ not json");
             var log = new List<string>();
             using var store = Store(ws, log);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history", StringComparison.Ordinal)), string.Join("\n", log));
             Assert.IsEmpty(store.Runs());
 
             store.Save(); // nothing changed: nothing written
@@ -128,7 +128,7 @@ public class PersistenceTests
             Directory.CreateDirectory(file + ".tmp"); // the temp file can't be written
             store.Record(Run("r1"), [Node("a", Outcome.Passed)]);
             store.Save();
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save test history")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save test history", StringComparison.Ordinal)), string.Join("\n", log));
         }
         finally { Directory.Delete(ws, recursive: true); }
     }
@@ -218,7 +218,7 @@ public class PersistenceTests
             var log = new List<string>();
             using (var store = Store(ws, log))
             {
-                Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 1 tests and 1 runs")), string.Join("\n", log));
+                Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 1 tests and 1 runs", StringComparison.Ordinal)), string.Join("\n", log));
                 var n = Node("a|b", Outcome.NotRun);
                 store.Restore(n);
                 Assert.AreEqual(Outcome.Failed, n.Outcome);
@@ -254,7 +254,7 @@ public class PersistenceTests
             File.WriteAllText(file, json);
             var log = new List<string>();
             using var store = Store(ws, log);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history", StringComparison.Ordinal)), string.Join("\n", log));
             Assert.IsEmpty(store.Runs());
         }
         finally { Directory.Delete(ws, recursive: true); }
@@ -370,7 +370,7 @@ public class PersistenceTests
             var failing = new WorkspaceSettings(Path.Combine(blocked, "sub"), (level, msg) => log.Add($"{level}: {msg}"));
             failing.SetTracingEnabled(false);
             Assert.IsFalse(failing.TracingEnabled);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save workspace settings")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save workspace settings", StringComparison.Ordinal)), string.Join("\n", log));
         }
         finally { Directory.Delete(root, recursive: true); }
     }

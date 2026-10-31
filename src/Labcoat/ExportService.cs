@@ -36,7 +36,7 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
                 .OrderBy(t => order.TryGetValue((t.ProjectId, t.Id), out var i) ? i : int.MaxValue)
                 .ToList();
             var withResults = tests.Select(t => t.ProjectId).ToHashSet(StringComparer.Ordinal);
-            var root = inputRoots.FirstOrDefault();
+            var root = inputRoots.Count > 0 ? inputRoots[0] : null;
             var projects = state.Projects.Select(p => p.Project)
                 .Where(p => withResults.Contains(p.Id))
                 .Select(p => new ExportProject(p.Id, p.Name, p.TargetFramework, RelativeTo(root, p.Path)))
@@ -102,7 +102,7 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
         {
             List<string> roots;
             lock (state.Sync) roots = sourceRootsLocked();
-            var common = PathUtil.CommonRoot(roots) ?? inputRoots.FirstOrDefault();
+            var common = PathUtil.CommonRoot(roots) ?? (inputRoots.Count > 0 ? inputRoots[0] : null);
             if (common is null) return null;
             var root = GitRoot(common) ?? common;
             return Path.GetPathRoot(root) == root ? null : root;

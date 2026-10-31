@@ -187,7 +187,7 @@ public class DiagnosticsEdgeTests
             Assert.IsFalse(WorkspaceIdentity.Resolve([Path.Combine(a, "A.csproj")]).IsBroad);
             var log = new List<string>();
             using (new HistoryStore([Path.Combine(a, "A.csproj"), Path.Combine(b, "B.csproj")], (_, m) => log.Add(m)))
-                Assert.IsFalse(log.Any(l => l.StartsWith("Merged")), "never claims other workspaces' folders");
+                Assert.IsFalse(log.Any(l => l.StartsWith("Merged", StringComparison.Ordinal)), "never claims other workspaces' folders");
         }
         finally
         {

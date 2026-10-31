@@ -64,7 +64,7 @@ public class VsTestEndToEndTests
         }
     }
 
-    private async Task AssertNotStartedAsync(string project, bool restored)
+    private static async Task AssertNotStartedAsync(string project, bool restored)
     {
         await using var explorer = new Labcoat.Explorer(new EventHub(), [project], null, [Path.GetDirectoryName(project)!]);
         await explorer.DiscoverAsync(null);

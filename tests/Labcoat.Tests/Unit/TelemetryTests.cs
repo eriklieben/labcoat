@@ -78,7 +78,7 @@ public class TelemetryTests
 
             env = Env();
             Telemetry.ConfigureTestHost(env, tracingEnabled: false);
-            Assert.IsFalse(env.Keys.Any(k => k.StartsWith("LABCOAT_OTLP_") || k.StartsWith("OTEL_")));
+            Assert.IsFalse(env.Keys.Any(k => k.StartsWith("LABCOAT_OTLP_", StringComparison.Ordinal) || k.StartsWith("OTEL_", StringComparison.Ordinal)));
         }
         using (Telemetry.Override(hosted: true, endpoint: "http://localhost:4318"))
         {
@@ -134,7 +134,7 @@ public class TelemetryTests
     [DoNotParallelize]
     public async Task Failure_context_keeps_error_and_http_error_spans_and_sends_the_api_key()
     {
-        var dashboard = new FakeDashboard(req => Json(req.RequestUri!.AbsolutePath.EndsWith("/spans") ? Spans : Logs));
+        var dashboard = new FakeDashboard(req => Json(req.RequestUri!.AbsolutePath.EndsWith("/spans", StringComparison.Ordinal) ? Spans : Logs));
         using (DashboardTelemetry.Override("http://localhost:18888", "key-1", dashboard))
         {
             Assert.IsTrue(DashboardTelemetry.Available);

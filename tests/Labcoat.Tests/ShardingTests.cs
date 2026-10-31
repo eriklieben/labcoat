@@ -68,7 +68,7 @@ public class ShardingTests
         Assert.IsEmpty(Sharding.Plan([], Name, new ShardSpec(1, 2), ShardBy.Class, null).TestIds);
     }
 
-    private ShardTimings Timings(params (string Class, double Seconds)[] classes)
+    private static ShardTimings Timings(params (string Class, double Seconds)[] classes)
     {
         var xml = "<testsuites><testsuite name=\"P\">" +
                   string.Concat(classes.Select(c => $"<testcase classname=\"Shop.{c.Class}\" name=\"x\" time=\"{c.Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"/>")) +

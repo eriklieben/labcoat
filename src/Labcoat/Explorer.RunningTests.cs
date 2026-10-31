@@ -50,7 +50,7 @@ public sealed partial class Explorer
     private HangMonitor.ProjectRunScope BeginProjectRun(ProjectRun run, CancellationToken ct)
     {
         var args = HostArgumentsOf(run.Project);
-        return Hang.BeginProjectRun(run, ct, args.SessionTimeout, args.SessionTimeoutText);
+        return Hang.BeginProjectRun(run, args.SessionTimeout, args.SessionTimeoutText, ct);
     }
 
     /// <summary>ExplorerState.limits.</summary>

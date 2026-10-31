@@ -45,7 +45,7 @@ internal sealed class HangMonitor(WorkspaceState state, IExplorerEffects effects
         }
     }
 
-    public ProjectRunScope BeginProjectRun(ProjectRun run, CancellationToken ct, TimeSpan? sessionTimeout, string? sessionTimeoutText)
+    public ProjectRunScope BeginProjectRun(ProjectRun run, TimeSpan? sessionTimeout, string? sessionTimeoutText, CancellationToken ct)
     {
         var scope = new ProjectRunScope(this, run, CancellationTokenSource.CreateLinkedTokenSource(ct), sessionTimeout, sessionTimeoutText);
         lock (state.Sync)

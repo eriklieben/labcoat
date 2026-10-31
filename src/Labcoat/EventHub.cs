@@ -17,11 +17,13 @@ public sealed class EventHub
     /// <summary>Outgoing messages buffered per client; a client that falls this far behind is disconnected (it reconnects and resyncs).</summary>
     public const int MaxQueuedMessages = 10_000;
 
-    private sealed class Client(Channel<PooledMessage> channel, bool lean)
+    private sealed class Client(Channel<PooledMessage> channel, bool lean) : IDisposable
     {
         public Channel<PooledMessage> Channel { get; } = channel;
         public bool Lean { get; } = lean;
         public readonly CancellationTokenSource Overflow = new();
+
+        public void Dispose() => Overflow.Dispose();
     }
 
     private readonly ConcurrentDictionary<Guid, Client> _clients = new();
@@ -135,7 +137,7 @@ public sealed class EventHub
             // messages queued but never sent (the connection ended first): hand their segments back
             while (channel.Reader.TryRead(out var unsent)) unsent.Release();
             if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await CloseQuietlyAsync(socket, close.Status, close.Reason);
-            client.Overflow.Dispose();
+            client.Dispose();
         }
     }
 

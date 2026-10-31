@@ -13,6 +13,10 @@ namespace Labcoat;
 /// (see <see cref="EventHub.HandleAsync"/>). Operations (build/discover/run) are serialized by a single
 /// semaphore, so requests issued while something is in progress are queued.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+    Justification = "The orchestrator behind every endpoint; features move out into their own services. "
+        + "Over the limit since before CA1506 was on: don't add to it, and remove this once a split brings it "
+        + "under (src/CodeMetricsConfig.txt).")]
 public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
 {
     private readonly WorkspaceState _state = new();
@@ -1694,6 +1698,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         lock (Sync)
         {
             Hang.Dispose(); // also when no run used it yet: a later access must not start a timer on a disposed explorer
+            LiveService.Dispose(); // same for the live output flush timer
             foreach (var p in _state.Projects)
             {
                 StopWatching(p);

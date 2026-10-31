@@ -57,7 +57,7 @@ public class GlobalStateApiTests
         Assert.Contains("Trace collection is off", body!["error"]!.GetValue<string>());
 
         await h.PostJson("/api/tracing", """{"enabled":true}""");
-        var dashboard = new FakeDashboard(r => Ok(r.RequestUri!.AbsolutePath.EndsWith("/spans") ? Spans : Logs));
+        var dashboard = new FakeDashboard(r => Ok(r.RequestUri!.AbsolutePath.EndsWith("/spans", StringComparison.Ordinal) ? Spans : Logs));
         using (DashboardTelemetry.Override(null, null, dashboard))
         {
             (status, body) = await Get("id=traced");

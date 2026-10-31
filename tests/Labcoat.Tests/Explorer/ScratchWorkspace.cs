@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 
 namespace Labcoat.Tests.ExplorerTests;
@@ -148,7 +149,7 @@ internal sealed class ScratchWorkspace
         {
             big.Append("public static class C").Append(c).Append(" {\n");
             for (var m = 0; m < 10; m++)
-                big.Append($"    public static int M{m}(int a, int b) {{ var s = \"c{c}m{m}\" + a; if (a > {m}) return s.Length + b * {c}; return a - b + {m}; }}\n");
+                big.Append(CultureInfo.InvariantCulture, $"    public static int M{m}(int a, int b) {{ var s = \"c{c}m{m}\" + a; if (a > {m}) return s.Length + b * {c}; return a - b + {m}; }}\n");
             big.Append("}\n");
         }
         Write("Big.Lib/Generated.cs", big.ToString());

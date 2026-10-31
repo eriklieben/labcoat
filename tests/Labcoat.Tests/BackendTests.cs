@@ -160,7 +160,7 @@ public class ProjectDiscoveryTests
             Assert.IsEmpty(found);
             Assert.HasCount(5, errors);
             Assert.StartsWith("Path not found", errors[0]);
-            Assert.IsTrue(errors.Skip(1).Take(3).All(e => e.StartsWith("Could not read the solution")), string.Join("\n", errors));
+            Assert.IsTrue(errors.Skip(1).Take(3).All(e => e.StartsWith("Could not read the solution", StringComparison.Ordinal)), string.Join("\n", errors));
             Assert.StartsWith("Unsupported path", errors[4]);
         }
         finally { root.Delete(recursive: true); }
