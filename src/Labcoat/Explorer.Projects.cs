@@ -8,7 +8,7 @@ public sealed partial class Explorer
     /// Finds the workspace's test projects again (the same search as at startup; the argument receives warnings). Null:
     /// the project list is fixed (tests, embedding).
     /// </summary>
-    public Func<Action<string>, List<string>>? ProjectFinder { get; init; }
+    public Func<Action<string>, CancellationToken, Task<List<string>>>? ProjectFinder { get; init; }
 
     /// <summary>Directories watched for new or removed test projects (<see cref="StartProjectWatcher"/>).</summary>
     public IReadOnlyList<string> WorkspaceRoots { get; init; } = [];
@@ -83,7 +83,7 @@ public sealed partial class Explorer
         var warnings = new List<string>();
         try
         {
-            var found = await Task.Run(() => finder(warnings.Add), ct);
+            var found = await finder(warnings.Add, ct);
             var (added, removed) = ApplyProjectList(found);
             if (added.Count > 0 || removed.Count > 0)
             {

@@ -121,7 +121,7 @@ public class ProjectDiscoveryTests
     }
 
     [TestMethod]
-    public void Directory_build_props_settings_are_found_by_msbuild_evaluation()
+    public async Task Directory_build_props_settings_are_found_by_msbuild_evaluation()
     {
         var root = Directory.CreateTempSubdirectory("labcoat-detect-");
         try
@@ -136,7 +136,7 @@ public class ProjectDiscoveryTests
 
             Assert.IsFalse(ProjectDiscovery.IsTestProject(Path.Combine(inner, "Checks.csproj")));
             var errors = new List<string>();
-            var found = ProjectDiscovery.FindProjects([root.FullName], _ => { }, errors);
+            var found = await ProjectDiscovery.FindProjectsAsync([root.FullName], _ => { }, errors);
             Assert.IsEmpty(errors);
             CollectionAssert.AreEqual(new[] { Path.Combine(inner, "Checks.csproj") }, found);
         }
@@ -144,7 +144,7 @@ public class ProjectDiscoveryTests
     }
 
     [TestMethod]
-    public void Explicit_paths_that_do_not_work_are_errors()
+    public async Task Explicit_paths_that_do_not_work_are_errors()
     {
         var root = Directory.CreateTempSubdirectory("labcoat-bad-");
         try
@@ -154,7 +154,7 @@ public class ProjectDiscoveryTests
             File.WriteAllText(Path.Combine(root.FullName, "Broken.slnf"), "{ \"solution\": ");
             File.WriteAllText(Path.Combine(root.FullName, "notes.txt"), "");
             var errors = new List<string>();
-            var found = ProjectDiscovery.FindProjects(
+            var found = await ProjectDiscovery.FindProjectsAsync(
                 [Path.Combine(root.FullName, "missing"), .. new[] { "Broken.slnx", "Broken.sln", "Broken.slnf", "notes.txt" }.Select(f => Path.Combine(root.FullName, f))],
                 _ => { }, errors);
             Assert.IsEmpty(found);

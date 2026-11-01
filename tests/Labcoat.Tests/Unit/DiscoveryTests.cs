@@ -35,14 +35,14 @@ public class DiscoveryTests
     [DataRow("Shop.slnx")]
     [DataRow("Shop.sln")]
     [DataRow("Shop.slnf")]
-    public void Solutions_list_their_projects_and_only_test_projects_are_used(string solution)
+    public async Task Solutions_list_their_projects_and_only_test_projects_are_used(string solution)
     {
         var root = SolutionWorkspace();
         try
         {
             var warnings = new List<string>();
             var errors = new List<string>();
-            var found = ProjectDiscovery.FindProjects([Path.Combine(root.FullName, solution)], warnings.Add, errors);
+            var found = await ProjectDiscovery.FindProjectsAsync([Path.Combine(root.FullName, solution)], warnings.Add, errors);
             Assert.IsEmpty(errors);
             CollectionAssert.AreEqual(new[] { Path.Combine(root.FullName, "tests", "Shop.Tests", "Shop.Tests.csproj") }, found);
             if (solution == "Shop.slnx")
@@ -72,7 +72,7 @@ public class DiscoveryTests
     }
 
     [TestMethod]
-    public void Directory_scans_skip_build_output_dependencies_and_dot_folders()
+    public async Task Directory_scans_skip_build_output_dependencies_and_dot_folders()
     {
         var root = Directory.CreateTempSubdirectory("labcoat-scan-");
         try
@@ -86,16 +86,16 @@ public class DiscoveryTests
             Write(root, "Lib/Lib.csproj", AppProject);              // not a test project, not an evaluation candidate
             Write(root, "README.md", "");
 
-            var found = ProjectDiscovery.FindProjects([root.FullName, a], _ => { });
+            var found = await ProjectDiscovery.FindProjectsAsync([root.FullName, a], _ => { });
             CollectionAssert.AreEquivalent(new[] { a, b }, found); // the explicit path is not listed twice
 
             // An explicitly passed project file is always used, test project or not.
             var lib = Path.Combine(root.FullName, "Lib", "Lib.csproj");
-            CollectionAssert.AreEqual(new[] { lib }, ProjectDiscovery.FindProjects([lib], _ => { }));
+            CollectionAssert.AreEqual(new[] { lib }, await ProjectDiscovery.FindProjectsAsync([lib], _ => { }));
 
             // Without an error list, problems with explicit paths are warnings.
             var warnings = new List<string>();
-            Assert.IsEmpty(ProjectDiscovery.FindProjects([Path.Combine(root.FullName, "nope")], warnings.Add));
+            Assert.IsEmpty(await ProjectDiscovery.FindProjectsAsync([Path.Combine(root.FullName, "nope")], warnings.Add));
             Assert.StartsWith("Path not found", warnings.Single());
         }
         finally { root.Delete(recursive: true); }
@@ -128,7 +128,7 @@ public class DiscoveryTests
     }
 
     [TestMethod]
-    public void Vstest_test_projects_are_found_restored_or_not()
+    public async Task Vstest_test_projects_are_found_restored_or_not()
     {
         var root = Directory.CreateTempSubdirectory("labcoat-vstest-");
         try
@@ -153,7 +153,7 @@ public class DiscoveryTests
             var viaProps = Write(root, "suite/Shop.Tests/Shop.Tests.csproj", AppProject);
             Write(root, "suite/Shop/Shop.csproj", AppProject);
 
-            var found = ProjectDiscovery.FindProjects([root.FullName], _ => { });
+            var found = await ProjectDiscovery.FindProjectsAsync([root.FullName], _ => { });
             CollectionAssert.AreEquivalent(new[] { nunit, viaProps }, found);
             Assert.AreEqual(TestRunner.VsTest, TestPlatform.Classify(TestPlatform.ReadStatic(nunit)).Runner);
         }
@@ -194,7 +194,7 @@ public class DiscoveryTests
 
     [TestMethod]
     [DoNotParallelize] // reads / writes the shared detection cache file
-    public void Msbuild_detection_results_are_cached_by_file_timestamps()
+    public async Task Msbuild_detection_results_are_cached_by_file_timestamps()
     {
         var root = Directory.CreateTempSubdirectory("labcoat-cache-");
         var saved = File.Exists(DetectionCacheFile) ? File.ReadAllText(DetectionCacheFile) : null;
@@ -208,14 +208,14 @@ public class DiscoveryTests
                   "/elsewhere/Other.csproj": { "stamp": "1|-", "isTest": false },
                   "/broken.csproj": { "isTest": true } }
                 """);
-            CollectionAssert.AreEqual(new[] { cached }, ProjectDiscovery.FindProjects([root.FullName], _ => { }));
+            CollectionAssert.AreEqual(new[] { cached }, await ProjectDiscovery.FindProjectsAsync([root.FullName], _ => { }));
 
             // A stale stamp (and a corrupt cache file, which is ignored) means: evaluate again. A project MSBuild can't
             // evaluate is not a test project, and is not cached.
             File.WriteAllText(cached, "<Project");
             File.WriteAllText(DetectionCacheFile, "{ nope");
             var notes = new List<string>();
-            Assert.IsEmpty(ProjectDiscovery.FindProjects([root.FullName], _ => { }, info: notes.Add));
+            Assert.IsEmpty(await ProjectDiscovery.FindProjectsAsync([root.FullName], _ => { }, info: notes.Add));
             Assert.StartsWith("Evaluated 1 project(s) with MSBuild", notes.Single());
             Assert.AreEqual("{ nope", File.ReadAllText(DetectionCacheFile)); // nothing new to save
         }
@@ -228,7 +228,7 @@ public class DiscoveryTests
     }
 
     [TestMethod]
-    public async Task Evaluation_can_be_cancelled()
+    public async Task Evaluation_and_the_project_search_can_be_cancelled()
     {
         var root = Directory.CreateTempSubdirectory("labcoat-eval-");
         try
@@ -237,6 +237,8 @@ public class DiscoveryTests
             using var cts = new CancellationTokenSource();
             cts.Cancel();
             Assert.IsNull(await ProjectDiscovery.EvaluateAsync(project, cts.Token));
+            // the folder scan finds a project only an evaluation can decide: it stops instead of answering "not a test project"
+            await Assert.ThrowsAsync<OperationCanceledException>(() => ProjectDiscovery.FindProjectsAsync([root.FullName], _ => { }, ct: cts.Token));
         }
         finally { root.Delete(recursive: true); }
     }

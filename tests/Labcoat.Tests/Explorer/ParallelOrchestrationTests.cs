@@ -23,7 +23,7 @@ public class ParallelOrchestrationTests
             {
                 DotnetOverride = Dotnet.InvokeAsync,
                 MaxParallelProjects = maxParallel,
-                ProjectFinder = finder ? _ => [.. Found] : null,
+                ProjectFinder = finder ? (_, _) => Task.FromResult<List<string>>([.. Found]) : null,
                 WorkspaceRoots = [Root.FullName],
             };
         }
@@ -159,7 +159,7 @@ public class ParallelOrchestrationTests
         var root = Directory.CreateTempSubdirectory("labcoat-par-");
         await using var e = new Labcoat.Explorer(new EventHub(), [], null, [root.FullName])
         {
-            ProjectFinder = warn =>
+            ProjectFinder = (warn, _) =>
             {
                 warn("odd project file");
                 throw new InvalidOperationException("boom");
@@ -187,7 +187,7 @@ public class ParallelOrchestrationTests
         var dotnet = new FakeDotnet { Evaluation = null };
         Labcoat.Explorer Start() => new(new EventHub(), [.. found], null, [root.FullName])
         {
-            DotnetOverride = dotnet.InvokeAsync, ProjectFinder = _ => [.. found], WorkspaceRoots = [root.FullName],
+            DotnetOverride = dotnet.InvokeAsync, ProjectFinder = (_, _) => Task.FromResult<List<string>>([.. found]), WorkspaceRoots = [root.FullName],
         };
         static TestNode Node(string project, Outcome outcome) => new()
         {

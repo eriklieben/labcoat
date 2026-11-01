@@ -9,7 +9,7 @@ namespace Labcoat;
 /// <summary>
 /// Finds test projects from the CLI paths.
 ///  - An explicitly passed .csproj/.fsproj/.vbproj is always used (a missing path, an unsupported file or an unreadable
-///    solution is an error: see <see cref="FindProjects"/>).
+///    solution is an error: see <see cref="FindProjectsAsync"/>).
 ///  - Projects found via a directory scan or a .sln/.slnx/.slnf are test projects (on Microsoft.Testing.Platform or on
 ///    VSTest: <see cref="TestPlatform.Classify(ProjectFacts)"/>; Labcoat lists VSTest projects with how to switch them, and
 ///    never starts them) when
@@ -18,7 +18,7 @@ namespace Labcoat;
 ///         project's Microsoft.NET.Test.Sdk / MSTest.TestAdapter / NUnit3TestAdapter / xunit.runner.visualstudio, or
 ///         EnableMSTestRunner / EnableNUnitRunner / UseMicrosoftTestingPlatformRunner / IsTestProject /
 ///         IsTestingPlatformApplication / TestingPlatformDotnetTestSupport set to true; else
-///      2. MSBuild evaluation says so (<see cref="IsMtpTestApp"/>): one <c>dotnet msbuild -getProperty</c> per remaining
+///      2. MSBuild evaluation says so (<see cref="EvaluateAsync"/>): one <c>dotnet msbuild -getProperty</c> per remaining
 ///         candidate (its name contains "test"/"spec", or a Directory.Build.props/.targets or Directory.Packages.props above
 ///         it mentions a test framework), run in parallel and cached by file timestamps. This sees settings that come from
 ///         Directory.Build.props, central package management and package props (IsTestingPlatformApplication is set by the
@@ -31,7 +31,8 @@ public static partial class ProjectDiscovery
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", "node_modules" };
 
     /// <summary>Test projects for <paramref name="paths"/>. Problems with explicitly given paths go to <paramref name="errors"/>.</summary>
-    public static List<string> FindProjects(IEnumerable<string> paths, Action<string> warn, List<string>? errors = null, Action<string>? info = null)
+    public static async Task<List<string>> FindProjectsAsync(IEnumerable<string> paths, Action<string> warn, List<string>? errors = null,
+        Action<string>? info = null, CancellationToken ct = default)
     {
         var result = new List<string>();
         void Error(string message)
@@ -44,8 +45,8 @@ public static partial class ProjectDiscovery
         {
             var path = Path.GetFullPath(raw);
             List<string> found;
-            if (Directory.Exists(path)) found = Classify(ScanDirectory(path).ToList(), info);
-            else if (File.Exists(path)) found = ProjectsOfFile(path, warn, Error, info);
+            if (Directory.Exists(path)) found = await ClassifyAsync(ScanDirectory(path).ToList(), info, ct);
+            else if (File.Exists(path)) found = await ProjectsOfFileAsync(path, warn, Error, info, ct);
             else
             {
                 Error($"Path not found: {path}");
@@ -57,7 +58,8 @@ public static partial class ProjectDiscovery
     }
 
     /// <summary>The test projects of an explicitly given file: the project itself, or the test projects of a solution.</summary>
-    private static List<string> ProjectsOfFile(string path, Action<string> warn, Action<string> error, Action<string>? info)
+    private static async Task<List<string>> ProjectsOfFileAsync(string path, Action<string> warn, Action<string> error, Action<string>? info,
+        CancellationToken ct)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ProjectExtensions.Contains(ext)) return [path];
@@ -80,13 +82,13 @@ public static partial class ProjectDiscovery
             if (File.Exists(proj)) existing.Add(proj);
             else warn($"Project in solution not found: {proj}");
         }
-        return Classify(existing, info);
+        return await ClassifyAsync(existing, info, ct);
     }
 
     private static string FirstLine(string s) => s.Split('\n')[0].Trim();
 
     /// <summary>Text heuristic first; MSBuild evaluation (parallel, cached) for the candidates it could not decide.</summary>
-    private static List<string> Classify(List<string> projects, Action<string>? info)
+    private static async Task<List<string>> ClassifyAsync(List<string> projects, Action<string>? info, CancellationToken ct)
     {
         var verdict = new bool[projects.Count];
         var toEvaluate = new List<int>();
@@ -100,12 +102,13 @@ public static partial class ProjectDiscovery
             var sw = Stopwatch.StartNew();
             var cache = DetectionCache.Load();
             var evaluated = 0;
-            Parallel.ForEach(toEvaluate, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8) }, i =>
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8), CancellationToken = ct };
+            await Parallel.ForEachAsync(toEvaluate, options, async (i, token) =>
             {
                 var path = projects[i];
                 var stamp = DetectionCache.Stamp(path);
                 if (cache.TryGet(path, stamp, out var cached)) { verdict[i] = cached; return; }
-                var result = EvaluateAsync(path, CancellationToken.None).GetAwaiter().GetResult();
+                var result = await EvaluateAsync(path, token);
                 Interlocked.Increment(ref evaluated);
                 if (result is null) return; // evaluation failed: not a test project (as before)
                 verdict[i] = result.IsTestProject;

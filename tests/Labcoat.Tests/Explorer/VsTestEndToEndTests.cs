@@ -49,13 +49,13 @@ public class VsTestEndToEndTests
             File.WriteAllText(Path.Combine(dir, "Tests.cs"), "namespace S; [TestClass] public class T { [TestMethod] public void A() { } }");
 
             // a fresh clone: the folder scan finds it (not "no test projects found")
-            CollectionAssert.AreEqual(new[] { project }, ProjectDiscovery.FindProjects([root], _ => { }));
+            CollectionAssert.AreEqual(new[] { project }, await ProjectDiscovery.FindProjectsAsync([root], _ => { }));
             await AssertNotStartedAsync(project, restored: false);
 
             // restored (IsTestProject / IsTestingPlatformApplication=false from the packages now): the same, nothing starts
             var restore = await RunAsync("dotnet", ["restore", project, "-nologo", "-v:q"], dir);
             Assert.AreEqual(0, restore.Code, restore.Output);
-            CollectionAssert.AreEqual(new[] { project }, ProjectDiscovery.FindProjects([root], _ => { }));
+            CollectionAssert.AreEqual(new[] { project }, await ProjectDiscovery.FindProjectsAsync([root], _ => { }));
             await AssertNotStartedAsync(project, restored: true);
         }
         finally

@@ -30,7 +30,7 @@ public static partial class LabcoatApp
         if (paths.Count == 0) paths.Add(Cli.ResolveDefaultPath(Directory.GetCurrentDirectory(), Cli.Warn));
 
         var startupNotes = new List<string>(); // printed below the banner
-        var projects = WorkspaceDiscovery.FindProjects(paths, startupNotes, out var pathError);
+        var (projects, pathError) = await WorkspaceDiscovery.FindProjectsAsync(paths, startupNotes, ct);
         if (pathError is not null) return Fail(pathError, usageHint: false, ErrorExitCode(options));
 
         // Settings files + layered UI defaults (LabcoatConfig.cs): user file < workspace file < AppHost < LABCOAT_UI_SETTINGS < CLI.
@@ -243,7 +243,7 @@ public static partial class LabcoatApp
               TraceFilter = o.TraceFilter,
               ImpactMapMode = o.ImpactMap ?? ImpactMapModes.Default,
               MaxParallelProjects = o.Limits.EffectiveMaxParallel, HangThreshold = o.Limits.EffectiveHangThreshold, TestTimeout = o.Limits.EffectiveTestTimeout,
-              ProjectFinder = warn => ProjectDiscovery.FindProjects(o.Paths, warn), WorkspaceRoots = WorkspaceDiscovery.WorkspaceRootsOf(o.Paths) };
+              ProjectFinder = (warn, ct) => ProjectDiscovery.FindProjectsAsync(o.Paths, warn, ct: ct), WorkspaceRoots = WorkspaceDiscovery.WorkspaceRootsOf(o.Paths) };
     }
 
 

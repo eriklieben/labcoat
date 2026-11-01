@@ -3,16 +3,15 @@ namespace Labcoat;
 /// <summary>Which test projects and directories make up the workspace.</summary>
 internal static class WorkspaceDiscovery
 {
-    /// <summary>The test projects of <paramref name="paths"/>; <paramref name="error"/> is the first path error (the others are printed).</summary>
-    internal static List<string> FindProjects(List<string> paths, List<string> startupNotes, out string? error)
+    /// <summary>The test projects of <paramref name="paths"/>, and the first path error (the others are printed).</summary>
+    internal static async Task<(List<string> Projects, string? Error)> FindProjectsAsync(List<string> paths, List<string> startupNotes,
+        CancellationToken ct)
     {
         var pathErrors = new List<string>();
-        var projects = ProjectDiscovery.FindProjects(paths, Cli.Warn, pathErrors, info: startupNotes.Add);
-        error = null;
-        if (pathErrors.Count == 0) return projects;
+        var projects = await ProjectDiscovery.FindProjectsAsync(paths, Cli.Warn, pathErrors, info: startupNotes.Add, ct);
+        if (pathErrors.Count == 0) return (projects, null);
         foreach (var e in pathErrors.Skip(1)) Console.Error.WriteLine($"{Cli.Red("error")} {e}");
-        error = pathErrors[0];
-        return projects;
+        return (projects, pathErrors[0]);
     }
 
     /// <summary>
