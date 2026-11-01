@@ -108,8 +108,9 @@ public static class Cli
                            failed, 1 when one failed or took longer than --max-test-duration (or the run
                            was aborted / cancelled), 2 when a project
                            did not build or discover (or nothing could run).
-          --export <format>=<file>  Write a report: junit, html, lcov or cobertura. Repeatable; lcov and
-                           cobertura collect coverage (like --coverage) and hold this run's coverage.
+          --export <format>=<file>  Write a report: junit, html, markdown, trx (Visual Studio / Azure DevOps),
+                           sarif (code scanning), lcov or cobertura. Repeatable; lcov and cobertura
+                           collect coverage (like --coverage) and hold this run's coverage.
           --filter <pattern>  Only the tests whose name, Namespace.Class(.Method) or project contains it
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
           --retry-failed <n>  After the run, rerun only the failed tests, up to n times (1-10). A test that
@@ -117,6 +118,8 @@ public static class Cli
                            passes stays failed. Quarantined tests are not retried.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+                           On GitHub Actions, --run also appends a Markdown summary to $GITHUB_STEP_SUMMARY and
+                           annotates failed tests at their source line (no option needed).
           --min-coverage <percent>  Fail the run (exit 1) when the line coverage of this run is below the
                            percentage (0-100). Collects coverage like --coverage.
           --min-diff-coverage <percent>  Fail the run (exit 1) when the lines changed versus the base
@@ -195,6 +198,8 @@ public static class Cli
           labcoat --theme dracula --mode dark      UI defaults for this start
           labcoat --run --export junit=out/results.xml --export html=out/report.html
                                                    CI: run everything once, write JUnit + HTML reports
+          labcoat --run --export markdown=out/summary.md --export sarif=out/tests.sarif
+                                                   CI: a PR-comment Markdown report and SARIF failures
         """;
 
     /// <summary>Default base directory for history / settings / caches ($LABCOAT_HISTORY_DIR overrides it).</summary>

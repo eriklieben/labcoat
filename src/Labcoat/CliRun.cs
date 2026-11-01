@@ -11,7 +11,7 @@ public sealed partial class StartOptions
 {
     /// <summary>--run: build, run the tests once, write the exports and exit (no web server, no browser).</summary>
     public bool RunOnce { get; private set; }
-    /// <summary>--export format=path (repeatable): junit, html, lcov or cobertura.</summary>
+    /// <summary>--export format=path (repeatable): junit, html, markdown, trx, sarif, lcov or cobertura.</summary>
     public List<ExportTarget> Exports { get; } = [];
     /// <summary>--filter: only the tests whose name, class or namespace matches one of these patterns.</summary>
     public List<string> Filters { get; } = [];
@@ -98,7 +98,7 @@ public sealed partial class StartOptions
 
     private string? AddExport(string? value)
     {
-        const string Usage = "--export needs format=file, e.g. junit=out/results.xml (formats: junit, html, lcov, cobertura).";
+        const string Usage = "--export needs format=file, e.g. junit=out/results.xml (formats: junit, html, markdown, trx, sarif, lcov, cobertura).";
         var eq = value?.IndexOf('=') ?? -1;
         if (value is null || eq <= 0 || eq == value.Length - 1) return Usage;
         var format = value[..eq].Trim().ToLowerInvariant();
@@ -185,6 +185,7 @@ public static partial class CliRun
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
             WriteExports(explorer, options, null);
+            ReportToCi(explorer, null, null, Environment.GetEnvironmentVariable);
             return ExitBuildError;
         }
         await request.Completion!;
@@ -201,6 +202,7 @@ public static partial class CliRun
         }
         PrintResult(run, status, broken, sw.Elapsed, retried);
         var exportsOk = WriteExports(explorer, options, run?.RunId, retried);
+        ReportToCi(explorer, run?.RunId, retried, Environment.GetEnvironmentVariable);
         // The retries run without coverage and keep the first run's id: the gates read the first run's coverage.
         var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, ct);
         var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget, retried);
@@ -230,6 +232,7 @@ public static partial class CliRun
         if (plan.TestIds.Count > 0) return (plan.TestIds, null);
         Console.WriteLine("  This shard has no tests: nothing to run.");
         WriteExports(explorer, options, null);
+        ReportToCi(explorer, null, null, Environment.GetEnvironmentVariable);
         return (null, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed);
     }
 
@@ -305,6 +308,32 @@ public static partial class CliRun
             Console.WriteLine($"  Random order, seed {seed}: " + (run.Failed > 0 ? "reproduce this order" : "passed in this order; if a later run fails, reproduce it") + $" with --order random --seed {seed}");
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
         if (run.Cancelled == true) Console.Error.WriteLine($"{WarningLabel} Run cancelled.");
+    }
+
+    /// <summary>
+    /// GitHub Actions: the step summary (when <c>$GITHUB_STEP_SUMMARY</c> is set) and the failed tests as annotations
+    /// (when <c>GITHUB_ACTIONS=true</c>), of the run with its --retry-failed retries applied like the exports. Nothing
+    /// here fails the run.
+    /// </summary>
+    internal static void ReportToCi(Explorer explorer, string? runId, RunExport? retried, Func<string, string?> env)
+    {
+        var summaryPath = GitHubActions.StepSummaryPath(env);
+        var annotate = GitHubActions.IsActive(env);
+        if (summaryPath is null && !annotate) return;
+        var export = retried ?? (runId is null ? null : explorer.Exports.Run(runId)) ?? EmptyExport(explorer);
+        if (annotate)
+            foreach (var line in GitHubActions.Annotations(export)) Console.WriteLine(line);
+        if (summaryPath is null) return;
+        var coverage = explorer.LastCoverageReport is { } report && report.RunId == runId ? report : null;
+        try
+        {
+            if (GitHubActions.AppendStepSummary(summaryPath, export, coverage)) Console.WriteLine($"  Appended the summary to {Cli.Dim("$GITHUB_STEP_SUMMARY")}");
+            else Console.Error.WriteLine($"{WarningLabel} No room left in $GITHUB_STEP_SUMMARY: summary not written.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            Console.Error.WriteLine($"{WarningLabel} Could not write $GITHUB_STEP_SUMMARY: {ex.Message}");
+        }
     }
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>

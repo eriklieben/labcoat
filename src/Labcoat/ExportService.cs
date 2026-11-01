@@ -21,6 +21,7 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
         var id = runId == LatestRun ? history.Runs().FirstOrDefault()?.RunId ?? LastRunId() : runId;
         if (id is null) return null;
         var details = history.GetRun(id);
+        var sourceRoot = Root;
         lock (state.Sync)
         {
             if (details is null)
@@ -32,7 +33,7 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
             var order = new Dictionary<(string, string), int>(state.Order.Count);
             for (var i = 0; i < state.Order.Count; i++) order[state.Order[i]] = i;
             var tests = details.Results
-                .Select(r => ExportTestLocked(r, id, quarantined))
+                .Select(r => ExportTestLocked(r, id, quarantined, sourceRoot))
                 .OrderBy(t => order.TryGetValue((t.ProjectId, t.Id), out var i) ? i : int.MaxValue)
                 .ToList();
             var withResults = tests.Select(t => t.ProjectId).ToHashSet(StringComparer.Ordinal);
@@ -60,11 +61,13 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
         lock (state.Sync) return state.Run.Last?.RunId;
     }
 
-    private ExportTest ExportTestLocked(RunResult r, string runId, HashSet<string> quarantined)
+    private ExportTest ExportTestLocked(RunResult r, string runId, HashSet<string> quarantined, string? sourceRoot)
     {
         state.Tests.TryGetValue((r.ProjectId, r.Id), out var t);
         // The test's current result is this run's: it has the full error, its type and the console output.
         var live = t is not null && t.Outcome == r.Outcome && t.History is { Count: > 0 } h && h[^1].RunId == runId;
+        var stack = live ? t!.StackTrace : r.StackTrace;
+        var (file, line) = ExportLocation.Of(stack, t?.FilePath, t?.Line, sourceRoot);
         return new ExportTest
         {
             ProjectId = r.ProjectId,
@@ -76,10 +79,12 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
             DurationMs = r.DurationMs,
             ErrorMessage = live ? t!.ErrorMessage : r.ErrorMessage,
             ErrorType = live ? t!.ErrorType : null,
-            StackTrace = live ? t!.StackTrace : r.StackTrace,
+            StackTrace = stack,
             StdOut = live ? t!.StdOut : null,
             StdErr = live ? t!.StdErr : null,
             Quarantined = quarantined.Contains(WorkspaceSettings.QuarantineKey(r.ProjectId, r.Id)),
+            SourceFile = file,
+            SourceLine = line,
         };
     }
 

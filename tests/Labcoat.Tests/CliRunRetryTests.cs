@@ -16,7 +16,7 @@ public class CliRunRetryTests
 {
     public TestContext TestContext { get; set; }
 
-    private static readonly string[] IsolatedEnv = ["LABCOAT_HISTORY_DIR", LabcoatConfig.NoUserConfigEnv, "NO_COLOR", "CI"];
+    private static readonly string[] IsolatedEnv = ["LABCOAT_HISTORY_DIR", LabcoatConfig.NoUserConfigEnv, "NO_COLOR", "CI", "GITHUB_ACTIONS", "GITHUB_STEP_SUMMARY"];
 
     [TestMethod]
     [Timeout(480_000, CooperativeCancellation = true)]
@@ -32,6 +32,9 @@ public class CliRunRetryTests
             Environment.SetEnvironmentVariable("LABCOAT_HISTORY_DIR", Path.Combine(dir.FullName, "history"));
             Environment.SetEnvironmentVariable(LabcoatConfig.NoUserConfigEnv, "1");
             Environment.SetEnvironmentVariable("NO_COLOR", "1");
+            Environment.SetEnvironmentVariable("GITHUB_ACTIONS", null);
+            var summary = Path.Combine(dir.FullName, "step-summary.md");
+            Environment.SetEnvironmentVariable("GITHUB_STEP_SUMMARY", summary);
             Console.SetOut(console);
             var junit = Path.Combine(dir.FullName, "results.xml");
             var html = Path.Combine(dir.FullName, "report.html");
@@ -50,6 +53,8 @@ public class CliRunRetryTests
             Assert.IsNull(testcase.Element("failure"));
             Assert.Contains("run 2", (string)testcase.Element("flakyFailure")!.Attribute("message")!);
             Assert.Contains("Flaky: passed on attempt 2", File.ReadAllText(html));
+            Assert.Contains("## Test results: No failures, 1 flaky", File.ReadAllText(summary), "the step summary has the retries applied");
+            Environment.SetEnvironmentVariable("GITHUB_STEP_SUMMARY", null);
 
             // ---- a test that never passes stays failed (exit 1); the quarantine file keeps the other one out of the retries
             console.GetStringBuilder().Clear();
