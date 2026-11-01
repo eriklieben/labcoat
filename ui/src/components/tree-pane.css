@@ -134,12 +134,13 @@
     background: var(--lc-bg-row-hover);
   }
   .tree-row.selected {
-    --row-bg: color-mix(in srgb, var(--lc-accent) 14%, var(--lc-bg-surface)); /* the hover actions' fade (.row-actions) */
-    background: color-mix(in srgb, var(--lc-accent) 14%, var(--lc-bg-surface));
-    box-shadow: inset 2px 0 0 var(--lc-accent);
+    --row-bg: color-mix(in srgb, var(--lc-accent) 10%, var(--lc-bg-surface)); /* the hover actions' fade (.row-actions) */
+    background: color-mix(in srgb, var(--lc-accent) 10%, var(--lc-bg-surface));
+    /* a ring, not a left bar: an inset bar bends with the row's rounded corners */
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-accent) 45%, transparent);
   }
   .tree-scroller:focus .tree-row.selected {
-    background: color-mix(in srgb, var(--lc-accent) 20%, var(--lc-bg-surface));
+    background: color-mix(in srgb, var(--lc-accent) 16%, var(--lc-bg-surface));
   }
   .twisty {
     display: inline-flex;
@@ -404,7 +405,7 @@
 
   .tree-row.multi:not(.selected) {
     background: color-mix(in srgb, var(--lc-accent) 7%, var(--lc-bg-page));
-    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--lc-accent) 55%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-accent) 30%, transparent);
   }
 
   .tree-selbar {
@@ -414,8 +415,7 @@
     gap: var(--lc-space-6);
     padding: var(--lc-space-4) var(--lc-space-10);
     border-bottom: 1px solid var(--lc-stroke-subtle);
-    background: var(--lc-bg-surface);
-    box-shadow: inset 3px 0 0 var(--lc-accent);
+    background: color-mix(in srgb, var(--lc-accent) 10%, var(--lc-bg-surface)); /* the selected rows' tint */
     font-size: var(--lc-text-sm);
   }
   .tree-selbar .selbar-count {
