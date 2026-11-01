@@ -164,9 +164,9 @@ the config: `pnpm dlx --package renovate@44.115.1 -- renovate-config-validator -
   merge picks the change up.
 - **Snyk** monitors the repository (Snyk Code, plus the dependencies of the manifests it finds): badge in the README.
   [`.snyk`](../.snyk) leaves out what SonarQube Cloud leaves out too (scripts, test code, samples, benchmarks, the mock
-  backend). Run it locally with `SNYK_TOKEN=... npx snyk code test --org=eriklieben`; a finding in shipped code is fixed
-  in the code, or ignored in Snyk with its reason when it's a false positive (Snyk Code ignores live in Snyk, not in
-  `.snyk`).
+  backend). Run it locally with `npx snyk code test`, with your own Snyk token in `SNYK_TOKEN` (the analysis counts
+  against that token's default organization); a finding in shipped code is fixed in the code, or ignored in Snyk with
+  its reason when it's a false positive (Snyk Code ignores live in Snyk, not in `.snyk`).
 
 **Before a push.** The C# rules of the quality profile also run in every build: `src/` references SonarAnalyzer.CSharp
 (the analyzer SonarQube Cloud runs) with [`src/sonar.globalconfig`](../src/sonar.globalconfig), which turns on exactly
