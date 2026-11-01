@@ -112,7 +112,7 @@ public static partial class LabcoatApp
         Cli.PrintBanner(address, paths, projects, listen.Note, aspireDashboardUrl, config.FilesForDisplay);
         LogStartupNotes(explorer, config, startupNotes);
 
-        if (options.Open && aspireDashboardUrl is null) Cli.OpenBrowser(address);
+        OpenBrowser(options.Open, aspireDashboardUrl, address);
         Console.WriteLine();
         explorer.ReleaseConsole(); // startup log lines (e.g. "Loaded test history…") below the banner, not above it
         StartExplorer(explorer, watch, coverage);
@@ -132,6 +132,12 @@ public static partial class LabcoatApp
         var guard = RequestGuard.FromEnvironment(bindHosts);
         if (guard.AllowsAnyHost) Cli.Warn("LABCOAT_ALLOWED_HOSTS contains '*': the Host header is not checked (DNS rebinding protection is off).");
         return guard;
+    }
+
+    /// <summary>--open, unless Labcoat runs as an Aspire resource: the dashboard links to it.</summary>
+    private static void OpenBrowser(bool open, string? aspireDashboardUrl, string address)
+    {
+        if (open && aspireDashboardUrl is null) Cli.OpenBrowser(address);
     }
 
     /// <summary>Turns on the startup modes, then discovers the tests and watches for new / removed test projects.</summary>

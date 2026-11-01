@@ -10,7 +10,7 @@ internal static class WorkspaceDiscovery
         var pathErrors = new List<string>();
         var projects = await ProjectDiscovery.FindProjectsAsync(paths, Cli.Warn, pathErrors, info: startupNotes.Add, runners, ct);
         if (pathErrors.Count == 0) return (projects, null);
-        foreach (var e in pathErrors.Skip(1)) Console.Error.WriteLine($"{Cli.Red("error")} {e}");
+        foreach (var e in pathErrors.Skip(1)) await Console.Error.WriteLineAsync($"{Cli.Red("error")} {e}");
         return (projects, pathErrors[0]);
     }
 

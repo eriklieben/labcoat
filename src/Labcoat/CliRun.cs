@@ -59,63 +59,100 @@ public sealed partial class StartOptions
             case "--export":
                 return AddExport(args.Value());
             case "--filter":
-                var filter = args.Value();
-                if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
-                Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
-                return null;
+                return AddFilter(args.Value());
             case "--shard":
                 Shard = ShardSpec.Parse(args.Value());
                 return Shard is null ? "--shard needs index/count with 1 <= index <= count, e.g. 2/4." : null;
             case "--shard-by":
-                ShardBy? by = args.Value()?.ToLowerInvariant() switch
-                {
-                    "class" => ShardBy.Class, "test" => ShardBy.Test, "project" => ShardBy.Project, _ => null,
-                };
-                if (by is null) return "--shard-by needs class, test or project.";
-                ShardBy = by.Value;
-                return null;
+                return SetShardBy(args.Value());
             case "--shard-timings":
-                var timings = args.Value();
-                if (string.IsNullOrWhiteSpace(timings)) return "--shard-timings needs a JUnit XML file (a pattern like out/*/results.xml also works).";
-                ShardTimings.AddRange(RequestGuard.SplitList(timings));
-                return null;
+                return AddShardTimings(args.Value());
             case "--min-coverage" or "--min-diff-coverage":
-                var percent = CoverageGate.ParsePercent(args.Value());
-                if (percent is null) return $"{option} needs a percentage from 0 to 100, e.g. 80.";
-                if (option == "--min-coverage") MinCoverage = percent;
-                else MinDiffCoverage = percent;
-                return null;
+                return SetMinCoverage(option, args.Value());
             case "--order":
                 var (order, orderError) = RandomOrder.ParseOrder(args.Value());
                 Order = order;
                 return orderError is null ? null : "--" + orderError;
             case "--seed":
-                if (!int.TryParse(args.Value(), out var seed) || seed <= 0) return "--seed needs a positive number, e.g. 12345.";
-                Seed = seed;
-                return null;
+                return SetSeed(args.Value());
             case "--retry-failed":
-                var retries = args.Value();
-                if (!int.TryParse(retries?.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n) || n is < 1 or > CliRun.MaxRetries)
-                    return $"--retry-failed needs a number from 1 to {CliRun.MaxRetries}.";
-                RetryFailed = n;
-                return null;
+                return SetRetryFailed(args.Value());
             case "--affected":
                 return SetAffected(args.OptionalValue(IsAffectedValue));
             case "--impact-map-file":
-                var file = args.Value()?.Trim();
-                if (string.IsNullOrEmpty(file)) return "--impact-map-file needs a file, e.g. impact.json (or impact.json.gz).";
-                if (Directory.Exists(file)) return $"--impact-map-file: '{file}' is a directory; give a file.";
-                ImpactMapFile = file;
-                return null;
+                return SetImpactMapFile(args.Value());
             case "--build-impact-map":
                 BuildImpactMap = true;
                 return null;
             default: // --export-paths
-                var mode = args.Value();
-                if (mode is not ("relative" or "absolute")) return "--export-paths needs relative or absolute.";
-                ExportAbsolutePaths = mode == "absolute";
-                return null;
+                return SetExportPaths(args.Value());
         }
+    }
+
+    private string? AddFilter(string? filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter)) return "--filter needs a pattern, e.g. CalculatorTests or *Add*.";
+        Filters.AddRange(RequestGuard.SplitList(filter.Replace(' ', ',')));
+        return null;
+    }
+
+    private string? SetShardBy(string? value)
+    {
+        ShardBy? by = value?.ToLowerInvariant() switch
+        {
+            "class" => ShardBy.Class, "test" => ShardBy.Test, "project" => ShardBy.Project, _ => null,
+        };
+        if (by is null) return "--shard-by needs class, test or project.";
+        ShardBy = by.Value;
+        return null;
+    }
+
+    private string? AddShardTimings(string? timings)
+    {
+        if (string.IsNullOrWhiteSpace(timings)) return "--shard-timings needs a JUnit XML file (a pattern like out/*/results.xml also works).";
+        ShardTimings.AddRange(RequestGuard.SplitList(timings));
+        return null;
+    }
+
+    /// <summary>--min-coverage or --min-diff-coverage (<paramref name="option"/>).</summary>
+    private string? SetMinCoverage(string option, string? value)
+    {
+        var percent = CoverageGate.ParsePercent(value);
+        if (percent is null) return $"{option} needs a percentage from 0 to 100, e.g. 80.";
+        if (option == "--min-coverage") MinCoverage = percent;
+        else MinDiffCoverage = percent;
+        return null;
+    }
+
+    private string? SetSeed(string? value)
+    {
+        if (!int.TryParse(value, out var seed) || seed <= 0) return "--seed needs a positive number, e.g. 12345.";
+        Seed = seed;
+        return null;
+    }
+
+    private string? SetRetryFailed(string? retries)
+    {
+        if (!int.TryParse(retries?.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n) || n is < 1 or > CliRun.MaxRetries)
+            return $"--retry-failed needs a number from 1 to {CliRun.MaxRetries}.";
+        RetryFailed = n;
+        return null;
+    }
+
+    private string? SetImpactMapFile(string? value)
+    {
+        var file = value?.Trim();
+        if (string.IsNullOrEmpty(file)) return "--impact-map-file needs a file, e.g. impact.json (or impact.json.gz).";
+        if (Directory.Exists(file)) return $"--impact-map-file: '{file}' is a directory; give a file.";
+        ImpactMapFile = file;
+        return null;
+    }
+
+    private string? SetExportPaths(string? mode)
+    {
+        if (mode is not ("relative" or "absolute")) return "--export-paths needs relative or absolute.";
+        ExportAbsolutePaths = mode == "absolute";
+        return null;
     }
 
     private string? AddExport(string? value)
@@ -150,7 +187,10 @@ public sealed partial class StartOptions
     /// --order / --seed / --retry-failed / --affected / --impact-map-file / --build-impact-map only make sense with --run;
     /// some need or exclude each other.
     /// </summary>
-    private string? ValidateRunOptions()
+    private string? ValidateRunOptions() => NeedsRunError() ?? NeedsOptionError() ?? CombinationError();
+
+    /// <summary>The options that only make sense with --run.</summary>
+    private string? NeedsRunError()
     {
         if (!RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || Shard is not null || ShardTimings.Count > 0
                          || MinCoverage is not null || MinDiffCoverage is not null || MaxTestDuration is not null
@@ -158,12 +198,24 @@ public sealed partial class StartOptions
             return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage, --max-test-duration, --order, --seed and --retry-failed need --run.";
         if (!RunOnce && (Affected is not null || ImpactMapFile is not null || BuildImpactMap))
             return "--affected, --impact-map-file and --build-impact-map need --run.";
+        return null;
+    }
+
+    /// <summary>The options that need another option.</summary>
+    private string? NeedsOptionError()
+    {
         if (Shard is null && ShardTimings.Count > 0) return "--shard-timings needs --shard.";
         if (Seed is not null && Order is null) return "--seed needs --order random.";
         if (BuildImpactMap && ImpactMapFile is null && Affected is null)
             return "--build-impact-map needs --impact-map-file (to keep the map) or --affected (to use it now).";
         if (ImpactMapFile is not null && Affected is null && !BuildImpactMap)
             return "--impact-map-file needs --affected (to use the map) or --build-impact-map (to create it).";
+        return null;
+    }
+
+    /// <summary>The options that exclude each other.</summary>
+    private string? CombinationError()
+    {
         // Every shard job would build the map of the same projects (the pass covers whole projects, not a shard).
         if (BuildImpactMap && Shard is not null)
             return "--build-impact-map can't be combined with --shard: build the impact map in one job.";
@@ -228,15 +280,11 @@ public static partial class CliRun
         if (options.ImpactMapFile is { } mapFile) CliAffected.LoadImpactMap(explorer, mapFile, options);
         var (selection, exit) = await SelectTestsAsync(explorer, options, ct);
         if (exit is { } exitCode) return exitCode;
-        var wantCoverage = coverage || options.MinCoverage is not null || options.MinDiffCoverage is not null
-                           || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
         // The seed is chosen here (not by the explorer) so it is printed before anything can go wrong.
         int? seed = options.Order is null ? null : options.Seed ?? RandomOrder.NewSeed();
         if (seed is not null) Console.WriteLine($"  Random order, seed {seed}: the tests run one at a time (reproduce: --order random --seed {seed})");
-        var runOptions = new Explorer.RunRequestOptions { Coverage = wantCoverage, Trigger = Trigger, Order = options.Order, Seed = seed };
-        var request = selection.Plan is { } plan
-            ? explorer.Affected.StartRun(plan, runOptions with { Selection = selection.Ids is null ? null : CliAffected.SelectionOf(plan, selection.Ids) })!
-            : explorer.RequestRun(runOptions with { TestIds = selection.Ids });
+        var runOptions = new Explorer.RunRequestOptions { Coverage = WantsCoverage(options, coverage), Trigger = Trigger, Order = options.Order, Seed = seed };
+        var request = StartRun(explorer, selection, runOptions);
         if (request.Status != 202)
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
@@ -261,12 +309,29 @@ public static partial class CliRun
         ReportToCi(explorer, run?.RunId, retried);
         // The retries run without coverage and keep the first run's id: the gates read the first run's coverage. With
         // --affected the diff coverage is of the changes the plan was made of.
-        var changes = selection.Plan is { Changes: { } planned, Git.Root: { } root } ? (planned, root) : ((GitChanges, string)?)null;
+        var changes = PlannedChanges(selection.Plan);
         var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, changes, ct);
         var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget, retried);
         var mapOk = await CliAffected.BuildAndSaveImpactMapAsync(explorer, options, selection.Ids, ct);
         return ExitCode(run, broken, exportsOk && mapOk, gatesOk, overBudget.Count);
     }
+
+    /// <summary>--coverage, or a coverage gate or a coverage export that needs it.</summary>
+    private static bool WantsCoverage(StartOptions options, bool coverage) =>
+        coverage || options.MinCoverage is not null || options.MinDiffCoverage is not null
+        || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
+
+    /// <summary>Requests the run of <paramref name="selection"/>: of its affected plan (narrowed to its ids, if any) or of its ids.</summary>
+    private static Explorer.RunRequestResult StartRun(Explorer explorer, TestSelection selection, Explorer.RunRequestOptions runOptions)
+    {
+        if (selection.Plan is not { } plan) return explorer.RequestRun(runOptions with { TestIds = selection.Ids });
+        var narrowed = selection.Ids is null ? null : CliAffected.SelectionOf(plan, selection.Ids);
+        return explorer.Affected.StartRun(plan, runOptions with { Selection = narrowed })!;
+    }
+
+    /// <summary>The changes an --affected plan was made of, and the git root they are relative to; null without a plan.</summary>
+    private static (GitChanges, string)? PlannedChanges(AffectedPlan? plan) =>
+        plan is { Changes: { } planned, Git.Root: { } root } ? (planned, root) : null;
 
     /// <summary>The tests to run: null ids = all (or, with a plan, the plan's own selection).</summary>
     private sealed record TestSelection(List<string>? Ids, AffectedPlan? Plan);

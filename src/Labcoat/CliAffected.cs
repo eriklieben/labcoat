@@ -35,7 +35,8 @@ internal static class CliAffected
             ? $", built {when.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} UTC"
             : "";
         var commit = result.Commit is { Length: >= 7 } sha ? $" at {sha[..7]}" : "";
-        var skipped = result.Unmatched > 0 ? $"; {result.Unmatched} entr{(result.Unmatched == 1 ? "y" : "ies")} for tests that no longer exist ignored" : "";
+        var entries = result.Unmatched == 1 ? "entry" : "entries";
+        var skipped = result.Unmatched > 0 ? $"; {result.Unmatched} {entries} for tests that no longer exist ignored" : "";
         Console.WriteLine(Cli.Dim($"  Impact map: {result.Tests} test{Words.Plural(result.Tests)} over {result.Files} source file{Words.Plural(result.Files)} from {path}{built}{commit}{skipped}"));
     }
 
@@ -130,7 +131,7 @@ internal static class CliAffected
         {
             if (await explorer.ImpactMapFiles.SaveAsync(file, ct) is not { } saved)
             {
-                Console.Error.WriteLine($"{WarningLabel} No impact data was recorded: {file} not written " +
+                await Console.Error.WriteLineAsync($"{WarningLabel} No impact data was recorded: {file} not written " +
                                         "(do the test projects reference Microsoft.Testing.Extensions.CodeCoverage?).");
                 return true;
             }
@@ -139,7 +140,7 @@ internal static class CliAffected
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
-            Console.Error.WriteLine($"{ErrorLabel} Could not write {file}: {ex.Message}");
+            await Console.Error.WriteLineAsync($"{ErrorLabel} Could not write {file}: {ex.Message}");
             return false;
         }
     }

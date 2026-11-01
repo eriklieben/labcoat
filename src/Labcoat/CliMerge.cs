@@ -55,14 +55,22 @@ public static class CliMerge
                 break;
             }
             else if (a is "--help" or "-h" or "-?") return new MergeOptions([], [], Help: true);
-            else if (a == "--export") error = AddExport(exports, rest.TryDequeue(out var value) ? value : null);
+            else if (a == "--export") error = AddExport(exports, NextOrNull(rest));
             else if (a.StartsWith("--export=", StringComparison.Ordinal)) error = AddExport(exports, a["--export=".Length..]);
             else error = $"merge: unknown option '{a}'.";
             if (error is not null) return null;
         }
-        if (exports.Count == 0) error = "merge needs at least one --export, e.g. --export junit=out/results.xml.";
-        else if (inputs.Count == 0) error = "merge needs the report files to merge, e.g. shard-1/results.xml shard-2/results.xml.";
+        error = MissingArguments(exports, inputs);
         return error is null ? new MergeOptions(exports, inputs) : null;
+    }
+
+    private static string? NextOrNull(Queue<string> rest) => rest.TryDequeue(out var value) ? value : null;
+
+    private static string? MissingArguments(List<ExportTarget> exports, List<string> inputs)
+    {
+        if (exports.Count == 0) return "merge needs at least one --export, e.g. --export junit=out/results.xml.";
+        if (inputs.Count == 0) return "merge needs the report files to merge, e.g. shard-1/results.xml shard-2/results.xml.";
+        return null;
     }
 
     private static string? AddExport(List<ExportTarget> exports, string? value)
@@ -94,16 +102,9 @@ public static class CliMerge
         var coverage = new Export.CoverageMerge();
         var counts = ReadAll(files, junit, coverage, out var readError);
         if (counts is null) return Fail(readError!);
-        foreach (var w in junit.Warnings.Take(MaxWarnings)) Cli.Warn(w);
-        if (junit.Warnings.Count > MaxWarnings) Cli.Warn($"... and {junit.Warnings.Count - MaxWarnings} more duplicate tests.");
+        PrintWarnings(junit);
         Console.WriteLine($"  Read {string.Join(", ", counts.OrderBy(c => c.Key).Select(c => $"{c.Value} {Name(c.Key)}"))}");
-
-        foreach (var format in options.Exports.Select(target => target.Format))
-        {
-            var junitFormat = format == ExportFormats.JUnit;
-            if ((junitFormat ? junit.Inputs : coverage.Inputs) == 0)
-                return Fail($"--export {format}: none of the inputs is {(junitFormat ? "a JUnit" : "an lcov or Cobertura")} file.");
-        }
+        if (UnmergeableExport(options.Exports, junit, coverage) is { } unmergeable) return Fail(unmergeable);
 
         var junitTotals = junit.Inputs > 0 ? junit.Totals() : null;
         var coverageTotals = coverage.Inputs > 0 ? coverage.Totals() : null;
@@ -111,6 +112,24 @@ public static class CliMerge
         if (junitTotals is not null) PrintTests(junitTotals);
         if (coverageTotals is not null) PrintCoverage(coverageTotals);
         return ExitCode(junitTotals, written);
+    }
+
+    private static void PrintWarnings(JUnitMerge junit)
+    {
+        foreach (var w in junit.Warnings.Take(MaxWarnings)) Cli.Warn(w);
+        if (junit.Warnings.Count > MaxWarnings) Cli.Warn($"... and {junit.Warnings.Count - MaxWarnings} more duplicate tests.");
+    }
+
+    /// <summary>The error for the first --export whose kind of report none of the inputs is; null when every one can be written.</summary>
+    private static string? UnmergeableExport(IReadOnlyList<ExportTarget> exports, JUnitMerge junit, Export.CoverageMerge coverage)
+    {
+        foreach (var format in exports.Select(target => target.Format))
+        {
+            var junitFormat = format == ExportFormats.JUnit;
+            if ((junitFormat ? junit.Inputs : coverage.Inputs) == 0)
+                return $"--export {format}: none of the inputs is {(junitFormat ? "a JUnit" : "an lcov or Cobertura")} file.";
+        }
+        return null;
     }
 
     /// <summary>Reads every input into the merges: the number of files per kind; null + <paramref name="error"/> at the first unreadable one.</summary>
