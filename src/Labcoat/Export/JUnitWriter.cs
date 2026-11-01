@@ -133,7 +133,7 @@ public static class JUnitWriter
                 WriteProblem(w, "failure", t, t.ErrorType ?? "AssertionFailure");
                 break;
             case ExportKind.Error:
-                WriteProblem(w, "error", t, t.ErrorType ?? DefaultErrorType(t));
+                WriteProblem(w, "error", t, t.ErrorType ?? DefaultErrorType(t.Outcome));
                 break;
             case ExportKind.Skipped or ExportKind.NotRun or ExportKind.QuarantinedFailure:
                 w.WriteStartElement("skipped");
@@ -163,7 +163,7 @@ public static class JUnitWriter
             w.WriteStartElement(prefix + (a.IsAssertion ? "Failure" : "Error"));
             var message = Text(ExportText.Cap(ExportText.Clean(a.ErrorMessage), MaxMessageChars));
             w.WriteAttributeString(MessageAttr, message.Length > 0 ? message : "Failed");
-            w.WriteAttributeString(TypeAttr, Text(a.ErrorType ?? (a.IsAssertion ? "AssertionFailure" : a.Outcome == Outcome.TimedOut ? "Timeout" : "Error")));
+            w.WriteAttributeString(TypeAttr, Text(a.ErrorType ?? (a.IsAssertion ? "AssertionFailure" : DefaultErrorType(a.Outcome))));
             var trace = string.IsNullOrWhiteSpace(a.StackTrace) ? a.ErrorMessage : a.StackTrace;
             w.WriteElementString("stackTrace", ExportText.Cap(ExportText.Clean(trace), MaxStackChars));
             w.WriteEndElement();
@@ -184,7 +184,7 @@ public static class JUnitWriter
 
     private static string DefaultMessage(ExportTest t) => t.Outcome == Outcome.TimedOut ? "Timed out" : "Failed";
 
-    private static string DefaultErrorType(ExportTest t) => t.Outcome == Outcome.TimedOut ? "Timeout" : "Error";
+    private static string DefaultErrorType(Outcome outcome) => outcome == Outcome.TimedOut ? "Timeout" : "Error";
 
     private static void WriteOutput(XmlWriter w, string element, string? text)
     {

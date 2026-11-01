@@ -149,36 +149,44 @@ public static class TrxWriter
         w.WriteAttributeString("outcome", Outcome(t));
         w.WriteAttributeString("testListId", NotInAList);
         w.WriteAttributeString("relativeResultsDirectory", ids.Execution);
+        WriteOutput(w, t);
+        w.WriteEndElement();
+    }
 
+    /// <summary>&lt;Output&gt;: console output, the error (or skip reason) and the retries; left out when there is none of it.</summary>
+    private static void WriteOutput(XmlWriter w, ExportTest t)
+    {
         var failed = ExportKinds.IsFailed(t.Kind);
         var output = Cap(t.StdOut);
         var error = Cap(t.StdErr);
         var skipReason = !failed && t.Kind is not ExportKind.Passed ? ExportKinds.SkipReason(t) : null;
         var retries = Retries(t);
-        if (output.Length > 0 || error.Length > 0 || failed || skipReason is not null || retries.Count > 0)
+        if (output.Length == 0 && error.Length == 0 && !failed && skipReason is null && retries.Count == 0) return;
+        w.WriteStartElement("Output");
+        if (output.Length > 0) w.WriteElementString("StdOut", output);
+        if (error.Length > 0) w.WriteElementString("StdErr", error);
+        if (failed || skipReason is not null) WriteErrorInfo(w, t, failed, skipReason);
+        if (retries.Count > 0)
         {
-            w.WriteStartElement("Output");
-            if (output.Length > 0) w.WriteElementString("StdOut", output);
-            if (error.Length > 0) w.WriteElementString("StdErr", error);
-            if (failed || skipReason is not null)
-            {
-                w.WriteStartElement("ErrorInfo");
-                var message = skipReason ?? ExportText.Cap(ExportText.Clean(t.ErrorMessage), JUnitWriter.MaxMessageChars);
-                w.WriteElementString("Message", message.Length > 0 ? message : t.Outcome == Labcoat.Outcome.TimedOut ? "Timed out" : "Failed");
-                if (failed && !string.IsNullOrWhiteSpace(t.StackTrace))
-                    w.WriteElementString("StackTrace", ExportText.Cap(ExportText.Clean(t.StackTrace), JUnitWriter.MaxStackChars));
-                w.WriteEndElement();
-            }
-            if (retries.Count > 0)
-            {
-                w.WriteStartElement("TextMessages");
-                foreach (var m in retries) w.WriteElementString("Message", m);
-                w.WriteEndElement();
-            }
+            w.WriteStartElement("TextMessages");
+            foreach (var m in retries) w.WriteElementString("Message", m);
             w.WriteEndElement();
         }
         w.WriteEndElement();
     }
+
+    /// <summary>&lt;ErrorInfo&gt;: the failure (message, stack trace) or the reason a test did not run.</summary>
+    private static void WriteErrorInfo(XmlWriter w, ExportTest t, bool failed, string? skipReason)
+    {
+        w.WriteStartElement("ErrorInfo");
+        var message = skipReason ?? ExportText.Cap(ExportText.Clean(t.ErrorMessage), JUnitWriter.MaxMessageChars);
+        w.WriteElementString("Message", message.Length > 0 ? message : DefaultMessage(t));
+        if (failed && !string.IsNullOrWhiteSpace(t.StackTrace))
+            w.WriteElementString("StackTrace", ExportText.Cap(ExportText.Clean(t.StackTrace), JUnitWriter.MaxStackChars));
+        w.WriteEndElement();
+    }
+
+    private static string DefaultMessage(ExportTest t) => t.Outcome == Labcoat.Outcome.TimedOut ? "Timed out" : "Failed";
 
     /// <summary>
     /// The attempts of a retried test as text: "Flaky: passed on attempt 3" or "Failed all 3 attempts", then one line per

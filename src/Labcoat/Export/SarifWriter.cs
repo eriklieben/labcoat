@@ -101,17 +101,48 @@ public static class SarifWriter
         w.WriteStartObject();
         w.WriteString("ruleId", assertion ? AssertionRule : ErrorRule);
         w.WriteNumber("ruleIndex", assertion ? 0 : 1);
-        w.WriteString("level", quarantined ? "note" : t.IsFlaky ? "warning" : "error");
+        w.WriteString("level", Level(t));
         w.WriteStartObject("message");
         var message = ExportText.Cap(ExportText.Clean(failure.ErrorMessage).Trim(), MaxMessageChars);
         if (message.Length == 0) message = failure.Outcome == Outcome.TimedOut ? "Timed out" : "Failed";
-        var note = quarantined ? " (quarantined)"
-            : t.IsFlaky ? $" (flaky: passed on attempt {t.Attempts})"
-            : t.Attempts > 1 ? $" (failed all {t.Attempts} attempts)"
-            : "";
-        w.WriteString("text", $"{t.Name}{note}: {message}");
+        w.WriteString("text", $"{t.Name}{Note(t)}: {message}");
         w.WriteEndObject();
 
+        WriteLocations(w, t, project);
+
+        // GitHub code scanning uses this to recognise the same failure across runs.
+        w.WriteStartObject("partialFingerprints");
+        w.WriteString("labcoatTestId/v1", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{t.ProjectId}\n{t.Id}")))[..32]);
+        w.WriteEndObject();
+
+        w.WriteStartObject("properties");
+        w.WriteString("project", t.ProjectId);
+        w.WriteString("testId", t.Id);
+        if (failure.ErrorType is { Length: > 0 } errorType) w.WriteString("errorType", errorType);
+        if (quarantined) w.WriteBoolean("quarantined", true);
+        if (t.IsFlaky) w.WriteBoolean("flaky", true);
+        if (t.Attempts > 1) w.WriteNumber("attempts", t.Attempts);
+        w.WriteEndObject();
+        w.WriteEndObject();
+    }
+
+    private static string Level(ExportTest t)
+    {
+        if (t.Kind == ExportKind.QuarantinedFailure) return "note";
+        return t.IsFlaky ? "warning" : "error";
+    }
+
+    /// <summary>What follows the test name in the message: " (quarantined)", " (flaky: …)", " (failed all … attempts)" or nothing.</summary>
+    private static string Note(ExportTest t)
+    {
+        if (t.Kind == ExportKind.QuarantinedFailure) return " (quarantined)";
+        if (t.IsFlaky) return $" (flaky: passed on attempt {t.Attempts})";
+        return t.Attempts > 1 ? $" (failed all {t.Attempts} attempts)" : "";
+    }
+
+    /// <summary>The physical location (the test's source line, else its project file) and the logical one (the test method).</summary>
+    private static void WriteLocations(Utf8JsonWriter w, ExportTest t, ExportProject? project)
+    {
         var file = t.SourceFile ?? project?.SourcePath ?? project?.Path;
         var line = t.SourceFile is null ? null : t.SourceLine;
         w.WriteStartArray("locations");
@@ -138,21 +169,6 @@ public static class SarifWriter
         w.WriteEndArray();
         w.WriteEndObject();
         w.WriteEndArray();
-
-        // GitHub code scanning uses this to recognise the same failure across runs.
-        w.WriteStartObject("partialFingerprints");
-        w.WriteString("labcoatTestId/v1", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{t.ProjectId}\n{t.Id}")))[..32]);
-        w.WriteEndObject();
-
-        w.WriteStartObject("properties");
-        w.WriteString("project", t.ProjectId);
-        w.WriteString("testId", t.Id);
-        if (failure.ErrorType is { Length: > 0 } errorType) w.WriteString("errorType", errorType);
-        if (quarantined) w.WriteBoolean("quarantined", true);
-        if (t.IsFlaky) w.WriteBoolean("flaky", true);
-        if (t.Attempts > 1) w.WriteNumber("attempts", t.Attempts);
-        w.WriteEndObject();
-        w.WriteEndObject();
     }
 
     /// <summary>A relative path as a URI reference: '/' separators, each segment escaped.</summary>

@@ -75,13 +75,7 @@ public static class MarkdownReport
     private static void Header(StringBuilder sb, RunExport export, int failedCount)
     {
         var run = export.Run;
-        var verdict = run.Aborted == true ? "Run aborted"
-            : run.Cancelled == true ? "Run cancelled"
-            : failedCount > 0 ? $"{Count(failedCount)} failed"
-            : export.Tests.Count == 0 ? "No tests ran"
-            : export.Flaky > 0 ? $"No failures, {Count(export.Flaky)} flaky"
-            : "All tests passed";
-        sb.Append($"## Test results: {verdict}\n\n");
+        sb.Append($"## Test results: {Verdict(export, failedCount)}\n\n");
         if (run.Aborted == true && !string.IsNullOrWhiteSpace(run.AbortReason))
             sb.Append($"> {Inline(ExportText.FirstLine(run.AbortReason, 500))}\n\n");
 
@@ -102,7 +96,14 @@ public static class MarkdownReport
         }
     }
 
-    private static int Count(RunExport export, ExportKind kind) => export.Tests.Count(t => t.Kind == kind);
+    private static string Verdict(RunExport export, int failedCount)
+    {
+        if (export.Run.Aborted == true) return "Run aborted";
+        if (export.Run.Cancelled == true) return "Run cancelled";
+        if (failedCount > 0) return $"{Count(failedCount)} failed";
+        if (export.Tests.Count == 0) return "No tests ran";
+        return export.Flaky > 0 ? $"No failures, {Count(export.Flaky)} flaky" : "All tests passed";
+    }
 
     /// <summary>One failed test: its name and location, the message and the stack trace folded away.</summary>
     private static string Failed(ExportTest t)
@@ -175,6 +176,8 @@ public static class MarkdownReport
 
     /// <summary>"1,234": the same in every culture.</summary>
     private static string Count(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static int Count(RunExport export, ExportKind kind) => export.Tests.Count(t => t.Kind == kind);
 
     private static string Percent(double rate) => (rate * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
