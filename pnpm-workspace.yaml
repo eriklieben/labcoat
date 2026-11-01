@@ -1,2 +1,7 @@
+# The root holds only the repository tooling (commit hooks, commitlint, semantic-release); ui/ and the samples are
+# workspaces of their own. Without a packages list pnpm takes in every folder with a package.json, an agent's git
+# worktree under .claude/ included.
+packages:
+  - "."
 allowBuilds:
   simple-git-hooks: false
