@@ -59,7 +59,7 @@ internal static class DotnetCli
         }
         catch (OperationCanceledException)
         {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
+            ProcessUtil.TryKill(proc);
             return (-1, "cancelled");
         }
         await proc.WaitForExitAsync(CancellationToken.None); // flush async output (the redirected streams' last lines)

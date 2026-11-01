@@ -276,7 +276,7 @@ public static partial class ProjectDiscovery
             try { await proc.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
-                try { proc.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
+                ProcessUtil.TryKill(proc);
                 // Kill only starts the termination: wait for it, or the process may still hold its working directory
                 // (the project's folder, which can't be deleted or renamed on Windows until it has exited).
                 try { await proc.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None); } catch (TimeoutException) { /* gave it 10 s: go on */ }

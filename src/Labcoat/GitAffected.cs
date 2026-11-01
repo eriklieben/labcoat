@@ -199,7 +199,7 @@ public sealed partial class GitRepo
         }
         catch (OperationCanceledException)
         {
-            try { proc.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
+            ProcessUtil.TryKill(proc);
             if (ct.IsCancellationRequested) throw;
             throw new AffectedException(504, "gitTimeout", $"git {string.Join(' ', args.Take(2))} did not finish within {Timeout.TotalSeconds:0} s.");
         }

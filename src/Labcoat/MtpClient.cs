@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -215,7 +216,7 @@ public sealed class MtpHost : IAsyncDisposable
                 var tcp = await _listener.AcceptTcpClientAsync(token);
                 connectTimeoutCts.CancelAfter(Timeout.Infinite); // connected: stop the connect timeout (a no-op after the first)
                 tcp.NoDelay = true;
-                var conn = new MtpConnection(tcp, _onNotification, _log, () => TryKill(_process));
+                var conn = new MtpConnection(tcp, _onNotification, _log, () => ProcessUtil.TryKill(_process));
                 lock (_connections) _connections.Add(conn);
                 _ = Task.Run(() => op.RunAsync(conn), CancellationToken.None); // the operation itself takes the request's ct
             }
@@ -253,7 +254,7 @@ public sealed class MtpHost : IAsyncDisposable
         if (conns.Count == 0)
         {
             // Never connected (e.g. still waiting for a debugger, or hung in startup): nobody to send `exit` to.
-            TryKill(_process);
+            ProcessUtil.TryKill(_process);
             return;
         }
         // Child test hosts first (later connections), then the controller.
@@ -266,27 +267,35 @@ public sealed class MtpHost : IAsyncDisposable
             catch (OperationCanceledException)
             {
                 _log(LogLevels.Warning, $"Test host did not exit within {timeout.TotalSeconds:0}s; killing it.");
-                TryKill(_process);
+                ProcessUtil.TryKill(_process);
             }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        try { await ShutdownAsync(TimeSpan.FromSeconds(10)); } catch { TryKill(_process); }
+        try { await ShutdownAsync(TimeSpan.FromSeconds(10)); }
+        catch { ProcessUtil.TryKill(_process); /* a dispose doesn't throw: whatever broke the shutdown, the process goes */ }
         _listener.Stop();
         List<MtpConnection> conns;
         lock (_connections) conns = [.. _connections];
         foreach (var c in conns) await c.DisposeAsync();
-        TryKill(_process);
+        ProcessUtil.TryKill(_process);
         _process.Dispose();
     }
 
-    public void Kill() => TryKill(_process);
+    public void Kill() => ProcessUtil.TryKill(_process);
 
     public bool HasExited => _process.HasExited;
     public int ProcessId => _process.Id;
-    public int? ExitCode { get { try { return _process.HasExited ? _process.ExitCode : null; } catch { return null; } } }
+    public int? ExitCode
+    {
+        get
+        {
+            try { return _process.HasExited ? _process.ExitCode : null; }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { return null; /* never started, or not ours to ask */ }
+        }
+    }
     public Task WaitForExitAsync(CancellationToken ct = default) => _process.WaitForExitAsync(ct);
 
     public string OutputTail(int max)
@@ -334,15 +343,10 @@ public sealed class MtpHost : IAsyncDisposable
         }
         var tcp = await accept;
         tcp.NoDelay = true;
-        var conn = new MtpConnection(tcp, _onNotification, _log, () => TryKill(_process));
+        var conn = new MtpConnection(tcp, _onNotification, _log, () => ProcessUtil.TryKill(_process));
         lock (_connections) _connections.Add(conn);
         await conn.InitializeAsync(ct);
         return conn;
-    }
-
-    internal static void TryKill(Process p)
-    {
-        try { if (!p.HasExited) p.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
     }
 
     internal static string Tail(string s, int max) => s.Length <= max ? s : "…" + s[^max..];

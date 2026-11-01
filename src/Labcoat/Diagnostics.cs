@@ -194,7 +194,7 @@ public static class Diagnostics
             try { await proc.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
-                try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { /* exited already */ }
+                ProcessUtil.TryKill(proc);
                 return null;
             }
             var version = (await stdout).Trim();
