@@ -21,24 +21,7 @@ internal static class ProjectDiagnostics
         string projectPath, string? targetPath, Exception? failure, RunnerPlugin? plugin = null)
     {
         var list = new List<ProjectDiagnostic>();
-        switch (failure)
-        {
-            case TestHostExitedException th:
-                list.Add(new ProjectDiagnostic(LogLevels.Error,
-                    $"The test host exited{(th.ExitCode is { } code ? $" with code {code}" : "")} before it answered.",
-                    plugin is not null
-                        ? $"Check that the project's dependencies are installed (npm, pnpm or yarn install) and that {plugin.DisplayName} runs in {Path.GetDirectoryName(projectPath)} on its own."
-                        : "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
-                    th.StderrTail.Count > 0 ? string.Join('\n', th.StderrTail) : null));
-                break;
-            case TimeoutException:
-                list.Add(new ProjectDiagnostic(LogLevels.Error, "The test host did not connect within 60 s.",
-                    "Labcoat starts the test app with --server; only Microsoft.Testing.Platform test apps support that."));
-                break;
-            case not null:
-                list.Add(new ProjectDiagnostic(LogLevels.Error, "Discovery failed: " + FirstLine(failure.Message)));
-                break;
-        }
+        if (FailureDiagnostic(failure, projectPath, plugin) is { } failed) list.Add(failed);
 
         if (properties.Count > 0)
         {
@@ -66,9 +49,24 @@ internal static class ProjectDiagnostics
                 $"the build output is current{(targetPath is null ? "" : $" ({Path.GetFileName(targetPath)})")}."));
         }
         return list;
-
-        static string FirstLine(string s) => s.Split('\n', 2)[0].Trim();
     }
+
+    /// <summary>Why the test host could not start or answer; null without a <paramref name="failure"/>.</summary>
+    private static ProjectDiagnostic? FailureDiagnostic(Exception? failure, string projectPath, RunnerPlugin? plugin) => failure switch
+    {
+        TestHostExitedException th => new ProjectDiagnostic(LogLevels.Error,
+            $"The test host exited{(th.ExitCode is { } code ? $" with code {code}" : "")} before it answered.",
+            plugin is not null
+                ? $"Check that the project's dependencies are installed (npm, pnpm or yarn install) and that {plugin.DisplayName} runs in {Path.GetDirectoryName(projectPath)} on its own."
+                : "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
+            th.StderrTail.Count > 0 ? string.Join('\n', th.StderrTail) : null),
+        TimeoutException => new ProjectDiagnostic(LogLevels.Error, "The test host did not connect within 60 s.",
+            "Labcoat starts the test app with --server; only Microsoft.Testing.Platform test apps support that."),
+        not null => new ProjectDiagnostic(LogLevels.Error, "Discovery failed: " + FirstLine(failure.Message)),
+        null => null,
+    };
+
+    private static string FirstLine(string s) => s.Split('\n', 2)[0].Trim();
 
     private static bool HasMtpRunner(IReadOnlyDictionary<string, string> properties, IReadOnlyList<string> packageReferences, string projectPath)
     {

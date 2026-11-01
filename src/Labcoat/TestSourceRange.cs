@@ -163,28 +163,49 @@ internal static class TestSourceRange
         {
             var c = s[i];
             var next = i + 1 < s.Length ? s[i + 1] : '\0';
-            switch (_mode)
+            return _mode switch
             {
-                case Mode.Line:
-                    if (c == '\n') _mode = Mode.Code;
-                    return 1;
-                case Mode.Block:
-                    if (c != '*' || next != '/') return 1;
-                    _mode = Mode.Code;
-                    return 2;
-                case Mode.Str or Mode.Char:
-                    if (c == '\\') return 2;
-                    if (c == '\n' || c == (_mode == Mode.Str ? '"' : '\'')) _mode = Mode.Code;
-                    return 1;
-                case Mode.Verbatim:
-                    if (c == '"' && next == '"') return 2;
-                    if (c == '"') _mode = Mode.Code;
-                    return 1;
-                default: // Raw
-                    if (c != '"' || Quotes(s, i) is var closing && closing < _raw) return 1;
-                    _mode = Mode.Code;
-                    return closing;
-            }
+                Mode.Line => InLineComment(c),
+                Mode.Block => InBlockComment(c, next),
+                Mode.Str or Mode.Char => InQuoted(c),
+                Mode.Verbatim => InVerbatim(c, next),
+                _ => InRaw(s, i),
+            };
+        }
+
+        private int InLineComment(char c)
+        {
+            if (c == '\n') _mode = Mode.Code;
+            return 1;
+        }
+
+        private int InBlockComment(char c, char next)
+        {
+            if (c != '*' || next != '/') return 1;
+            _mode = Mode.Code;
+            return 2;
+        }
+
+        /// <summary>In a regular string or a char literal.</summary>
+        private int InQuoted(char c)
+        {
+            if (c == '\\') return 2;
+            if (c == '\n' || c == (_mode == Mode.Str ? '"' : '\'')) _mode = Mode.Code;
+            return 1;
+        }
+
+        private int InVerbatim(char c, char next)
+        {
+            if (c == '"' && next == '"') return 2;
+            if (c == '"') _mode = Mode.Code;
+            return 1;
+        }
+
+        private int InRaw(string s, int i)
+        {
+            if (s[i] != '"' || Quotes(s, i) is var closing && closing < _raw) return 1;
+            _mode = Mode.Code;
+            return closing;
         }
 
         private static int Quotes(string s, int i)

@@ -158,7 +158,7 @@ public partial class ExplorerEndToEndTests
 
         // ---- repeat: the flaky test fails in some repetitions; coverage is not collected for repeats
         var flaky = Id(explorer, "Flaky");
-        await explorer.RunAsync(null, [flaky, Id(explorer, "Passes")], coverage: true, repeat: 3);
+        await explorer.RunAsync(new Explorer.RunRequestOptions { TestIds = [flaky, Id(explorer, "Passes")], Coverage = true, Repeat = 3 });
         run = explorer.Summary().LastRun!;
         Assert.AreEqual((3, 3), (run.Repeat!.Count, run.Repeat.Completed));
         var stats = run.Repeat.PerTest.Single(r => r.Id == flaky);
@@ -177,7 +177,7 @@ public partial class ExplorerEndToEndTests
         // ---- random order: one request per test in the order the seed gives; the seed is in the summary and the log
         var randomIds = new[] { Id(explorer, "Passes"), Id(explorer, "Fails"), Id(explorer, "Skipped"), flaky };
         var eventsBefore = events.All().Count;
-        await explorer.RunAsync(null, randomIds, coverage: true, order: "random", seed: 4242);
+        await explorer.RunAsync(new Explorer.RunRequestOptions { TestIds = randomIds, Coverage = true, Order = "random", Seed = 4242 });
         run = explorer.Summary().LastRun!;
         Assert.AreEqual(("random", 4242, 4), (run.Order, run.Seed, run.Total));
         Assert.Contains("Random order, seed 4242: 4 tests, one at a time", ScratchWorkspace.Logs(explorer));

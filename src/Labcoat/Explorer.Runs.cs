@@ -57,10 +57,7 @@ public sealed partial class Explorer
         if (o.Repeat > MaxRepeat) Log(null, LogLevels.Warning, $"repeat is limited to {MaxRepeat}; running {MaxRepeat} times");
         var (order, orderError) = RandomOrder.ParseOrder(o.Order);
         if (orderError is not null) return new RunRequestResult(400, Error: orderError);
-        if (o.Seed is not null && order is null) return new RunRequestResult(400, Error: "seed needs order \"random\".");
-        if (o.Seed is <= 0) return new RunRequestResult(400, Error: "seed must be a positive number.");
-        if (order is not null && o.Debug) return new RunRequestResult(400, Error: "order random can't be combined with debug.");
-        if (order is not null && iterations > 1) return new RunRequestResult(400, Error: "order random can't be combined with repeat.");
+        if (OptionsError(o, order, iterations) is { } optionsError) return new RunRequestResult(400, Error: optionsError);
         RunRequest req;
         List<string>? unknown;
         RunRequest? superseded;
@@ -70,26 +67,9 @@ public sealed partial class Explorer
             var (selection, unknownIds, rejected) = ResolveSelectionLocked(o);
             if (rejected is not null) return rejected;
             unknown = unknownIds;
-            if (o.Debug && !IsTestsOfOneProject(selection))
-                return new RunRequestResult(400, Error: "debug needs testIds of exactly one project.");
-            // A runner package's host has no wait-for-debugger switch (docs/runners.md).
-            if (o.Debug && _state.FindProject(selection.Keys.Single())?.Project.Runner is { } runner)
-                return new RunRequestResult(400, Error: $"debug isn't supported for {runner} tests: run them, or debug them in your editor.");
+            if (DebugErrorLocked(o, selection) is { } debugError) return new RunRequestResult(400, Error: debugError);
 
-            (req, merged, superseded) = QueueLocked(new RunRequest
-            {
-                RunId = Guid.NewGuid().ToString(),
-                RequestedAt = Json.Now(),
-                Selection = selection,
-                Coverage = o.Debug ? false : o.Coverage,
-                Iterations = o.Debug ? 1 : iterations,
-                Order = order,
-                Seed = order is null ? null : o.Seed ?? RandomOrder.NewSeed(),
-                Trigger = TriggerOf(o),
-                Affected = o.Affected,
-                Watch = o.WatchContext,
-                Debug = o.Debug,
-            });
+            (req, merged, superseded) = QueueLocked(NewRunRequest(o, selection, order, iterations));
             queued = _gate.IsBusy;
             Emit(new PendingRunEvent(req.Info()));
         }
@@ -98,6 +78,42 @@ public sealed partial class Explorer
         if (unknown is not null) Log(null, LogLevels.Warning, $"Ignoring {unknown.Count} unknown test id(s): {string.Join(", ", unknown.Take(5))}");
         return new RunRequestResult(202, req.RunId, Queued: queued, Merged: merged, UnknownTestIds: unknown?.Take(100).ToList(), Completion: req.Completion.Task);
     }
+
+    /// <summary>Why options that don't go together are rejected (400); null when they do.</summary>
+    private static string? OptionsError(RunRequestOptions o, string? order, int iterations)
+    {
+        if (o.Seed is not null && order is null) return "seed needs order \"random\".";
+        if (o.Seed is <= 0) return "seed must be a positive number.";
+        if (order is not null && o.Debug) return "order random can't be combined with debug.";
+        if (order is not null && iterations > 1) return "order random can't be combined with repeat.";
+        return null;
+    }
+
+    /// <summary>Why a debug request is rejected (400); null when it can run or is no debug request (caller holds Sync).</summary>
+    private string? DebugErrorLocked(RunRequestOptions o, Dictionary<string, HashSet<string>?> selection)
+    {
+        if (!o.Debug) return null;
+        if (!IsTestsOfOneProject(selection)) return "debug needs testIds of exactly one project.";
+        // A runner package's host has no wait-for-debugger switch (docs/runners.md).
+        return _state.FindProject(selection.Keys.Single())?.Project.Runner is { } runner
+            ? $"debug isn't supported for {runner} tests: run them, or debug them in your editor."
+            : null;
+    }
+
+    private static RunRequest NewRunRequest(RunRequestOptions o, Dictionary<string, HashSet<string>?> selection, string? order, int iterations) => new()
+    {
+        RunId = Guid.NewGuid().ToString(),
+        RequestedAt = Json.Now(),
+        Selection = selection,
+        Coverage = o.Debug ? false : o.Coverage,
+        Iterations = o.Debug ? 1 : iterations,
+        Order = order,
+        Seed = order is null ? null : o.Seed ?? RandomOrder.NewSeed(),
+        Trigger = TriggerOf(o),
+        Affected = o.Affected,
+        Watch = o.WatchContext,
+        Debug = o.Debug,
+    };
 
     private static bool IsTestsOfOneProject(Dictionary<string, HashSet<string>?> selection) =>
         selection.Count == 1 && selection.Values.All(s => s is not null);
@@ -262,14 +278,13 @@ public sealed partial class Explorer
     }
 
     /// <summary>Waits until the request with this id is done (tests / embedding; REST callers poll the status).</summary>
-    public Task RunAsync(string? projectId, IReadOnlyCollection<string>? testIds, bool? coverage = null, AffectedRun? affected = null,
-        string? trigger = null, int? repeat = null, WatchContext? watchContext = null, string? order = null, int? seed = null)
+    public Task RunAsync(string? projectId, IReadOnlyCollection<string>? testIds, bool? coverage = null) =>
+        RunAsync(new RunRequestOptions { ProjectId = projectId, TestIds = testIds, Coverage = coverage });
+
+    /// <inheritdoc cref="RunAsync(string?, IReadOnlyCollection{string}?, bool?)"/>
+    public Task RunAsync(RunRequestOptions o)
     {
-        var r = RequestRun(new RunRequestOptions
-        {
-            ProjectId = projectId, TestIds = testIds, Coverage = coverage, Trigger = trigger, Repeat = repeat, Affected = affected, WatchContext = watchContext,
-            Order = order, Seed = seed,
-        });
+        var r = RequestRun(o);
         if (r.Status != 202) Log(null, LogLevels.Warning, "Run not started: " + r.Error);
         return r.Completion ?? Task.CompletedTask;
     }
