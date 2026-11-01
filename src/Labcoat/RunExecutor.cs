@@ -461,7 +461,7 @@ internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects
         lock (state.Sync)
             tests = subset ?? pr.RequestedKeys.Where(k => state.Tests.ContainsKey(k)).Select(k => (k.Id, state.Tests[k].DisplayName)).ToList();
         var shuffled = RandomOrder.Shuffle(tests, seed, t => t.Id);
-        effects.Log(projectId, LogLevels.Info, $"Random order, seed {seed}: {shuffled.Count} tests, one at a time (reproduce with the same seed).");
+        effects.Log(projectId, LogLevels.Info, $"Random order, seed {seed}: {shuffled.Count} test{Words.Plural(shuffled.Count)}, one at a time (reproduce with the same seed).");
         JsonNode? last = null;
         for (var i = 0; i < shuffled.Count; i++)
         {
