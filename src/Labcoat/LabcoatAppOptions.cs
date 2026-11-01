@@ -31,6 +31,8 @@ public sealed class LabcoatAppOptions
     public CoverageOptions Coverage { get; init; } = CoverageOptions.None;
     /// <summary>maxParallelProjects, hangThreshold, testTimeout, maxTestDuration (RunLimitOptions.cs).</summary>
     public RunLimitOptions Limits { get; init; } = RunLimitOptions.Default;
+    /// <summary>The shared quarantine list (--quarantine-file > "quarantineFile" of the settings files), or null.</summary>
+    public QuarantineFile? QuarantineFile { get; init; }
     /// <summary>The settings files in use (for the diagnostics report).</summary>
     public IReadOnlyList<string> SettingsFiles { get; init; } = [];
     /// <summary>The ASP.NET Core log level (--verbose / LABCOAT_LOG_LEVEL; default Warning).</summary>

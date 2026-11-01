@@ -119,6 +119,11 @@
       "enum": ["class", "test", "auto"],
       "description": "Granularity of the test impact map used by watch mode and 'Run affected' (like --impact-map): class = one coverage run per test class (fast; every test of a class shares its data), test = one coverage run per test (exact, slower), auto = per class, then the classes a change maps to are refined per test in the background. Default: auto."
     },
+    "quarantineFile": {
+      "type": "string",
+      "examples": ["quarantine.txt", ".config/labcoat-quarantine.txt"],
+      "description": "A shared, committed list of quarantined tests (like --quarantine-file), relative to this file: one test name per line (Namespace.Class.Method, Namespace.Class for a whole class, '*' wildcards, # comments). They run, are counted as quarantined and do not fail the run, in addition to the tests quarantined in the UI. The file is read only; a missing file stops Labcoat with an error."
+    },
     "maxParallelProjects": {
       "type": "integer",
       "minimum": 1,

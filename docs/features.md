@@ -370,7 +370,12 @@ Results are kept between sessions (see [configuration.md](configuration.md#where
   writes these files without the UI and can fail the run below `--min-coverage` or `--min-diff-coverage` (see [Labcoat in CI](standalone.md#labcoat-in-ci)),
   and `labcoat merge` combines the files of a split run into one ([Merging shard reports](standalone.md#merging-shard-reports)).
 - **Quarantine:** a known-flaky test can be quarantined. It still runs, but its result is counted separately and
-  doesn't turn the suite red.
+  doesn't turn the suite red. Quarantine set in the UI is kept per workspace on your machine. To share it with the team
+  and CI, list the tests in a file that is committed to the repository and name it with `--quarantine-file` or
+  `"quarantineFile"` in `.labcoat.json` ([format](standalone.md#flaky-tests-and-the-quarantine-file)). Tests the file
+  lists show as quarantined, in addition to your own; Labcoat never writes to that file, so to release one of them,
+  remove it from the file. For CI, `labcoat --run --retry-failed 2` reruns failed tests and reports the ones that pass
+  on a retry as flaky.
 
 ![Two runs compared](images/run-compare.png)
 

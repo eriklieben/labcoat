@@ -33,6 +33,8 @@ public sealed partial class StartOptions
     /// <summary>--coverage-include / --coverage-exclude: module names or path globs (repeatable, comma-separated).</summary>
     public List<string> CoverageInclude { get; } = [];
     public List<string> CoverageExclude { get; } = [];
+    /// <summary>--quarantine-file: a shared list of quarantined tests by name (QuarantineFile.cs).</summary>
+    public string? QuarantineFile { get; set; }
     /// <summary>UI defaults from the command line (--theme, --mode, --editor, --motion, --lock): the highest settings layer.</summary>
     public UiLayer CliUi { get; } = new(ConfigLayer.Cli, "the command line");
     /// <summary>--help / --version: print this and exit with code 0.</summary>
@@ -71,8 +73,9 @@ public sealed partial class StartOptions
         private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout", "--max-test-duration",
-            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
-            "--export", "--filter", "--export-paths", "--shard", "--shard-by", "--shard-timings", "--min-coverage", "--min-diff-coverage", "--order", "--seed", // --run (CliRun.cs)
+            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter", "--quarantine-file",
+            "--export", "--filter", "--export-paths", "--shard", "--shard-by", "--shard-timings", "--min-coverage", "--min-diff-coverage", "--order", "--seed",
+            "--retry-failed", // --run (CliRun.cs)
         };
 
         private int _index = -1;
@@ -114,6 +117,9 @@ public sealed partial class StartOptions
                 CoverageSettings = args.Value();
                 return ErrorUnless(!string.IsNullOrWhiteSpace(CoverageSettings), "--coverage-settings needs a file.");
             case "--coverage-include" or "--coverage-exclude": return AddCoverageGlobs(a, args.Value());
+            case "--quarantine-file":
+                QuarantineFile = args.Value();
+                return ErrorUnless(!string.IsNullOrWhiteSpace(QuarantineFile), "--quarantine-file needs a file.");
             case "--affected-base":
                 AffectedBase = args.Value();
                 return ErrorUnless(GitRepo.IsValidRef(AffectedBase), "--affected-base needs a git ref, e.g. origin/main.");
@@ -136,7 +142,7 @@ public sealed partial class StartOptions
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
             case "--run" or "--export" or "--filter" or "--export-paths" or "--shard" or "--shard-by" or "--shard-timings" or "--min-coverage" or "--min-diff-coverage"
-                or "--order" or "--seed":
+                or "--order" or "--seed" or "--retry-failed":
                 return ApplyRunOption(a, args); // CliRun.cs
             case "--log-file":
                 LogFile = args.Value();

@@ -6,7 +6,7 @@ namespace Labcoat;
 /// <summary>An <c>--export format=path</c> target of <c>--run</c>.</summary>
 public sealed record ExportTarget(string Format, string Path);
 
-// --run, --export, --filter, --export-paths, --order, --seed (CliRun.cs): the non-interactive mode for CI.
+// --run, --export, --filter, --export-paths, --order, --seed, --retry-failed (CliRun.cs): the non-interactive mode for CI.
 public sealed partial class StartOptions
 {
     /// <summary>--run: build, run the tests once, write the exports and exit (no web server, no browser).</summary>
@@ -15,6 +15,8 @@ public sealed partial class StartOptions
     public List<ExportTarget> Exports { get; } = [];
     /// <summary>--filter: only the tests whose name, class or namespace matches one of these patterns.</summary>
     public List<string> Filters { get; } = [];
+    /// <summary>--retry-failed: how often a failed test is rerun after the run (0 = never); a pass on a retry makes it flaky, not failed.</summary>
+    public int RetryFailed { get; private set; }
     /// <summary>--export-paths absolute: absolute source paths in lcov / Cobertura (default: relative to the workspace root).</summary>
     public bool ExportAbsolutePaths { get; private set; }
     /// <summary>--min-coverage: the lowest overall line coverage (percent) of this run; below it the run fails (CoverageGate.cs).</summary>
@@ -80,6 +82,12 @@ public sealed partial class StartOptions
                 if (!int.TryParse(args.Value(), out var seed) || seed <= 0) return "--seed needs a positive number, e.g. 12345.";
                 Seed = seed;
                 return null;
+            case "--retry-failed":
+                var retries = args.Value();
+                if (!int.TryParse(retries?.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n) || n is < 1 or > CliRun.MaxRetries)
+                    return $"--retry-failed needs a number from 1 to {CliRun.MaxRetries}.";
+                RetryFailed = n;
+                return null;
             default: // --export-paths
                 var mode = args.Value();
                 if (mode is not ("relative" or "absolute")) return "--export-paths needs relative or absolute.";
@@ -101,16 +109,19 @@ public sealed partial class StartOptions
 
     /// <summary>
     /// --export / --filter / --export-paths / --shard* / --min-coverage / --min-diff-coverage / --max-test-duration /
-    /// --order / --seed only make sense with --run.
+    /// --order / --seed / --retry-failed only make sense with --run.
     /// </summary>
     private string? ValidateRunOptions()
     {
         if (!RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || Shard is not null || ShardTimings.Count > 0
                          || MinCoverage is not null || MinDiffCoverage is not null || MaxTestDuration is not null
-                         || Order is not null || Seed is not null))
-            return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage, --max-test-duration, --order and --seed need --run.";
+                         || Order is not null || Seed is not null || RetryFailed > 0))
+            return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage, --max-test-duration, --order, --seed and --retry-failed need --run.";
         if (Shard is null && ShardTimings.Count > 0) return "--shard-timings needs --shard.";
         if (Seed is not null && Order is null) return "--seed needs --order random.";
+        // A retry reruns the failed tests on their own: one that fails only in this order would pass and count as flaky.
+        if (Order is not null && RetryFailed > 0)
+            return "--order random can't be combined with --retry-failed: a test that fails only in this order would pass on its own and be reported as flaky.";
         return Order is not null && (Coverage || MinCoverage is not null || MinDiffCoverage is not null
                                      || Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format)))
             ? "--order random can't be combined with --coverage, --min-coverage, --min-diff-coverage or an lcov / cobertura --export: random-order runs do not collect coverage."
@@ -123,10 +134,11 @@ public sealed partial class StartOptions
 /// the <c>--filter</c>ed ones; with <c>--coverage</c>, which an lcov / Cobertura export implies), writes the
 /// <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed, <see cref="ExitFailed"/> when a test
 /// failed or took longer than <c>--max-test-duration</c> (or the run was aborted / cancelled, or a <c>--min-coverage</c> /
-/// <c>--min-diff-coverage</c> threshold was missed), <see cref="ExitBuildError"/> when a project did not build or discover
+/// <c>--min-diff-coverage</c> threshold was missed; a failure that passed on a <c>--retry-failed</c> retry does not count),
+/// <see cref="ExitBuildError"/> when a project did not build or discover
 /// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
-public static class CliRun
+public static partial class CliRun
 {
     public const int ExitPassed = 0;
     public const int ExitFailed = 1;
@@ -180,10 +192,18 @@ public static class CliRun
         var last = status?.Run ?? explorer.Summary().LastRun;
         var run = last?.RunId == request.RunId ? last : null; // null: nothing ran (e.g. every build failed)
         var broken = BrokenProjects(explorer);
-        PrintResult(run, status, broken, sw.Elapsed);
-        var exportsOk = WriteExports(explorer, options, run?.RunId);
+        RunExport? retried = null; // the first run with its retries applied (--retry-failed)
+        if (options.RetryFailed > 0 && run is { Failed: > 0, Aborted: not true, Cancelled: not true } && broken.Count == 0 && explorer.Exports.Run(run.RunId) is { } first)
+        {
+            retried = await RetryFailedAsync(explorer, first, options.RetryFailed, ct);
+            run = retried.Run;
+            broken = BrokenProjects(explorer);
+        }
+        PrintResult(run, status, broken, sw.Elapsed, retried);
+        var exportsOk = WriteExports(explorer, options, run?.RunId, retried);
+        // The retries run without coverage and keep the first run's id: the gates read the first run's coverage.
         var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, ct);
-        var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget);
+        var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget, retried);
         return ExitCode(run, broken, exportsOk, gatesOk, overBudget.Count);
     }
 
@@ -248,9 +268,10 @@ public static class CliRun
         explorer.Snapshot().Projects.Where(p => p.Status == ProjectStatus.Error).ToList();
 
     /// <summary>Lists the tests of the run that took longer than the <c>maxTestDuration</c> budget (they fail the run).</summary>
-    private static List<OverBudgetTest> ReportOverBudget(Explorer explorer, string runId, TimeSpan budget)
+    /// <param name="retried">The run with its --retry-failed retries applied: a flaky test counts with its passing attempt, as in the exports.</param>
+    private static List<OverBudgetTest> ReportOverBudget(Explorer explorer, string runId, TimeSpan budget, RunExport? retried)
     {
-        var over = explorer.Exports.Run(runId) is { } export ? DurationBudget.OverBudget(export, budget) : [];
+        var over = (retried ?? explorer.Exports.Run(runId)) is { } export ? DurationBudget.OverBudget(export, budget) : [];
         if (over.Count == 0) return over;
         Console.Error.WriteLine($"{ErrorLabel} {over.Count} test{Words.Plural(over.Count)} took longer than maxTestDuration ({RunLimits.Describe(budget)}):");
         foreach (var t in over)
@@ -266,7 +287,7 @@ public static class CliRun
         return ExitPassed;
     }
 
-    private static void PrintResult(RunSummary? run, Explorer.RunRequestStatus? status, List<TestProject> broken, TimeSpan elapsed)
+    private static void PrintResult(RunSummary? run, Explorer.RunRequestStatus? status, List<TestProject> broken, TimeSpan elapsed, RunExport? retried = null)
     {
         Console.WriteLine();
         foreach (var p in broken)
@@ -277,8 +298,9 @@ public static class CliRun
             return;
         }
         var verdict = run.Failed > 0 ? Cli.Red($"{run.Failed} failed") : Cli.Bold("no failures");
-        var extra = (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
+        var extra = (retried is { Flaky: > 0 } ? $", {retried.Flaky} flaky" : "") + (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
         Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {Export.HtmlReport.Duration(elapsed.TotalMilliseconds)}");
+        if (retried is not null) PrintRetried(retried);
         if (run.Seed is { } seed)
             Console.WriteLine($"  Random order, seed {seed}: " + (run.Failed > 0 ? "reproduce this order" : "passed in this order; if a later run fails, reproduce it") + $" with --order random --seed {seed}");
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
@@ -286,12 +308,12 @@ public static class CliRun
     }
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>
-    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId)
+    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId, RunExport? retried = null)
     {
         var ok = true;
         foreach (var target in options.Exports)
         {
-            try { ok &= WriteExport(explorer, options, target, runId); }
+            try { ok &= WriteExport(explorer, options, target, runId, retried); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
                 Console.Error.WriteLine($"{ErrorLabel} Could not write {target.Path}: {ex.Message}");
@@ -301,7 +323,7 @@ public static class CliRun
         return ok;
     }
 
-    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId)
+    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId, RunExport? retried)
     {
         var path = Path.GetFullPath(target.Path);
         if (ExportFormats.CoverageFormats.Contains(target.Format))
@@ -318,7 +340,7 @@ public static class CliRun
             Console.WriteLine(Cli.Dim("    " + CoverageExport.Note(report, coverageOptions)));
             return true;
         }
-        var export = (runId is null ? null : explorer.Exports.Run(runId)) ?? EmptyExport(explorer);
+        var export = retried ?? (runId is null ? null : explorer.Exports.Run(runId)) ?? EmptyExport(explorer);
         Write(path, s => LabcoatApp.WriteRunExport(export, target.Format, s));
         Console.WriteLine($"  Wrote {target.Format}: {target.Path} ({export.Tests.Count} tests)");
         return true;
@@ -369,7 +391,7 @@ public static class CliRun
     }
 
     /// <summary>'*'-wildcard match of the whole <paramref name="s"/>; <paramref name="parts"/> = the pattern split at '*'.</summary>
-    private static bool WildcardMatch(string s, string[] parts)
+    internal static bool WildcardMatch(string s, string[] parts)
     {
         if (!s.StartsWith(parts[0], StringComparison.OrdinalIgnoreCase)) return false;
         var at = parts[0].Length;

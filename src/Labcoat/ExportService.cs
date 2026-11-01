@@ -4,7 +4,7 @@ namespace Labcoat;
 
 // Run export (JUnit XML, HTML report; LabcoatApp.Export.cs, CliRun.cs): a persisted run joined with what the explorer
 // knows about its tests.
-internal sealed class ExportService(WorkspaceState state, HistoryStore history, WorkspaceSettings settings,
+internal sealed class ExportService(WorkspaceState state, HistoryStore history, Func<List<string>> quarantinedKeysLocked,
     IReadOnlyList<string> inputRoots, string workspaceName, Func<List<string>> sourceRootsLocked)
 {
     /// <summary>The run id <c>latest</c> stands for: the newest persisted run.</summary>
@@ -28,7 +28,7 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
                 if (state.Run.Last?.RunId != id) return null;
                 details = new RunDetails(state.Run.Last.Copy(), []);
             }
-            var quarantined = settings.Quarantined().ToHashSet(StringComparer.Ordinal);
+            var quarantined = quarantinedKeysLocked().ToHashSet(StringComparer.Ordinal);
             var order = new Dictionary<(string, string), int>(state.Order.Count);
             for (var i = 0; i < state.Order.Count; i++) order[state.Order[i]] = i;
             var tests = details.Results

@@ -10,7 +10,7 @@ namespace Labcoat;
 /// host (CoverageService.cs) or a debug host; results stream into the test tree as they come.
 /// </summary>
 internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects, ITestHostOwner hostOwner, TestHostPool hosts,
-    CoverageService coverage, LiveOutputService live, HangMonitor hang, HistoryStore history, WorkspaceSettings settings, OutputStore outputs,
+    CoverageService coverage, LiveOutputService live, HangMonitor hang, HistoryStore history, Func<List<string>> quarantinedKeysLocked, OutputStore outputs,
     RunStatuses statuses, int maxParallel, Func<IReadOnlyList<ProjectEntry>, CancellationToken, Task<List<ProjectEntry>>> buildAndDiscover,
     Func<ProjectEntry, TestingPlatformArguments> hostArguments, Action<ProjectRun, string, CoveragePlan> recordCoverage, Action publishState)
 {
@@ -36,7 +36,9 @@ internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects
             effects.Log(null, LogLevels.Info, "Random-order runs do not collect coverage; running without coverage.");
             collectCoverage = false;
         }
-        var x = new RunExecution(req, collectCoverage, settings.Quarantined().ToHashSet(StringComparer.Ordinal));
+        HashSet<string> quarantined;
+        lock (state.Sync) quarantined = quarantinedKeysLocked().ToHashSet(StringComparer.Ordinal);
+        var x = new RunExecution(req, collectCoverage, quarantined);
         try
         {
             var ready = await BuildRunProjectsAsync(req, ct);

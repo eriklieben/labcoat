@@ -53,6 +53,16 @@ public static partial class LabcoatApp
             Include = options.CoverageInclude, Exclude = options.CoverageExclude,
         });
 
+        // The shared quarantine list: a missing file is an error (ignoring it would let quarantined tests fail the run).
+        QuarantineFile? quarantineFile = null;
+        var quarantinePath = options.QuarantineFile ?? config.QuarantineFile;
+        if (quarantinePath is not null)
+        {
+            quarantineFile = QuarantineFile.Load(quarantinePath, out var quarantineError);
+            if (quarantineFile is null) return Fail(quarantineError!, usageHint: false, ErrorExitCode(options));
+            startupNotes.Add($"Quarantine file: {quarantineFile.Path} ({quarantineFile.Count} entries)");
+        }
+
         var aspireDashboardUrl = AspireDashboardUrl();
 
         // Host log level and file (StartupSettings.cs, HostLogging.cs); --diagnostics prints the report instead of starting.
@@ -84,6 +94,7 @@ public static partial class LabcoatApp
             ImpactMap = impactMap,
             Coverage = coverageOptions,
             Limits = StartupSettings.ResolveRunLimits(options, config),
+            QuarantineFile = quarantineFile,
             SettingsFiles = config.FilesForDisplay,
             LogLevel = logLevel,
             LogFile = logFile,
@@ -240,7 +251,7 @@ public static partial class LabcoatApp
         var uiDefaultsJson = o.UiDefaults is null ? (JsonElement?)null : JsonSerializer.SerializeToElement(o.UiDefaults);
         return new Explorer(hub, o.Projects, o.AspireDashboardUrl, sourceRoots,
             o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
-              TraceFilter = o.TraceFilter,
+              TraceFilter = o.TraceFilter, QuarantineFile = o.QuarantineFile,
               ImpactMapMode = o.ImpactMap ?? ImpactMapModes.Default,
               MaxParallelProjects = o.Limits.EffectiveMaxParallel, HangThreshold = o.Limits.EffectiveHangThreshold, TestTimeout = o.Limits.EffectiveTestTimeout,
               ProjectFinder = (warn, ct) => ProjectDiscovery.FindProjectsAsync(o.Paths, warn, ct: ct), WorkspaceRoots = WorkspaceDiscovery.WorkspaceRootsOf(o.Paths) };

@@ -100,6 +100,7 @@ public static partial class HtmlReport
         Card(o, "Skipped", skipped, skipped > 0 ? "c-s" : null);
         if (notRun > 0) Card(o, "Not run", notRun, "c-s");
         if (quarantined > 0) Card(o, "Quarantined", quarantined, "c-s");
+        if (export.Flaky > 0) Card(o, "Flaky", export.Flaky, "c-s");
         o.Write($"<div class=\"card\"><dt>Duration</dt><dd>{E(Duration(run.DurationMs ?? export.Tests.Sum(t => t.DurationMs ?? 0)))}</dd></div>\n");
         o.Write("</dl>\n</header>\n");
     }
@@ -112,6 +113,7 @@ public static partial class HtmlReport
         else if (run.Aborted == true) (tone, text) = ("warn", "The run was aborted");
         else if (run.Cancelled == true) (tone, text) = ("warn", "The run was cancelled");
         else if (export.Tests.Count == 0) (tone, text) = ("warn", "No test results in this run");
+        else if (export.Flaky > 0) (tone, text) = ("warn", $"No failures, but {export.Flaky} flaky test{Words.Plural(export.Flaky)} passed only on a retry");
         else (tone, text) = ("ok", passed == export.Tests.Count ? $"All {passed} tests passed" : $"No failures ({passed} passed)");
         var detail = run.Aborted == true ? run.AbortReason : null;
         o.Write($"<div class=\"banner {tone}\" role=\"status\">{E(text)}");
@@ -160,6 +162,7 @@ public static partial class HtmlReport
         var kind = t.Kind == ExportKind.Error ? "Error" : "Assertion failed";
         var type = string.IsNullOrEmpty(t.ErrorType) ? kind : $"{kind} · {t.ErrorType}";
         o.Write($"<div class=\"label\">{E(type)}</div>\n");
+        if (t.Attempts > 1) o.Write($"<div class=\"label\">Failed all {t.Attempts} attempts (this is the first)</div>\n");
         var message = string.IsNullOrEmpty(t.ErrorMessage) ? DefaultMessage(t) : t.ErrorMessage;
         o.Write($"<pre class=\"msg\">{E(Export.ExportText.Cap(message, MaxMessageChars))}</pre>\n");
         Diff(t, o);
@@ -222,12 +225,12 @@ public static partial class HtmlReport
     {
         var kind = t.Kind;
         var bucket = Bucket(kind);
-        o.Write($"<li class=\"r {bucket}\" data-b=\"{bucket}\"><span class=\"visually-hidden\">{StatusText(kind)}: </span>");
+        o.Write($"<li class=\"r {bucket}{(t.IsFlaky ? " flaky" : "")}\" data-b=\"{bucket}\"><span class=\"visually-hidden\">{(t.IsFlaky ? "Flaky" : StatusText(kind))}: </span>");
         if (failureIds.TryGetValue(t, out var id) && id < MaxDetailedFailures) o.Write($"<a class=\"n\" href=\"#f{id}\">{E(t.Name)}</a>");
         else o.Write($"<span class=\"n\">{E(t.Name)}</span>");
         var why = kind switch
         {
-            ExportKind.Passed => null,
+            ExportKind.Passed => FlakyNote(t),
             ExportKind.Failure or ExportKind.Error => id >= MaxDetailedFailures ? Export.ExportText.FirstLine(t.ErrorMessage) : null,
             _ => ExportKinds.SkipReason(t),
         };
@@ -266,6 +269,11 @@ public static partial class HtmlReport
         if (other > 0) parts.Add($"{other} skipped");
         return string.Join(", ", parts);
     }
+
+    /// <summary>"Flaky: passed on attempt 2 (first failure: …)" for a test that passed on a retry, else null.</summary>
+    private static string? FlakyNote(ExportTest t) => t.IsFlaky
+        ? $"Flaky: passed on attempt {t.Attempts}" + (t.FailedAttempts?.FirstOrDefault() is { } first ? $" (first failure: {Export.ExportText.FirstLine(first.ErrorMessage, 200)})" : "")
+        : null;
 
     private static string DefaultMessage(ExportTest t) => t.Outcome == Outcome.TimedOut ? "Timed out" : FailedText;
 

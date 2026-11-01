@@ -51,13 +51,15 @@ public static class SlowestTests
 }
 
 // GET /api/tests/slowest on the explorer's tests (Explorer.Slowest.cs).
-internal sealed class SlowestTestsService(WorkspaceState state, WorkspaceSettings settings)
+internal sealed class SlowestTestsService(WorkspaceState state, Func<List<string>> quarantinedKeysLocked)
 {
     /// <summary>The slowest tests of <paramref name="projectId"/> (null: of every project).</summary>
     public SlowestTestsResult Get(string? projectId, int limit)
     {
-        var quarantined = settings.Quarantined().ToHashSet(StringComparer.Ordinal);
         lock (state.Sync)
+        {
+            var quarantined = quarantinedKeysLocked().ToHashSet(StringComparer.Ordinal);
             return SlowestTests.Compute(projectId, state.Order.Where(k => projectId is null || k.ProjectId == projectId).Select(k => state.Tests[k]), quarantined, limit);
+        }
     }
 }
