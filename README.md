@@ -21,22 +21,24 @@ you browse, run and debug their tests in the browser. Run it on its own as a .NE
 
 <img alt="Labcoat: the test tree with a failed test selected, showing its source, the error and an expected/actual diff" src="docs/images/hero-dark.png">
 
-> **Status:** stable, released on [nuget.org](https://www.nuget.org/packages/Labcoat) (latest version in the badge
-> above) and versioned with [Semantic Versioning](https://semver.org). Labcoat needs the .NET 10 SDK. It is tested
-> with MSTest 4, NUnit 4.4+, xUnit v3 and TUnit 1 test projects on Microsoft.Testing.Platform: each has a sample in [`samples/`](samples) that CI runs through
-> the packaged tool on Linux, Windows and macOS.
-
 ## Highlights
 
 - **Live test tree.** Project, namespace, class, method and data row, with results streaming in as tests finish.
-  Filter by outcome, search with `is:failed`, `cat:Integration` or `msg:timeout`, sort by duration, group by trait.
+  Filter by outcome, search with `is:failed`, `is:changed` (tests added or edited on your branch), `cat:Integration`
+  or `msg:timeout`, sort by duration, group by trait.
 - **Failures you can read.** The failing line in its source, clickable stack frames, console output and an
   expected/actual diff for strings, multi-line text and JSON. Open any location in VS Code, Rider or Visual Studio.
 - **Fast reruns.** Test hosts stay warm between runs, so rerunning one integration test doesn't restart your app.
 - **Watch mode.** On save, Labcoat rebuilds and reruns only the tests affected by the change.
 - **Coverage.** Line and branch coverage per file, coverage of a single test, and which tests cover a given line.
 - **History.** Results survive restarts. Every test has a run history, flaky tests are flagged, and you can compare
-  any two runs. Repeat a test 20 times or quarantine a known-flaky one.
+  any two runs. Repeat a test 20 times, quarantine a known-flaky one, run the tests in a seeded random order to find
+  the ones that depend on each other, and see the slowest tests per project.
+- **In CI too.** `labcoat --run` runs the tests once and exits with their result: reports as JUnit XML, HTML, Markdown,
+  TRX or SARIF, failures as GitHub annotations with a job summary, coverage gates (`--min-coverage`,
+  `--min-diff-coverage`), a test time budget, retries of failed tests and a shared quarantine file, `--shard` over
+  jobs with `labcoat merge` for the reports, and `--affected` to run only the tests a change can reach. See
+  [Labcoat in CI](docs/standalone.md#labcoat-in-ci).
 - **Vitest too.** With the `Labcoat.Vitest` package, the Vitest tests of your JavaScript / TypeScript projects run in
   the same tree as the .NET tests. See [docs/runners.md](docs/runners.md).
 - **Aspire integration.** A dashboard resource with run, watch and coverage commands, and optional links from each test
@@ -186,6 +188,8 @@ gh attestation verify "release/Labcoat.${tag#v}.nupkg" --repo eriklieben/labcoat
 | [Features](docs/features.md) | The test tree, failures, watch mode, coverage, history, shortcuts. |
 | [Aspire](docs/aspire.md) | The hosting integration, dashboard commands, per-test traces and logs. |
 | [Standalone](docs/standalone.md) | `dnx`, global and local tool, the `--labcoat` extension. |
+| [Labcoat in CI](docs/standalone.md#labcoat-in-ci) | `--run`, report exports, GitHub annotations, coverage gates, sharding, affected tests, retries. |
+| [Test runners](docs/runners.md) | Vitest next to the .NET tests, and how a runner package works. |
 | [Configuration](docs/configuration.md) | Command-line options, environment variables, settings. |
 | [Themes](docs/themes.md) | The theme families and how to customize colors. |
 | [Migrating from VSTest](docs/migrating-from-vstest.md) | The switch per framework, `global.json` for `dotnet test`, coverage. |

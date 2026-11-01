@@ -102,6 +102,11 @@ references: the test assemblies themselves are left out, so code that lives in t
 lines. Check the "Coverage settings: …" line in the log (and the list under the coverage page's title): it says which
 settings file was used, or Labcoat's defaults and the modules they count.
 
+A **Vitest** project collects coverage with Vitest's own coverage provider, which the project has to have installed
+(`@vitest/coverage-v8`, or the provider its `vitest.config` names, at the same version as `vitest`). Without it, the
+run fails with "Coverage needs @vitest/coverage-v8, which isn't installed in this project" and the command that adds
+it ([docs/runners.md](runners.md)).
+
 ## Coverage differs from `dotnet test --coverage`, or a project shows 0 lines covered
 
 - **Different settings.** `dotnet test --coverage` without `--coverage-settings` counts every module that was loaded
