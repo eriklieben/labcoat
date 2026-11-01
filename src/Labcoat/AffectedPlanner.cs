@@ -47,6 +47,17 @@ internal sealed class AffectedPlanner
         }
     }
 
+    /// <summary>
+    /// The files (with changed lines) that differ from the affected base, as the "branch" base of run affected: the merge
+    /// base with the affected base (else origin/HEAD, main or master) plus uncommitted and untracked files; with the
+    /// repository root their paths are relative to. Throws <see cref="AffectedException"/> when git can't answer.
+    /// </summary>
+    public async Task<(GitChanges Changes, string Root)> ChangedFilesAsync(CancellationToken ct = default)
+    {
+        var repo = await RepoAsync(ct);
+        return (await repo.ChangesAsync(AffectedBases.Branch, null, _affectedBase, ct), repo.Root);
+    }
+
     private async Task<GitRepo> RepoAsync(CancellationToken ct)
     {
         var dir = WorkspaceDir();

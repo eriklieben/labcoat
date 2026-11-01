@@ -20,6 +20,9 @@ internal sealed class AffectedService(IExplorerEffects effects, OperationGate ga
     /// <summary>GET /api/changed-tests: the tests added or modified on the current branch (AffectedPlanner.ChangedTestsAsync).</summary>
     public Task<ChangedTests> ChangedTestsAsync(CancellationToken ct = default) => planner.ChangedTestsAsync(ct);
 
+    /// <summary>The changed files and lines versus the affected base (<c>--min-diff-coverage</c>, CoverageGate.cs).</summary>
+    public Task<(GitChanges Changes, string Root)> ChangedFilesAsync(CancellationToken ct = default) => planner.ChangedFilesAsync(ct);
+
     /// <summary>Drops the cached answer of <see cref="ChangedTestsAsync"/> (the next call asks git again).</summary>
     public void InvalidateChangedTests() => planner.InvalidateChangedTests();
 
