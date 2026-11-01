@@ -164,6 +164,25 @@ function selectionCommands(x: PaletteActions, busy: boolean): (Item | undefined)
   ];
 }
 
+/** Run all / in random order (again with the last seed) / matching / failed, and accept pending snapshots. */
+function runCommands(x: PaletteActions, busy: boolean, failed: number, lastSeed: number | undefined): (Item | undefined)[] {
+  const pending = untracked(pendingSnapshotTests).length;
+  return [
+    { id: "run-all", label: "Run all tests", icon: "playFilled", shortcut: "Mod+Enter", disabled: busy, run: x.runAll },
+    x.runRandom ? { id: "run-random", label: "Run in random order", detail: "finds tests that depend on each other; one at a time, with a seed", icon: "play", disabled: busy, run: () => x.runRandom!() } : undefined,
+    x.runRandom && lastSeed !== undefined
+      ? { id: "run-random-seed", label: `Run again with seed ${lastSeed}`, detail: "the same random order", icon: "arrowClockwise", disabled: busy, run: () => x.runRandom!(lastSeed) }
+      : undefined,
+    x.runMatching
+      ? { id: "run-matching", label: `Run ${x.runMatching.count} matching`, detail: "the tests the filtered tree shows", icon: "play", disabled: busy || !x.runMatching.count, run: x.runMatching.run }
+      : undefined,
+    { id: "run-failed", label: `Run failed (${failed})`, detail: failed ? undefined : "none failed", icon: "arrowClockwise", disabled: busy || !failed, run: x.runFailed },
+    pending
+      ? { id: "accept-snapshots", label: `Accept all snapshots (${pending})`, detail: "Verify: received → verified, then re-run", icon: "checkmark", disabled: busy, run: () => void acceptAllSnapshots() }
+      : undefined,
+  ];
+}
+
 /** "Sort: …" for each tree order, the current one marked. */
 function sortCommands(x: PaletteActions): Item[] {
   return (["default", "slowest", "fastest"] as const).map((m) => ({
@@ -208,22 +227,10 @@ export function commandPalette(a: () => PaletteActions): Child {
     const running = !!s.currentRun;
     const connected = s.conn === "open";
     const failed = [...s.tests.values()].filter((t) => bucket(t.outcome) === "failed").length;
-    const pending = untracked(pendingSnapshotTests).length;
     // most commands need a connected host that isn't running
     const busy = running || !connected;
     return [
-      { id: "run-all", label: "Run all tests", icon: "playFilled", shortcut: "Mod+Enter", disabled: busy, run: x.runAll },
-      x.runRandom ? { id: "run-random", label: "Run in random order", detail: "finds tests that depend on each other; one at a time, with a seed", icon: "play", disabled: busy, run: () => x.runRandom!() } : undefined,
-      x.runRandom && s.lastRun?.seed !== undefined
-        ? { id: "run-random-seed", label: `Run again with seed ${s.lastRun.seed}`, detail: "the same random order", icon: "arrowClockwise", disabled: busy, run: () => x.runRandom!(s.lastRun!.seed) }
-        : undefined,
-      x.runMatching
-        ? { id: "run-matching", label: `Run ${x.runMatching.count} matching`, detail: "the tests the filtered tree shows", icon: "play", disabled: busy || !x.runMatching.count, run: x.runMatching.run }
-        : undefined,
-      { id: "run-failed", label: `Run failed (${failed})`, detail: failed ? undefined : "none failed", icon: "arrowClockwise", disabled: busy || !failed, run: x.runFailed },
-      pending
-        ? { id: "accept-snapshots", label: `Accept all snapshots (${pending})`, detail: "Verify: received → verified, then re-run", icon: "checkmark", disabled: busy, run: () => void acceptAllSnapshots() }
-        : undefined,
+      ...runCommands(x, busy, failed, s.lastRun?.seed),
       ...affectedCommands(busy),
       ...selectionCommands(x, busy),
       { id: "cancel", label: "Stop the current run", detail: running ? undefined : "nothing is running", icon: "stopFilled", shortcut: "Mod+.", disabled: !running, run: x.cancel },

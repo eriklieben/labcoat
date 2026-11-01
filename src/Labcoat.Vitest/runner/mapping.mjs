@@ -138,7 +138,7 @@ function mtime(file) {
 /** The describe blocks around a test, outermost first. */
 function suiteNames(test) {
   const names = [];
-  for (let p = test.parent; p && p.type === "suite"; p = p.parent) names.unshift(p.name);
+  for (let p = test.parent; p?.type === "suite"; p = p.parent) names.unshift(p.name);
   return names;
 }
 
@@ -185,6 +185,21 @@ export function errorProperties(errors) {
   return props;
 }
 
+/** What a finished test adds to its node: its duration, its failure, or why it was skipped. */
+function outcomeProperties(test, result, execution) {
+  const props = {};
+  if (execution === "passed" || execution === "failed" || execution === "timed-out" || execution === "skipped") {
+    const duration = test.diagnostic()?.duration;
+    if (typeof duration === "number") props["time.duration-ms"] = duration;
+  }
+  if (execution === "failed" || execution === "timed-out") Object.assign(props, errorProperties(result.errors));
+  if (execution === "skipped") {
+    const reason = result.note ?? (test.options?.mode === "todo" ? "todo" : undefined);
+    if (reason) props["error.message"] = reason;
+  }
+  return props;
+}
+
 /** The MTP test node of a Vitest test case. */
 export function toNode(index, test, state, output) {
   const result = test.result();
@@ -209,15 +224,7 @@ export function toNode(index, test, state, output) {
     node.traits = tags.map((t) => ({ [t]: "" }));
     if (index.multiProject && test.project?.name) node.traits.push({ Project: test.project.name });
   }
-  if (execution === "passed" || execution === "failed" || execution === "timed-out" || execution === "skipped") {
-    const duration = test.diagnostic()?.duration;
-    if (typeof duration === "number") node["time.duration-ms"] = duration;
-  }
-  if (execution === "failed" || execution === "timed-out") Object.assign(node, errorProperties(result.errors));
-  if (execution === "skipped") {
-    const reason = result.note ?? (test.options?.mode === "todo" ? "todo" : undefined);
-    if (reason) node["error.message"] = reason;
-  }
+  Object.assign(node, outcomeProperties(test, result, execution));
   if (output) Object.assign(node, Object.fromEntries(Object.entries(output).filter(([, v]) => v !== undefined)));
   return node;
 }

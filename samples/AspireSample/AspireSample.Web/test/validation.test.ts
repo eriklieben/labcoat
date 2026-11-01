@@ -23,6 +23,12 @@ describe("validate", () => {
       ]);
     });
 
-    it.skip("checks the SKU against the catalog (needs the catalog API)", () => {});
+    // Skipped on purpose: the sample shows how Labcoat reports a skipped Vitest test, and the check needs the catalog
+    // API, which validate() doesn't call.
+    it.skip("checks the SKU against the catalog (needs the catalog API)", () => {
+      expect(validate({ customer: "Contoso", items: [{ sku: "UNKNOWN", quantity: 1, unitPrice: 1 }] }).items).toEqual([
+        "Item 0: SKU is not in the catalog.",
+      ]);
+    });
   });
 });

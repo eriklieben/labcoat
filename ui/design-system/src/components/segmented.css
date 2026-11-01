@@ -55,7 +55,3 @@
   padding: 0 var(--lc-space-8);
   font-size: var(--lc-text-sm);
 }
-.segmented-small .segment .icon {
-  width: 14px !important;
-  height: 14px !important;
-}

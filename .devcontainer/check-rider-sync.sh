@@ -5,8 +5,9 @@ set -eu
 cd "$(dirname "$0")"
 
 normalize() {
+  local file=$1
   sed -e 's|^  "name": .*|  "name": "NAME",|' \
-      -e 's|^  "dockerComposeFile": .*|  "dockerComposeFile": COMPOSE,|' "$1"
+      -e 's|^  "dockerComposeFile": .*|  "dockerComposeFile": COMPOSE,|' "$file"
 }
 
 if ! diff -u --label devcontainer.json --label rider/devcontainer.json \

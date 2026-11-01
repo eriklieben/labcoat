@@ -11,6 +11,8 @@
     animation-duration: var(--lc-motion-base);
   }
 
+  /* app.utilities is the last layer, so this beats every component's transition without !important; the motion
+     policy's !important (reduced / off) still wins, as it should. */
   html.theme-transitioning,
   html.theme-transitioning *:not(canvas),
   html.theme-transitioning *::before,
@@ -20,8 +22,8 @@
       color var(--lc-motion-base) var(--lc-ease-decelerate),
       border-color var(--lc-motion-base) var(--lc-ease-decelerate),
       fill var(--lc-motion-base) var(--lc-ease-decelerate),
-      stroke var(--lc-motion-base) var(--lc-ease-decelerate) !important;
-    transition-delay: 0s !important;
+      stroke var(--lc-motion-base) var(--lc-ease-decelerate);
+    transition-delay: 0s;
   }
 
   /* reduced motion: the system setting or Settings → Motion (html[data-motion]; "off" is global in the DS) */

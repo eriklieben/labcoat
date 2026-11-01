@@ -68,7 +68,7 @@ export function segmented<T extends string>(opts: SegmentedOptions<T>): HTMLDivE
           onclick: () => onChange(o.value),
           ref: (b) => (buttons[i] = b),
         },
-        o.icon ? icon(o.icon, { size: 16 }) : null,
+        o.icon ? icon(o.icon, { size: size === "small" ? 14 : 16 }) : null,
         o.icon && o.label !== "" ? " " : null,
         o.label,
       ),
