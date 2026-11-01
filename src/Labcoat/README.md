@@ -56,6 +56,19 @@ Vitest projects run too, with the `Labcoat.Vitest` runner package: `labcoat --ru
 first start (Node.js 20+ and the project's dependencies installed). See
 [docs/runners.md](https://github.com/eriklieben/labcoat/blob/main/docs/runners.md).
 
+## In CI
+
+`labcoat --run` runs the tests once, without the UI, and exits with their result:
+
+```bash
+dotnet labcoat --run --export junit=out/results.xml --export html=out/report.html --export lcov=out/coverage.info MyApp.slnx
+```
+
+Reports as JUnit XML, HTML, Markdown, TRX or SARIF, GitHub Actions annotations and a job summary, coverage gates
+(`--min-coverage`, `--min-diff-coverage`), retries of failed tests and a quarantine file, `--shard` with
+`labcoat merge`, and `--affected` to run only the tests a change can reach. See
+[Labcoat in CI](https://github.com/eriklieben/labcoat/blob/main/docs/standalone.md#labcoat-in-ci).
+
 ## Aspire
 
 Using [Aspire](https://aspire.dev)? Add [`Labcoat.Aspire.Hosting`](https://www.nuget.org/packages/Labcoat.Aspire.Hosting)
