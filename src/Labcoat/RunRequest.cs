@@ -8,6 +8,9 @@ internal sealed class RunRequest
     public required Dictionary<string, HashSet<string>?> Selection { get; set; }
     public bool? Coverage { get; init; }
     public int Iterations { get; init; } = 1;
+    /// <summary>"random" (<see cref="RandomOrder.Random"/>) with its seed, or null = the test framework's own order.</summary>
+    public string? Order { get; init; }
+    public int? Seed { get; init; }
     public string? Trigger { get; set; }
     public AffectedRun? Affected { get; set; }
     public WatchContext? Watch { get; set; }
@@ -26,6 +29,8 @@ internal sealed class RunRequest
         TestCount = IsSubset ? Selection.Values.Sum(ids => ids!.Count) : null,
         Coverage = Coverage,
         Repeat = Iterations > 1 ? Iterations : null,
+        Order = Order,
+        Seed = Seed,
         Trigger = Trigger,
         Requests = Requests,
     };

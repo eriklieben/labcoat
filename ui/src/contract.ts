@@ -255,7 +255,7 @@ export type ServerEvent =
 export type ClientCommand =
   | { type: "discover"; projectId?: string }
   /** `coverage` overrides the global coverage toggle for this run only */
-  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean }
+  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; order?: "random"; seed?: number }
   | { type: "cancel" }
   | { type: "setWatch"; enabled: boolean }
   | { type: "setCoverage"; enabled: boolean }
@@ -332,6 +332,9 @@ export interface RepeatTestResult {
 
 export interface RunSummary {
   repeat?: RepeatSummary;
+  /** "random": the tests ran one at a time in a seeded random order; `seed` reproduces it */
+  order?: "random";
+  seed?: number;
   /** results of quarantined tests (not included in passed/failed/skipped) */
   quarantined?: number;
 }
@@ -395,7 +398,7 @@ export interface TelemetryLog {
 
 /** Round 3 commands not in the ClientCommand union above (send with `store.send(cmd as ClientCommand)`). */
 export type DetailCommand =
-  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number }
+  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number; order?: "random"; seed?: number }
   | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };
 
 // --- RUNS additions --- (Round 3: discovery diagnostics, tracing toggle)
@@ -473,6 +476,8 @@ export interface PendingRunInfo {
   testCount?: number;
   coverage?: boolean;
   repeat?: number;
+  order?: "random";
+  seed?: number;
   trigger?: "user" | "watch" | "api" | "debug";
   /** how many requests were merged into it */
   requests: number;

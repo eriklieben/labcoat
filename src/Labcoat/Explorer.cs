@@ -325,7 +325,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         var debug = cmd.Type == "debug";
         var r = RequestRun(new RunRequestOptions
         {
-            ProjectId = cmd.ProjectId, TestIds = cmd.TestIds, Coverage = cmd.Coverage, Trigger = debug ? "debug" : "user", Repeat = cmd.Repeat, Debug = debug,
+            ProjectId = cmd.ProjectId, TestIds = cmd.TestIds, Coverage = cmd.Coverage, Trigger = debug ? "debug" : "user", Repeat = cmd.Repeat, Order = cmd.Order, Seed = cmd.Seed, Debug = debug,
         });
         return r.Status != 202 ? RejectCommand(cmd, r.Status, r.Error ?? "rejected", r.UnknownTestIds) : null;
     }

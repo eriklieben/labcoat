@@ -123,6 +123,11 @@ public static class Cli
           --shard-timings <file>  JUnit XML of an earlier run (--export junit; a pattern like
                            out/*/results.xml works) that balances the shards by duration. Repeatable.
                            Without it the shards are dealt out evenly by name.
+          --order random   Run the tests one at a time in a random order, to find tests that depend on
+                           each other. The seed is printed (and written to the junit / html reports);
+                           it can't be combined with --coverage, --min-coverage, --min-diff-coverage or an
+                           lcov / cobertura export. See docs/features.md.
+          --seed <n>       With --order random: the seed of an earlier run, to run the same order again.
 
         Merge shard reports (CI; builds and runs nothing):
           merge --export <format>=<file> <inputs...>

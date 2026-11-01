@@ -6,7 +6,7 @@ namespace Labcoat;
 /// <summary>An <c>--export format=path</c> target of <c>--run</c>.</summary>
 public sealed record ExportTarget(string Format, string Path);
 
-// --run, --export, --filter, --export-paths (CliRun.cs): the non-interactive mode for CI.
+// --run, --export, --filter, --export-paths, --order, --seed (CliRun.cs): the non-interactive mode for CI.
 public sealed partial class StartOptions
 {
     /// <summary>--run: build, run the tests once, write the exports and exit (no web server, no browser).</summary>
@@ -28,6 +28,11 @@ public sealed partial class StartOptions
     public ShardBy ShardBy { get; private set; }
     /// <summary>--shard-timings (repeatable): JUnit XML files (or patterns) of an earlier run that balance the shards.</summary>
     public List<string> ShardTimings { get; } = [];
+
+    /// <summary>--order random: run the tests one at a time in a seeded random order (<see cref="RandomOrder"/>).</summary>
+    public string? Order { get; private set; }
+    /// <summary>--seed: reproduces the order of an earlier --order random run (default: a new seed, printed).</summary>
+    public int? Seed { get; private set; }
 
     private static readonly string[] AllExportFormats = [.. ExportFormats.RunFormats, .. ExportFormats.CoverageFormats];
 
@@ -67,6 +72,14 @@ public sealed partial class StartOptions
                 if (option == "--min-coverage") MinCoverage = percent;
                 else MinDiffCoverage = percent;
                 return null;
+            case "--order":
+                var (order, orderError) = RandomOrder.ParseOrder(args.Value());
+                Order = order;
+                return orderError is null ? null : "--" + orderError;
+            case "--seed":
+                if (!int.TryParse(args.Value(), out var seed) || seed <= 0) return "--seed needs a positive number, e.g. 12345.";
+                Seed = seed;
+                return null;
             default: // --export-paths
                 var mode = args.Value();
                 if (mode is not ("relative" or "absolute")) return "--export-paths needs relative or absolute.";
@@ -87,15 +100,21 @@ public sealed partial class StartOptions
     }
 
     /// <summary>
-    /// --export / --filter / --export-paths / --shard* / --min-coverage / --min-diff-coverage / --max-test-duration only
-    /// make sense with --run.
+    /// --export / --filter / --export-paths / --shard* / --min-coverage / --min-diff-coverage / --max-test-duration /
+    /// --order / --seed only make sense with --run.
     /// </summary>
     private string? ValidateRunOptions()
     {
         if (!RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || Shard is not null || ShardTimings.Count > 0
-                         || MinCoverage is not null || MinDiffCoverage is not null || MaxTestDuration is not null))
-            return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage and --max-test-duration need --run.";
-        return Shard is null && ShardTimings.Count > 0 ? "--shard-timings needs --shard." : null;
+                         || MinCoverage is not null || MinDiffCoverage is not null || MaxTestDuration is not null
+                         || Order is not null || Seed is not null))
+            return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage, --max-test-duration, --order and --seed need --run.";
+        if (Shard is null && ShardTimings.Count > 0) return "--shard-timings needs --shard.";
+        if (Seed is not null && Order is null) return "--seed needs --order random.";
+        return Order is not null && (Coverage || MinCoverage is not null || MinDiffCoverage is not null
+                                     || Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format)))
+            ? "--order random can't be combined with --coverage, --min-coverage, --min-diff-coverage or an lcov / cobertura --export: random-order runs do not collect coverage."
+            : null;
     }
 }
 
@@ -146,7 +165,10 @@ public static class CliRun
         if (exit is { } exitCode) return exitCode;
         var wantCoverage = coverage || options.MinCoverage is not null || options.MinDiffCoverage is not null
                            || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
-        var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger });
+        // The seed is chosen here (not by the explorer) so it is printed before anything can go wrong.
+        int? seed = options.Order is null ? null : options.Seed ?? RandomOrder.NewSeed();
+        if (seed is not null) Console.WriteLine($"  Random order, seed {seed}: the tests run one at a time (reproduce: --order random --seed {seed})");
+        var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger, Order = options.Order, Seed = seed });
         if (request.Status != 202)
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
@@ -257,6 +279,8 @@ public static class CliRun
         var verdict = run.Failed > 0 ? Cli.Red($"{run.Failed} failed") : Cli.Bold("no failures");
         var extra = (run.Quarantined is > 0 ? $", {run.Quarantined} quarantined" : "") + (run.NotRun is > 0 ? $", {run.NotRun} not run" : "");
         Console.WriteLine($"  Tests: {verdict}, {run.Passed} passed, {run.Skipped} skipped{extra} ({run.Total} total) in {Export.HtmlReport.Duration(elapsed.TotalMilliseconds)}");
+        if (run.Seed is { } seed)
+            Console.WriteLine($"  Random order, seed {seed}: " + (run.Failed > 0 ? "reproduce this order" : "passed in this order; if a later run fails, reproduce it") + $" with --order random --seed {seed}");
         if (run.Aborted == true) Console.Error.WriteLine($"{WarningLabel} Run aborted: {run.AbortReason}");
         if (run.Cancelled == true) Console.Error.WriteLine($"{WarningLabel} Run cancelled.");
     }

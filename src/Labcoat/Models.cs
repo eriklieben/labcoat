@@ -166,6 +166,10 @@ public sealed record RunSummary
     public WatchContext? Watch { get; init; }
     /// <summary>Repeat runs (run with <c>repeat</c>): per-test pass/fail counts over the repetitions.</summary>
     public RepeatSummary? Repeat { get; set; }
+    /// <summary>"random" when the tests ran in a seeded random order (run with <c>order</c>); <see cref="Seed"/> reproduces it.</summary>
+    public string? Order { get; init; }
+    /// <summary>The seed of a random-order run (given, or generated when the run did not name one).</summary>
+    public int? Seed { get; init; }
     /// <summary>Results of quarantined tests (not included in passed/failed/skipped).</summary>
     public int? Quarantined { get; set; }
     /// <summary>The run ended early because a test host exited / crashed (see <see cref="AbortReason"/>).</summary>
@@ -252,6 +256,9 @@ public sealed record PendingRunInfo
     public int? TestCount { get; init; }
     public bool? Coverage { get; init; }
     public int? Repeat { get; init; }
+    /// <summary>"random" for a run in random order.</summary>
+    public string? Order { get; init; }
+    public int? Seed { get; init; }
     public string? Trigger { get; init; }
     /// <summary>How many requests were merged into this one (1 = just the original).</summary>
     public int Requests { get; init; } = 1;
@@ -487,6 +494,10 @@ public sealed record ClientCommand
     public bool? Coverage { get; init; }
     /// <summary>run only: run the tests this many times (2–50) on the warm host.</summary>
     public int? Repeat { get; init; }
+    /// <summary>run only: "random" runs the tests one at a time in a seeded random order (see <see cref="Seed"/>).</summary>
+    public string? Order { get; init; }
+    /// <summary>run only, with <c>order</c>: the seed to reproduce an order (a new one is generated when left out).</summary>
+    public int? Seed { get; init; }
     /// <summary>setQuarantine: the test id (with ProjectId).</summary>
     public string? Id { get; init; }
     /// <summary>setQuarantine: add (true) or remove (false).</summary>

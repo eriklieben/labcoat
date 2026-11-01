@@ -302,6 +302,7 @@ function runLine(r: RunSummary, live: boolean): string {
     r.durationMs != null && !live ? formatDuration(r.durationMs) : "",
     r.scope === "subset" ? `${r.total} selected ${testsWord(r.total)}` : "",
     r.repeat ? `${r.repeat.count}× repeat` : "",
+    r.seed !== undefined ? `random order, seed ${r.seed}` : "",
     live ? "" : runCounts(r),
     r.quarantined ? `${r.quarantined} quarantined` : "",
   ];

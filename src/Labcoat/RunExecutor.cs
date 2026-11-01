@@ -31,6 +31,11 @@ internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects
             effects.Log(null, LogLevels.Info, "Repeat runs do not collect coverage; running without coverage.");
             collectCoverage = false;
         }
+        if (collectCoverage && req.Order is not null)
+        {
+            effects.Log(null, LogLevels.Info, "Random-order runs do not collect coverage; running without coverage.");
+            collectCoverage = false;
+        }
         var x = new RunExecution(req, collectCoverage, settings.Quarantined().ToHashSet(StringComparer.Ordinal));
         try
         {
@@ -132,6 +137,8 @@ internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects
                 Trigger = req.Trigger,
                 Watch = req.Watch,
                 Repeat = x.Iterations > 1 ? new RepeatSummary { Count = x.Iterations } : null,
+                Order = req.Order,
+                Seed = req.Seed,
                 Debug = req.Debug ? true : null,
             };
             x.Run = run;
@@ -415,7 +422,7 @@ internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects
             else if (coverageFile is null)
             {
                 // Warm test host: the process (and whatever its fixtures keep alive) is reused across runs.
-                await hosts.RequestAsync(p, onUpdate, (conn, token) => conn.RunAsync(runId, subset, token), ct);
+                await hosts.RequestAsync(p, onUpdate, (conn, token) => RunInOrderAsync(conn, pr, runId, subset, token), ct);
                 await CheckWarmAfterRunAsync(p, pr.RequestedKeys, ct);
             }
             else await RunCoverageHostAsync(p, coveragePlan!, extraArgs, onUpdate, runId, subset, ct);
@@ -439,6 +446,29 @@ internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects
         }
         effects.SetStatus(p, ProjectStatus.Idle);
         return null;
+    }
+
+    /// <summary>
+    /// <c>testing/runTests</c> for a project's tests. In random order (RunSummary.order) one request per test, in the order
+    /// the seed gives: MTP runs the requested nodes in the framework's own order and ignores the order of the list (docs/protocol.md
+    /// "Test order"), so a request per test is the only way to control it. Otherwise one request for all of them.
+    /// </summary>
+    private async Task<JsonNode?> RunInOrderAsync(MtpConnection conn, ProjectRun pr, Guid runId, List<(string, string)>? subset, CancellationToken ct)
+    {
+        if (pr.Run.Order is null || pr.Run.Seed is not { } seed) return await conn.RunAsync(runId, subset, ct);
+        var projectId = pr.Project.Project.Id;
+        List<(string Id, string Name)> tests;
+        lock (state.Sync)
+            tests = subset ?? pr.RequestedKeys.Where(k => state.Tests.ContainsKey(k)).Select(k => (k.Id, state.Tests[k].DisplayName)).ToList();
+        var shuffled = RandomOrder.Shuffle(tests, seed, t => t.Id);
+        effects.Log(projectId, LogLevels.Info, $"Random order, seed {seed}: {shuffled.Count} tests, one at a time (reproduce with the same seed).");
+        JsonNode? last = null;
+        for (var i = 0; i < shuffled.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            last = await conn.RunAsync(i == 0 ? runId : Guid.NewGuid(), [shuffled[i]], ct);
+        }
+        return last;
     }
 
     /// <summary>The (id, display name) of the selected tests that are still known; null = every test of the project.</summary>
