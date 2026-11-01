@@ -3,7 +3,7 @@
     <!-- The version of local and CI builds. Don't change it by hand: semantic-release sets it to the released version
          and commits it with CHANGELOG.md (release.config.mjs, eng/release.mjs); release builds pass
          -p:Version=<released version>, CI builds add a suffix (VersionSuffix=ci.<run>). -->
-    <VersionPrefix>1.2.0</VersionPrefix>
+    <VersionPrefix>1.2.1</VersionPrefix>
   </PropertyGroup>
 
   <PropertyGroup Label="Package metadata">
@@ -36,7 +36,7 @@
 
   <PropertyGroup Label="Package validation">
     <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.1.2</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>1.2.0</PackageValidationBaselineVersion>
     <ApiCompatPermitUnnecessarySuppressions>true</ApiCompatPermitUnnecessarySuppressions>
   </PropertyGroup>
 
