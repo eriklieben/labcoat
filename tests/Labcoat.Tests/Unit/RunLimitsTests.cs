@@ -369,7 +369,8 @@ public class RunLimitsTests
         Assert.IsNull(StartOptions.Parse(["--run", "--max-test-duration", "slow"], out error));
         StringAssert.Contains(error, "--max-test-duration needs seconds or a duration");
         Assert.IsNull(StartOptions.Parse(["--max-test-duration", "2s"], out error));
-        StringAssert.Contains(error, "--max-test-duration need --run");
+        StringAssert.Contains(error, "--max-test-duration");
+        StringAssert.EndsWith(error, "need --run.");
     }
 
     [TestMethod]
