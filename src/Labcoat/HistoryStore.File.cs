@@ -145,7 +145,8 @@ public sealed partial class HistoryStore
         for (var i = 0; i < n; i++)
         {
             var run = t.RunIds is { } ri && ri[i] >= 0 ? Item(runIds, ri[i], "run") : null;
-            entries.Add(new HistoryEntry(FromCode(outcomes[i]), t.Durations?[i], t.At?[i]!, run, t.Flaky is { } f && Array.IndexOf(f, i) >= 0 ? true : null));
+            var at = t.At?[i] ?? throw new JsonException($"Test {t.Id}: entry {i} has no time.");
+            entries.Add(new HistoryEntry(FromCode(outcomes[i]), t.Durations?[i], at, run, t.Flaky is { } f && Array.IndexOf(f, i) >= 0 ? true : null));
         }
         return entries;
     }
