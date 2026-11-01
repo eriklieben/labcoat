@@ -1,0 +1,15 @@
+# Snyk (https://snyk.io) policy file. Snyk Code leaves out what isn't shipped, like SonarQube Cloud
+# (eng/SonarQube.Analysis.xml): build, release and benchmark scripts, test code and the samples. docs/releasing.md,
+# "Code analysis".
+version: v1.25.1
+exclude:
+  global:
+    - eng/**
+    - benchmarks/**
+    - samples/**
+    - tests/**
+    - ui/test/**
+    - ui/design-system/test/**
+    - ui/scripts/**
+    - ui/bench/**
+    - ui/src/mock/**
