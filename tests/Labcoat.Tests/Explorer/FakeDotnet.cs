@@ -22,7 +22,7 @@ internal sealed class FakeDotnet
 
     public List<string[]> Calls { get { lock (_calls) return [.. _calls]; } }
 
-    public async Task<(int ExitCode, string Output)> InvokeAsync(string[] args, string cwd, CancellationToken ct)
+    public async Task<(int ExitCode, string Output)> InvokeAsync(string[] args, string _, CancellationToken ct)
     {
         lock (_calls) _calls.Add(args);
         await Task.Yield();

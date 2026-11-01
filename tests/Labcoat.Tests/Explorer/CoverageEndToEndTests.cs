@@ -15,9 +15,6 @@ namespace Labcoat.Tests.ExplorerTests;
 [TestCategory("e2e")]
 public class CoverageEndToEndTests
 {
-    private static string Id(Labcoat.Explorer e, string projectId, string displayName) =>
-        e.Snapshot().Tests.Single(t => t.ProjectId == projectId && t.DisplayName == displayName).Id;
-
     private static async Task<Labcoat.Explorer> DiscoveredAsync(DeskWorkspace ws, string project, CoverageOptions? options = null)
     {
         var explorer = new Labcoat.Explorer(new EventHub(), [project], null, [ws.Root])
