@@ -702,7 +702,7 @@ type ClientCommand = /* … */
 | `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat?, order?, seed? }` | `202 { accepted: true, runId, queued, merged, unknownTestIds? }`; `400` malformed JSON / wrong types; `404 { error, projects }` unknown projectId; `404 { error, unknownTestIds }` when none of the testIds is known (some unknown → they are ignored and listed in the 202) |
 | `GET /api/runs/{runId}/status` | | `200 { runId, state, reason?, run?, supersededBy? }`; state: `queued` → `building` → `running` → `finished` \| `cancelled` \| `aborted` \| `skipped` (nothing could run, e.g. build failed) \| `superseded` (replaced while queued, see `supersededBy`); `404` unknown / older than the last 200 requests |
 | `POST /api/cancel` | (no body) | `202 { accepted: true, cancelledRunning, activeOperation?, clearedQueuedRunId?, clearedQueuedRequests }` |
-| `POST /api/debug` | `{ projectId?, testIds }` | like `/api/run`; `400` without testIds or with tests of several projects |
+| `POST /api/debug` | `{ projectId?, testIds }` | like `/api/run`; `400` without testIds, with tests of several projects or with tests of a runner package's project (`TestProject.runner`, e.g. Vitest) |
 | `POST /api/target-framework` | `{ projectId, targetFramework? }` | `202` (rebuild + rediscover start); `400` not one of `availableFrameworks`; `404` unknown project; `409` project not evaluated yet |
 | `GET /api/tests/details` | `?projectId=&id=` | `200 TestNode` (full: capped output, history); `404`; `400` without id |
 | `GET /api/tests/history` | `?projectId=&id=` (both optional) | `200 { tests: [{ projectId, id, history, flaky? }] }` — without `id`: every test that has history; `404` unknown project / test |

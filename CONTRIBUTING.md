@@ -89,6 +89,9 @@ one project or a subset, start the test app directly, e.g.
 - Tests that change environment variables, the current directory, `Console` or static test hooks are
   `[DoNotParallelize]` and restore what they changed; everything else runs in parallel.
 - Real servers in tests use ports 4520-4549 only.
+- The Vitest runner (`src/Labcoat.Vitest/runner`) has its own tests: `node --test "tests/Labcoat.Vitest.Tests/*.test.mjs"`
+  from the repository root. They and `VitestEndToEndTests` run a real Vitest from `ui/node_modules`
+  (`pnpm install --frozen-lockfile` in `ui/`, or `LABCOAT_VITEST_NODE_MODULES`); without it they are skipped.
 
 Code coverage of the shipped assemblies (`Labcoat`, `Labcoat.Aspire.Hosting`, `Labcoat.Testing`,
 `Labcoat.Testing.MSTest`, `Labcoat.Testing.TUnit`, `Labcoat.Testing.NUnit`, `Labcoat.Testing.XUnit`, `Labcoat.TestingPlatform`) must stay at **85% of lines or more** per assembly; CI fails below that and uploads the merged

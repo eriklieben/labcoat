@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Time.Testing;
 using Labcoat;
 
 namespace Labcoat.Tests.Unit;
@@ -118,32 +119,34 @@ public class RunnerTests
     }
 
     [TestMethod]
-    public void The_default_is_dotnet_plus_every_installed_runner_and_a_list_is_exact()
+    public async Task The_default_is_dotnet_plus_every_installed_runner_and_a_list_is_exact()
     {
         using var w = new Workspace();
         var plugin = w.Plugin();
         var fetched = new List<string>();
-        RunnerPlugin? Fetch(string id)
+        Task<RunnerPlugin?> Fetch(string id, CancellationToken ct)
         {
             fetched.Add(id);
-            return null;
+            return Task.FromResult<RunnerPlugin?>(null);
         }
 
-        var all = TestRunners.Resolve(null, [plugin], Fetch, out var error)!;
+        var (all, error) = await TestRunners.ResolveAsync(null, [plugin], Fetch, CancellationToken.None);
         Assert.IsNull(error);
-        Assert.AreEqual("dotnet, vitest", all.Describe());
+        Assert.AreEqual("dotnet, vitest", all!.Describe());
 
-        var vitestOnly = TestRunners.Resolve(["vitest"], [plugin], Fetch, out _)!;
+        var vitestOnly = (await TestRunners.ResolveAsync(["vitest"], [plugin], Fetch, CancellationToken.None)).Runners!;
         Assert.IsFalse(vitestOnly.IncludesDotnet);
         Assert.AreEqual("vitest", vitestOnly.Describe());
-        Assert.AreEqual("dotnet", TestRunners.Resolve(["dotnet"], [plugin], Fetch, out _)!.Describe());
+        Assert.AreEqual("dotnet", (await TestRunners.ResolveAsync(["dotnet"], [plugin], Fetch, CancellationToken.None)).Runners!.Describe());
 
-        Assert.IsNull(TestRunners.Resolve(["dotnet", "jest"], [plugin], Fetch, out error));
+        (var none, error) = await TestRunners.ResolveAsync(["dotnet", "jest"], [plugin], Fetch, CancellationToken.None);
+        Assert.IsNull(none);
         Assert.StartsWith("The test runner 'jest' isn't installed. Add the Labcoat.Jest package", error);
         Assert.Contains("(installed: vitest)", error);
         CollectionAssert.AreEqual(new[] { "jest" }, fetched);
 
-        Assert.AreSame(plugin, TestRunners.Resolve(["vitest"], [], _ => plugin, out _)!.Plugins.Single(), "a runner that isn't installed is fetched");
+        var (fetchedRunners, _) = await TestRunners.ResolveAsync(["vitest"], [], (_, _) => Task.FromResult<RunnerPlugin?>(plugin), CancellationToken.None);
+        Assert.AreSame(plugin, fetchedRunners!.Plugins.Single(), "a runner that isn't installed is fetched");
         Assert.AreEqual("dotnet", TestRunners.DotnetOnly.Describe());
     }
 
@@ -243,7 +246,7 @@ public class RunnerTests
 
     [TestMethod]
     [DoNotParallelize] // NUGET_PACKAGES
-    public void A_runner_already_in_the_global_packages_folder_is_used_without_a_restore()
+    public async Task A_runner_already_in_the_global_packages_folder_is_used_without_a_restore()
     {
         using var w = new Workspace();
         var before = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
@@ -252,11 +255,41 @@ public class RunnerTests
             Environment.SetEnvironmentVariable("NUGET_PACKAGES", w.Path("packages"));
             w.Write("packages/labcoat.vitest/9.9.9/runner/runner.json", Manifest);
             var info = new List<string>();
-            var plugin = RunnerPackages.Fetch("vitest", "9.9.9", w.Root.FullName, info.Add, info.Add);
+            var plugin = await RunnerPackages.FetchAsync("vitest", "9.9.9", w.Root.FullName, info.Add, info.Add, CancellationToken.None);
             Assert.AreEqual(w.Path("packages/labcoat.vitest/9.9.9/runner"), plugin!.Directory);
             CollectionAssert.AreEqual(NoWarnings, info, "nothing to fetch");
         }
         finally { Environment.SetEnvironmentVariable("NUGET_PACKAGES", before); }
+    }
+
+    [TestMethod]
+    public void A_new_lock_file_restarts_the_warm_host_of_a_runner_project()
+    {
+        using var w = new Workspace();
+        var runners = new TestRunners(true, [w.Plugin()]);
+        var web = w.Write("web/package.json", VitestPackage);
+        var p = ProjectEntry.Create(web, "web", runners);
+        p.TargetPath = web;
+        string Fingerprint() => OutputFingerprints.FingerprintOf(RunnerProjects.HostHashes(p));
+
+        var before = Fingerprint();
+        w.Write("web/src/app.ts", "export const x = 1;");
+        Assert.AreEqual(before, Fingerprint(), "a source file is reloaded by the runner");
+        w.Write("web/pnpm-lock.yaml", "lockfileVersion: '9.0'");
+        Assert.AreNotEqual(before, Fingerprint(), "new dependencies: a new process");
+    }
+
+    [TestMethod]
+    public void Watch_mode_ignores_dependencies_and_dot_folders_below_the_project_only()
+    {
+        using var w = new Workspace();
+        var dir = w.Path(".worktrees/web");
+        var p = ProjectEntry.Create(w.Write(".worktrees/web/package.json", VitestPackage), "web", new TestRunners(true, [w.Plugin()]));
+        Assert.IsTrue(WatchMode.IsSourceChange(p, dir, Path.Combine(dir, "src", "app.ts")), "the project may be in a dot-folder");
+        Assert.IsFalse(WatchMode.IsSourceChange(p, dir, Path.Combine(dir, "node_modules", "lib", "index.js")));
+        Assert.IsFalse(WatchMode.IsSourceChange(p, dir, Path.Combine(dir, "node_modules", ".vite", "deps", "x.js")));
+        Assert.IsFalse(WatchMode.IsSourceChange(p, dir, Path.Combine(dir, ".turbo", "cache.json")));
+        Assert.IsFalse(WatchMode.IsSourceChange(p, dir, Path.Combine(dir, "src", "app.css")), "not one of the runner's source extensions");
     }
 
     [TestMethod]
@@ -315,22 +348,18 @@ public class RunnerTests
     public void The_project_watcher_also_reacts_to_runner_project_files()
     {
         using var w = new Workspace();
+        var time = new FakeTimeProvider();
         var changed = new List<string>();
-        using var watcher = new ProjectWatcher([w.Root.FullName], c => { lock (changed) changed.AddRange(c); })
+        using var watcher = new ProjectWatcher([w.Root.FullName], changed.AddRange, time: time)
         {
-            Quiet = TimeSpan.FromMilliseconds(10),
+            Quiet = TimeSpan.FromSeconds(1),
             ProjectFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "package.json", "vitest.config.ts" },
         };
         watcher.OnChange(w.Path("web/package.json"));
         watcher.OnChange(w.Path("web/node_modules/x/package.json"));
         watcher.OnChange(w.Path("web/src/app.ts"));
         watcher.OnChange(w.Path("admin/VITEST.CONFIG.TS"));
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (DateTime.UtcNow < deadline)
-        {
-            lock (changed) if (changed.Count >= 2) break;
-            Thread.Sleep(20);
-        }
-        lock (changed) CollectionAssert.AreEquivalent(new[] { w.Path("web/package.json"), w.Path("admin/VITEST.CONFIG.TS") }, changed);
+        time.Advance(TimeSpan.FromSeconds(1));
+        CollectionAssert.AreEquivalent(new[] { w.Path("web/package.json"), w.Path("admin/VITEST.CONFIG.TS") }, changed);
     }
 }

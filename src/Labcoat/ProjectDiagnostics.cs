@@ -27,7 +27,7 @@ internal static class ProjectDiagnostics
                 list.Add(new ProjectDiagnostic(LogLevels.Error,
                     $"The test host exited{(th.ExitCode is { } code ? $" with code {code}" : "")} before it answered.",
                     plugin is not null
-                        ? $"Check that the project's dependencies are installed (npm install) and that {plugin.DisplayName} runs in {Path.GetDirectoryName(projectPath)} on its own."
+                        ? $"Check that the project's dependencies are installed (npm, pnpm or yarn install) and that {plugin.DisplayName} runs in {Path.GetDirectoryName(projectPath)} on its own."
                         : "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
                     th.StderrTail.Count > 0 ? string.Join('\n', th.StderrTail) : null));
                 break;

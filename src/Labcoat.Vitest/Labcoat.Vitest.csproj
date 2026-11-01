@@ -18,8 +18,6 @@
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     <IncludeSymbols>false</IncludeSymbols>
     <EnablePackageValidation>false</EnablePackageValidation>
-    <!-- NU5128: no lib/ folder on purpose (nothing to reference). -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

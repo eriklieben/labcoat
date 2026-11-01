@@ -114,7 +114,7 @@ This opens Labcoat for that one project instead of running its tests. See [docs/
 | NUnit 4.4+ | `<OutputType>Exe</OutputType>` and `<EnableNUnitRunner>true</EnableNUnitRunner>` (NUnit3TestAdapter 6 or later: adapter 5 is on MTP 1.x) | [NUnitSample](samples/NUnitSample) (NUnit 5) |
 | xUnit v3 | `<OutputType>Exe</OutputType>`, package `xunit.v3.mtp-v2` and `<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>` | [XUnitV3Sample](samples/XUnitV3Sample) |
 | TUnit 1 | `<OutputType>Exe</OutputType>` | [TUnitSample](samples/TUnitSample) |
-| Vitest 4+ | The `Labcoat.Vitest` runner package, Node.js 20+ and the project's dependencies installed ([docs/runners.md](docs/runners.md)) | [AspireSample.Web](samples/AspireSample/AspireSample.Web) |
+| Vitest 5+ | The `Labcoat.Vitest` runner package, Node.js 20+ and the project's dependencies installed ([docs/runners.md](docs/runners.md)) | [AspireSample.Web](samples/AspireSample/AspireSample.Web) |
 
 Coverage needs `Microsoft.Testing.Extensions.CodeCoverage`. The MSTest and TUnit packages include it; add it to NUnit
 and xUnit v3 projects. If a project shows no tests, see [docs/troubleshooting.md](docs/troubleshooting.md). Projects

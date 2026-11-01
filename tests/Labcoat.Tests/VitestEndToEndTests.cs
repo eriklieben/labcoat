@@ -98,6 +98,14 @@ public class VitestEndToEndTests
             File.SetLastWriteTimeUtc(source, DateTime.UtcNow.AddSeconds(5));
             await explorer.RunAsync(null, ["test/math.test.js > math > fails"]);
             Assert.AreEqual(Outcome.Passed, explorer.GetTest(null, "test/math.test.js > math > fails")!.Outcome, Logs());
+
+            // ---- what a Vitest project can't do says so instead of starting anything
+            var debug = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ["test/math.test.js > math > adds"], Debug = true });
+            Assert.AreEqual((400, "debug isn't supported for vitest tests: run them, or debug them in your editor."), (debug.Status, debug.Error));
+            var mapped = explorer.Snapshot().ImpactMap?.Tests; // the coverage run above recorded its test
+            await explorer.BuildImpactMapAsync(null);
+            Assert.Contains("Impact map: skipping this vitest project", Logs());
+            Assert.AreEqual(mapped, explorer.Snapshot().ImpactMap?.Tests, "the pass ran no coverage of its own");
         }
         finally
         {

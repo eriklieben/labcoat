@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Security;
 
 namespace Labcoat;
@@ -29,7 +28,8 @@ public static class RunnerPackages
     /// The runner <paramref name="runnerId"/> of Labcoat's version: from the global packages folder, else restored into
     /// it first. Null (and a warning) when the package can't be restored.
     /// </summary>
-    public static RunnerPlugin? Fetch(string runnerId, string version, string workingDirectory, Action<string> info, Action<string> warn)
+    public static async Task<RunnerPlugin?> FetchAsync(string runnerId, string version, string workingDirectory, Action<string> info, Action<string> warn,
+        CancellationToken ct)
     {
         var packages = GlobalPackagesFolder();
         var dir = RunnerDirectory(packages, runnerId, version);
@@ -38,52 +38,35 @@ public static class RunnerPackages
         {
             var packageId = PackageIdOf(runnerId);
             info($"Fetching {packageId} {version} (the '{runnerId}' test runner)...");
-            if (!Restore(packageId, version, workingDirectory, warn) || !File.Exists(manifest)) return null;
+            if (!await RestoreAsync(packageId, version, workingDirectory, warn, ct) || !File.Exists(manifest)) return null;
         }
         return RunnerPlugin.Load(manifest, warn);
     }
 
-    private static bool Restore(string packageId, string version, string workingDirectory, Action<string> warn)
+    private static async Task<bool> RestoreAsync(string packageId, string version, string workingDirectory, Action<string> warn, CancellationToken ct)
     {
         var scratch = Path.Combine(Path.GetTempPath(), "labcoat", "runner-restore", Guid.NewGuid().ToString("N")[..8]);
         try
         {
             Directory.CreateDirectory(scratch);
             var project = Path.Combine(scratch, "restore.csproj");
-            File.WriteAllText(project, ScratchProject(packageId, version));
-            var psi = new ProcessStartInfo(DotnetCli.Executable)
-            {
-                WorkingDirectory = scratch,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            psi.ArgumentList.Add("restore");
-            psi.ArgumentList.Add(project);
-            psi.ArgumentList.Add("-nologo");
+            await File.WriteAllTextAsync(project, ScratchProject(packageId, version), ct);
             // The sources (and credentials) of the workspace's nuget.config, not of the temp folder.
-            if (NuGetConfigOf(workingDirectory) is { } config)
-            {
-                psi.ArgumentList.Add("--configfile");
-                psi.ArgumentList.Add(config);
-            }
-            using var p = Process.Start(psi)!;
-            var stdout = p.StandardOutput.ReadToEndAsync();
-            var stderr = p.StandardError.ReadToEndAsync();
-            p.WaitForExit();
-            if (p.ExitCode == 0) return true;
-            var output = (stdout.Result + stderr.Result).Trim();
-            warn($"Could not fetch {packageId} {version}:\n{string.Join('\n', output.Split('\n').TakeLast(8))}");
+            string[] config = NuGetConfigOf(workingDirectory) is { } file ? ["--configfile", file] : [];
+            var (code, output) = await DotnetCli.RunAsync(["restore", project, .. config], scratch, ct);
+            if (code == 0) return true;
+            warn($"Could not fetch {packageId} {version}:\n{DotnetCli.TailLines(output, 8)}");
             return false;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
             warn($"Could not fetch {packageId} {version}: {ex.Message}");
             return false;
         }
         finally
         {
-            try { Directory.Delete(scratch, recursive: true); } catch (IOException) { /* temp folder: best effort */ } catch (UnauthorizedAccessException) { /* same */ }
+            try { Directory.Delete(scratch, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* a leftover in the temp folder */ }
         }
     }
 
@@ -110,7 +93,7 @@ public static class RunnerPackages
                 var config = d.EnumerateFiles().FirstOrDefault(f => f.Name.Equals("nuget.config", StringComparison.OrdinalIgnoreCase));
                 if (config is not null) return config.FullName;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* unreadable folder: restore with the default sources */ return null; }
         }
         return null;
     }

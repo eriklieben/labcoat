@@ -6,6 +6,9 @@ namespace Labcoat;
 // shared with .NET projects. What differs is which files say that the tests or the code under test changed.
 internal static class RunnerProjects
 {
+    /// <summary>The lock files that aren't *.json (those are in the output hashes already): a new one means new dependencies.</summary>
+    private static readonly string[] LockFiles = ["pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"];
+
     /// <summary>The test host of a project: the runner package's, or the .NET test app (<c>dotnet &lt;TargetPath&gt;</c>).</summary>
     public static HostCommand HostCommandOf(ProjectEntry p) =>
         p.Plugin?.HostCommand(p.Project.Path) ?? new HostCommand(DotnetCli.Executable, [p.TargetPath!], Path.GetDirectoryName(p.TargetPath!)!);
@@ -46,8 +49,8 @@ internal static class RunnerProjects
 
     /// <summary>
     /// What the warm host's process depends on: the .NET test app's output (rebuilt = new process); for a runner package's
-    /// project its configuration (package.json, lock files, tsconfig, the runner's config files). Source changes don't
-    /// count there: the runner reloads changed files itself.
+    /// project its configuration (the *.json files of its folder: package.json, package-lock.json, tsconfig.json; the other
+    /// lock files and the runner's config files). Source changes don't count there: the runner reloads changed files itself.
     /// </summary>
     public static Dictionary<string, long> HostHashes(ProjectEntry p)
     {
@@ -55,7 +58,7 @@ internal static class RunnerProjects
         if (p.Plugin is { } plugin)
         {
             var dir = Path.GetDirectoryName(p.Project.Path)!;
-            foreach (var config in plugin.ConfigFiles.Select(f => Path.Combine(dir, f)).Where(File.Exists))
+            foreach (var config in plugin.ConfigFiles.Concat(LockFiles).Select(f => Path.Combine(dir, f)).Where(File.Exists))
                 hashes[Path.GetFileName(config)] = OutputFingerprints.ContentHash(config);
         }
         return hashes;

@@ -40,11 +40,11 @@ internal sealed class WatchMode(WorkspaceState state, IExplorerEffects effects, 
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.DirectoryName,
             };
-            FileSystemEventHandler h = (_, e) => OnFileChanged(p, e.FullPath);
+            FileSystemEventHandler h = (_, e) => OnFileChanged(p, dir, e.FullPath);
             w.Changed += h;
             w.Created += h;
             w.Deleted += h;
-            w.Renamed += (_, e) => OnFileChanged(p, e.FullPath);
+            w.Renamed += (_, e) => OnFileChanged(p, dir, e.FullPath);
             w.EnableRaisingEvents = true;
             p.Watchers.Add(w);
         }
@@ -58,13 +58,20 @@ internal sealed class WatchMode(WorkspaceState state, IExplorerEffects effects, 
         p.Debounce = null;
     }
 
-    private void OnFileChanged(ProjectEntry p, string path)
+    /// <summary>A change of <paramref name="path"/>, under the watched folder <paramref name="dir"/>, counts for the project.</summary>
+    internal static bool IsSourceChange(ProjectEntry p, string dir, string path)
     {
-        if (!RunnerProjects.SourceExtensionsOf(p).Contains(Path.GetExtension(path))) return;
+        if (!RunnerProjects.SourceExtensionsOf(p).Contains(Path.GetExtension(path))) return false;
         var sep = Path.DirectorySeparatorChar;
-        if (path.Contains($"{sep}bin{sep}") || path.Contains($"{sep}obj{sep}")) return;
-        // runner packages' projects: dependencies and tool caches (node_modules/.vite, .turbo, ...) aren't sources
-        if (path.Contains($"{sep}node_modules{sep}") || path.Contains($"{sep}.")) return;
+        if (path.Contains($"{sep}bin{sep}") || path.Contains($"{sep}obj{sep}")) return false;
+        // Dependencies and tool caches (node_modules, .vite, .turbo, ...) below the watched folder aren't sources. Only
+        // below it: the workspace itself may be in a dot-folder (a worktree under ~/.cache).
+        return !Path.GetRelativePath(dir, path).Split(sep).Any(ProjectBuilder.IsIgnoredSourceDir);
+    }
+
+    private void OnFileChanged(ProjectEntry p, string dir, string path)
+    {
+        if (!IsSourceChange(p, dir, path)) return;
         lock (state.Sync)
         {
             if (!Enabled) return;

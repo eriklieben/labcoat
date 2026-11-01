@@ -216,7 +216,7 @@ public sealed class TestRunners
                     : Directory.EnumerateDirectories(dir).Order(StringComparer.Ordinal)
                         .Select(d => Path.Combine(d, RunnerPlugin.ManifestFileName)).Where(File.Exists).ToList();
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* unreadable folder: no runners there */ continue; }
             foreach (var manifest in manifests)
             {
                 if (RunnerPlugin.Load(manifest, warn) is { } plugin && found.All(p => p.Id != plugin.Id)) found.Add(plugin);
@@ -227,27 +227,23 @@ public sealed class TestRunners
 
     /// <summary>
     /// The runners to use. <paramref name="requested"/> null: the .NET runner plus every installed runner package.
-    /// Otherwise exactly those; a runner that isn't installed is fetched with <paramref name="fetch"/> (null when that
-    /// fails too: <paramref name="error"/> says what to install).
+    /// Otherwise exactly those; a runner that isn't installed is fetched with <paramref name="fetch"/> (null runners when
+    /// that fails too, and an error that says what to install).
     /// </summary>
-    public static TestRunners? Resolve(IReadOnlyList<string>? requested, IReadOnlyList<RunnerPlugin> installed, Func<string, RunnerPlugin?> fetch,
-        out string? error)
+    public static async Task<(TestRunners? Runners, string? Error)> ResolveAsync(IReadOnlyList<string>? requested, IReadOnlyList<RunnerPlugin> installed,
+        Func<string, CancellationToken, Task<RunnerPlugin?>> fetch, CancellationToken ct)
     {
-        error = null;
-        if (requested is null) return new TestRunners(true, installed);
+        if (requested is null) return (new TestRunners(true, installed), null);
         var plugins = new List<RunnerPlugin>();
         foreach (var id in requested.Where(id => id != DotnetId))
         {
-            var plugin = installed.FirstOrDefault(p => p.Id == id) ?? fetch(id);
+            var plugin = installed.FirstOrDefault(p => p.Id == id) ?? await fetch(id, ct);
             if (plugin is null)
-            {
-                error = $"The test runner '{id}' isn't installed. Add the {RunnerPackages.PackageIdOf(id)} package to the Aspire AppHost, " +
-                        $"or pass the folder of its runner with --runner-path (installed: {Describe(installed)}).";
-                return null;
-            }
+                return (null, $"The test runner '{id}' isn't installed. Add the {RunnerPackages.PackageIdOf(id)} package to the Aspire AppHost, " +
+                              $"or pass the folder of its runner with --runner-path (installed: {Describe(installed)}).");
             plugins.Add(plugin);
         }
-        return new TestRunners(requested.Contains(DotnetId), plugins);
+        return (new TestRunners(requested.Contains(DotnetId), plugins), null);
     }
 
     private static string Describe(IReadOnlyList<RunnerPlugin> installed) =>

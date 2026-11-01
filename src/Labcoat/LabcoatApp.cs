@@ -34,7 +34,7 @@ public static partial class LabcoatApp
         if (config is null) return Fail(configError!, usageHint: false, ErrorExitCode(options));
 
         var startupNotes = new List<string>(); // printed below the banner
-        var runners = StartupSettings.ResolveRunners(options, requestedRunners ?? config.Runners, startupNotes, out var runnerError);
+        var (runners, runnerError) = await StartupSettings.ResolveRunnersAsync(options, requestedRunners ?? config.Runners, startupNotes, ct);
         if (runners is null) return Fail(runnerError!, usageHint: false, ErrorExitCode(options));
         var (projects, pathError) = await WorkspaceDiscovery.FindProjectsAsync(paths, runners, startupNotes, ct);
         if (pathError is not null) return Fail(pathError, usageHint: false, ErrorExitCode(options));

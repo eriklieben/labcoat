@@ -255,6 +255,9 @@ breakdown, so a coverage run of several tests credits all of them with everythin
 | `test` | one coverage run per test | exact (*per-test data*): only `Subtract_ReturnsDifference` |
 | `auto` (default) | per class first; when a change selects tests through class-level data, those classes are refined per test in the background and kept | class-level at first, exact once the refinement finished (a few seconds; the preview updates itself) |
 
+The map covers C#, F# and VB code. The pass skips projects of [runner packages](runners.md) such as Vitest: there a
+changed test file selects its tests, and any other change in the project all of them.
+
 Measured on a 12-core Linux machine (busy with other builds, so the numbers vary by ±50%): the 17-test sample takes
 4 s per class / 10 s per test with dynamic instrumentation (CodeCoverage ≥ 18.11, several runs at once) and 10–14 s /
 39 s with static instrumentation (one run at a time); a 200-test suite in 20 classes takes 13–21 s per class and 131 s

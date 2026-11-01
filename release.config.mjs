@@ -1,7 +1,7 @@
 // semantic-release configuration: every push to main (after CI passed, see .github/workflows/release.yml) looks at the
 // commits since the last release tag and, when one of them is a feat / fix / perf (or a breaking change), releases the
 // next version: CHANGELOG.md, <VersionPrefix> and the package validation baseline in src/Directory.Build.props, the
-// eight NuGet packages and their SBOMs, a git tag v<version> and a GitHub release. How to write the commits:
+// nine NuGet packages and their SBOMs, a git tag v<version> and a GitHub release. How to write the commits:
 // CONTRIBUTING.md, "Commit messages and releases".
 // Versioning (fix / perf -> patch, feat -> minor, a breaking change -> major) and how a release works:
 // docs/releasing.md.

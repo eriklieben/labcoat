@@ -108,7 +108,8 @@ so a package downloaded from nuget.org doesn't match its attestation (check that
 ## Package validation
 
 `dotnet pack` runs [package validation](https://learn.microsoft.com/dotnet/fundamentals/apicompat/package-validation/overview)
-for the library packages (all but the `Labcoat` tool, whose contract is the command line). Each package is compared with
+for the library packages (all but the `Labcoat` tool, whose contract is the command line, and `Labcoat.Vitest`, which has
+no assembly to compare). Each package is compared with
 the same package at `<PackageValidationBaselineVersion>` in `src/Directory.Build.props`, downloaded from nuget.org: a
 public type or member that was removed or changed fails the pack (`CP0002`, `CP0006`, ...). That happens in CI on every
 PR and in the release, so a break can't be released by accident. The baseline moves by itself: each release is

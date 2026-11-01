@@ -32,7 +32,8 @@ The tool fetches this package (in its own version) the first time a runner is as
 ## Requirements
 
 - Node.js 20 or later on `PATH`.
-- Vitest 5 or later installed in the project (`npm install`); Labcoat uses the project's own Vitest.
+- Vitest 5 or later installed in the project (`npm install`, `pnpm install` or `yarn`); Labcoat uses the project's own
+  Vitest.
 - Coverage: a Vitest coverage provider such as `@vitest/coverage-v8`.
 
 More in [docs/runners.md](https://github.com/eriklieben/labcoat/blob/main/docs/runners.md).

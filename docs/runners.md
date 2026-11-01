@@ -106,7 +106,8 @@ history follows it when tests above it are added or moved; tests with the same f
 
 - Discovery, run all, run a selection (a file, a `describe`, one test or one `test.each` row), cancel.
 - A warm test host: one Vitest process per project stays running. Changed source files are reloaded before each run;
-  a change to `package.json`, a lock file, `tsconfig.json` or the Vitest config starts a new process.
+  a change to `package.json`, a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`),
+  `tsconfig.json` or the Vitest config starts a new process.
 - Live console output of running tests (`console.log` and friends, per test).
 - Failures: the message, an expected/actual diff for `toEqual` and friends, and the stack frames in your source files
   (source-mapped, clickable). Frames inside `node_modules` are left out.
@@ -116,15 +117,31 @@ history follows it when tests above it are added or moved; tests with the same f
   The coverage tab shows "vitest.config.ts (Vitest settings)" as the project's settings.
 - Watch mode: a changed test file reruns its tests; any other change under the project reruns all of the project's
   tests.
-- History, flaky detection, quarantine, run compare, repeat, exports (JUnit, HTML, LCOV, Cobertura) and `--run`, as for
-  .NET projects.
+- History, flaky detection, quarantine, run compare, repeat, random order, exports and `--run`, as for .NET projects
+  (see [In CI](#in-ci-labcoat---run)).
+
+### In CI (`labcoat --run`)
+
+Vitest projects run in `--run` like .NET projects, with these differences:
+
+- `--affected` and smart watch select by file: a changed test file runs its tests, any other change in the project's
+  folder runs all of the project's tests. The impact map only maps C#, F# and VB changes, so `--build-impact-map` (and
+  **Build impact map** in the UI) skips Vitest projects.
+- `--order random` runs the tests one at a time in the seeded order, as for .NET: one Vitest run per test, which is
+  slower than a normal run.
+- `--retry-failed`, `--shard`, `--max-test-duration`, the slowest tests and the exports (JUnit, TRX, SARIF, Markdown,
+  HTML, LCOV, Cobertura) work on Vitest tests as on .NET tests. `--min-coverage` and `--min-diff-coverage` count the
+  Cobertura report of Vitest's coverage provider with the rest.
+- A `--quarantine-file` names a Vitest test as `<file>.<describe blocks>.<test name>`, for example
+  `test/orders.test.ts.receiptLines > currency.shows the currency`, or `test/orders.test.ts.*` for a whole file.
 
 ### Limitations
 
-- Debug isn't supported: the debug command says so. Debug the test in your editor.
+- Debug isn't supported: the debug command (`POST /api/debug`) is refused with a 400 that says so. Debug the test in
+  your editor.
 - No per-test Aspire traces.
-- The impact map (smart watch, **Run affected**) has no data for Vitest projects: a change to a source file that isn't
-  a test file runs all of the project's tests.
+- The impact map (smart watch, **Run affected**) isn't used for Vitest projects: the impact-map pass skips them, and
+  a change to a source file that isn't a test file runs all of the project's tests.
 - Discovery loads the test files, as `vitest run` does, so the first discovery of a project takes about as long as
   running it. After that only new and changed test files are loaded again (runs refresh the files they load too). A test
   file whose tests are made from another file (a shared table, a loop over fixtures) keeps its list until it runs or

@@ -44,16 +44,18 @@ internal static class StartupSettings
     /// <summary>
     /// The test runners: --runners > LABCOAT_RUNNERS (Aspire WithRunners) > settings files (<paramref name="requested"/>);
     /// null = the .NET runner plus every installed runner package. A requested runner that isn't installed is fetched from
-    /// NuGet (RunnerPackages.cs); null + <paramref name="error"/> when that fails.
+    /// NuGet (RunnerPackages.cs); null runners and an error when that fails.
     /// </summary>
-    internal static TestRunners? ResolveRunners(StartOptions options, IReadOnlyList<string>? requested, List<string> startupNotes, out string? error)
+    internal static async Task<(TestRunners? Runners, string? Error)> ResolveRunnersAsync(StartOptions options, IReadOnlyList<string>? requested,
+        List<string> startupNotes, CancellationToken ct)
     {
         var installed = TestRunners.FindPlugins(TestRunners.SearchDirectories(options.RunnerPaths), Cli.Warn);
-        var runners = TestRunners.Resolve(requested, installed,
-            id => RunnerPackages.Fetch(id, Cli.Version, Directory.GetCurrentDirectory(), message => Console.Error.WriteLine(Cli.Dim(message)), Cli.Warn),
-            out error);
+        var (runners, error) = await TestRunners.ResolveAsync(requested, installed,
+            (id, token) => RunnerPackages.FetchAsync(id, Cli.Version, Directory.GetCurrentDirectory(), message => Console.Error.WriteLine(Cli.Dim(message)),
+                Cli.Warn, token),
+            ct);
         if (runners is not null && (runners.Plugins.Count > 0 || !runners.IncludesDotnet)) startupNotes.Add($"Test runners: {runners.Describe()}");
-        return runners;
+        return (runners, error);
     }
 
     /// <summary>affectedBase: --affected-base > LABCOAT_AFFECTED_BASE (Aspire WithAffectedBase) > workspace file > user file.</summary>
