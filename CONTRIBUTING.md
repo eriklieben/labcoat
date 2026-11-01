@@ -34,7 +34,7 @@ release news to Announcements.
 | `src/Labcoat.TestingPlatform` | Preview MTP extension: `dotnet run -- --labcoat`; bundles a publish of `src/Labcoat`. |
 | `tests/Labcoat.Tests` | Tests of the host (MSTest on MTP): unit tests, the HTTP / WebSocket API in-process, end-to-end runs of small scratch test projects. |
 | `tests/Labcoat.*.Tests` | Tests of the other packages (`Aspire.Hosting`, `Testing`, `Testing.MSTest`, `TestingPlatform`; `Testing.TUnit`, `Testing.NUnit` and `Testing.XUnit` run on their own framework). |
-| `ui/` | The web UI: TypeScript + native custom elements, built with Vite into `src/Labcoat/wwwroot`. npm workspace root. |
+| `ui/` | The web UI: TypeScript + native custom elements, built with Vite into `src/Labcoat/wwwroot`. pnpm workspace root. |
 | `ui/design-system` | `@eriklieben/labcoat-design-system`: reactive core, `h()` DOM builder, tokens, theme families, `lc-*` components, gallery. |
 | `samples/Samples.slnx` | One small test project per framework (MSTest, NUnit, xUnit v3, TUnit) testing `SampleTests.Lib`. |
 | `samples/AspireSample` | Aspire app + integration tests with two Labcoat resources (own solution). |
@@ -46,7 +46,8 @@ release news to Announcements.
 ## Prerequisites
 
 - **.NET 10 SDK** (`global.json` pins 10.0.100 or a later feature band).
-- **Node.js 22** or later (npm comes with it).
+- **Node.js 22** or later, and **pnpm**: the version `packageManager` in `package.json` pins (e.g.
+  `npm install -g pnpm@12.4.2`).
 - For the UI checks and screenshots: Playwright's Chromium, once: `cd ui && pnpm exec playwright install chromium`.
 - `samples/AspireSample` needs nothing extra: it has no container resources.
 
@@ -370,7 +371,10 @@ For that to work, commit messages follow the [Angular commit format](https://git
 ```
 
 PRs are squash merged with the **PR title** as the commit message, so in practice the PR title is what has to follow the
-format (CI checks it; the commits inside a PR are only checked as a warning).
+format (CI checks it; the commits inside a PR are only checked as a warning). A PR that brings in several features at
+once, such as a branch that merged other PRs, is merged with a **merge commit** instead: then every commit in it reaches
+`main`, each `feat` / `fix` gets its own line in the release notes and the merged PRs show as merged, so each commit has
+to follow the format.
 
 | Type | Use for | Release |
 | --- | --- | --- |

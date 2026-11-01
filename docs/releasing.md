@@ -16,6 +16,8 @@ releases: [CONTRIBUTING.md, "Commit messages and releases"](../CONTRIBUTING.md#c
 ## How a release works
 
 1. A pull request is squash-merged into `main`; its title (checked by CI) is the commit message semantic-release reads.
+   A pull request that brings in several features (a branch that merged other PRs) is merged with a merge commit
+   instead, so semantic-release reads each of its commits (merge commits themselves have no type and are ignored).
 2. When every CI job passed, CI's last job, `release`, starts the **Release** workflow (`release.yml`) for that commit.
    If the branch has moved on by then, it releases nothing: the CI run of the newer commit releases both.
 3. semantic-release looks at the commits since the last tag `v*`. If one of them releases (see
