@@ -132,14 +132,22 @@ public sealed class EventHub
         {
             _clients.TryRemove(id, out _);
             channel.Writer.TryComplete();
-            await cts.CancelAsync();
-            await sender;
             // messages queued but never sent (the connection ended first): hand their segments back
             while (channel.Reader.TryRead(out var unsent)) unsent.Release();
+            // Let a send in progress finish rather than cancel it: a cancelled WebSocket send aborts the socket, and a
+            // client that closed would never get the close frame back. One that stopped reading is cut off after the grace.
+            try { await sender.WaitAsync(SendGrace, CancellationToken.None); }
+            catch (TimeoutException)
+            {
+                await cts.CancelAsync();
+                await sender;
+            }
             if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived) await CloseQuietlyAsync(socket, close.Status, close.Reason);
             client.Dispose();
         }
     }
+
+    private static readonly TimeSpan SendGrace = TimeSpan.FromSeconds(2);
 
     private static readonly (WebSocketCloseStatus Status, string? Reason) FellBehind =
         (WebSocketCloseStatus.PolicyViolation, "Client fell behind; reconnect to resync.");

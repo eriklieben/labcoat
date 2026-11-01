@@ -32,7 +32,8 @@
     font-weight: 400;
   }
   .failure-item.is-next {
-    box-shadow: inset 3px 0 0 var(--lc-accent);
+    border-radius: var(--lc-control-radius);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-accent) 45%, transparent);
     background: color-mix(in srgb, var(--lc-accent) 7%, transparent);
   }
   .next-hint {

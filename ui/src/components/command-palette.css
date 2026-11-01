@@ -52,7 +52,7 @@
   }
   .palette-item.active {
     background: var(--lc-bg-selected);
-    box-shadow: inset 2px 0 0 var(--lc-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lc-accent) 45%, transparent);
   }
   .palette-item.disabled {
     opacity: var(--lc-disabled-opacity);

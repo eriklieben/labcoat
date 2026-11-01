@@ -211,7 +211,7 @@
   }
   .run-summary.is-outdated {
     border-color: color-mix(in srgb, var(--lc-status-skipped) 70%, var(--lc-bg-surface));
-    box-shadow: inset 3px 0 0 var(--lc-status-skipped);
+    background: color-mix(in srgb, var(--lc-status-skipped) 6%, var(--lc-bg-surface));
   }
   .run-summary.is-outdated .summary-secondary {
     color: var(--lc-fg-secondary);
