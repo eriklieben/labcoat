@@ -54,6 +54,27 @@ public partial class ExportTests
     }
 
     [TestMethod]
+    public void Markdown_names_the_seed_of_a_random_order_run()
+    {
+        var export = Export(T("x", Outcome.Failed, message: "boom"));
+        Assert.DoesNotContain("Random order", MarkdownReport.ToMarkdown(export));
+        var random = export with { Run = export.Run with { Order = "random", Seed = 4242 } };
+        Assert.Contains("Random order, seed 4242: rerun with `--order random --seed 4242`.", MarkdownReport.ToMarkdown(random));
+    }
+
+    [TestMethod]
+    public void Sarif_points_a_failure_without_a_source_location_at_the_project_file_from_the_repository_root()
+    {
+        var export = Export(T("x", Outcome.Failed, message: "boom"));
+        export = export with { Projects = [export.Projects[0] with { Path = "X/X.csproj", SourcePath = "tests/X/X.csproj" }] };
+        using var sarif = JsonDocument.Parse(SarifWriter.ToJson(export));
+        var location = sarif.RootElement.GetProperty("runs")[0].GetProperty("results")[0].GetProperty("locations")[0]
+            .GetProperty("physicalLocation").GetProperty("artifactLocation");
+        Assert.AreEqual("tests/X/X.csproj", location.GetProperty("uri").GetString());
+        Assert.AreEqual("%SRCROOT%", location.GetProperty("uriBaseId").GetString());
+    }
+
+    [TestMethod]
     public void Markdown_escapes_markup_and_mentions_and_survives_backticks_in_output()
     {
         var md = MarkdownReport.ToMarkdown(Export(T("x", Outcome.Failed, name: "a|b <i>@octocat</i> `c` *d*", message: "has ``` fence ```", stack: "s")));
@@ -224,11 +245,11 @@ public partial class ExportTests
     [TestMethod]
     public void Annotations_are_capped_with_a_notice_for_the_rest()
     {
-        var tests = Enumerable.Range(0, 60).Select(i => T($"f{i}", Outcome.Failed, $"F{i}", message: "x")).ToArray();
+        var tests = Enumerable.Range(0, 25).Select(i => T($"f{i}", Outcome.Failed, $"F{i}", message: "x")).ToArray();
         var lines = GitHubActions.Annotations(Export(tests));
-        Assert.HasCount(GitHubActions.MaxAnnotations + 1, lines);
-        Assert.AreEqual(GitHubActions.MaxAnnotations, lines.Count(l => l.StartsWith("::error ", StringComparison.Ordinal)));
-        Assert.StartsWith("::notice title=More failed tests::10 more failed tests not annotated", lines[^1]);
+        Assert.HasCount(GitHubActions.MaxAnnotationsPerKind + 1, lines);
+        Assert.AreEqual(GitHubActions.MaxAnnotationsPerKind, lines.Count(l => l.StartsWith("::error ", StringComparison.Ordinal)));
+        Assert.StartsWith("::notice title=More failed tests::15 more failed tests not annotated", lines[^1]);
         Assert.IsEmpty(GitHubActions.Annotations(Export(T("p", Outcome.Passed))));
     }
 
@@ -305,8 +326,13 @@ public partial class ExportTests
         Assert.HasCount(2, lines);
         Assert.StartsWith("::error title=Shop.CartTests.Broken_Test::first", lines[0]);
         Assert.AreEqual("::warning file=tests/FlakyTests.cs,line=12,title=Shop.CartTests.Flaky_Test::Flaky: passed on attempt 3; first failure: Expected 5", lines[1]);
-        var capped = GitHubActions.Annotations(export, max: 1);
-        Assert.HasCount(2, capped);
-        Assert.AreEqual("::notice title=More flaky tests::1 more flaky test not annotated (GitHub shows 1 annotations per step).", capped[1]);
+        // each kind has its own limit: a full set of errors doesn't push the flaky warnings out
+        var flakyOnes = Enumerable.Range(0, 3).Select(i => export.Tests.Single(x => x.IsFlaky) with { Name = $"Flaky_{i}" });
+        var many = export with { Tests = [.. Enumerable.Range(0, 3).Select(i => export.Tests.Single(x => x.Name == "Broken_Test") with { Name = $"Broken_{i}" }), .. flakyOnes] };
+        var capped = GitHubActions.Annotations(many, max: 2);
+        Assert.AreEqual(2, capped.Count(l => l.StartsWith("::error ", StringComparison.Ordinal)));
+        Assert.AreEqual(2, capped.Count(l => l.StartsWith("::warning ", StringComparison.Ordinal)));
+        Assert.AreEqual("::notice title=More failed tests::1 more failed test and 1 more flaky test not annotated " +
+                        "(GitHub shows 2 of each kind per step; the job summary lists them all).", capped[^1]);
     }
 }

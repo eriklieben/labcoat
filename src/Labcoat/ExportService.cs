@@ -40,7 +40,7 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
             var root = inputRoots.Count > 0 ? inputRoots[0] : null;
             var projects = state.Projects.Select(p => p.Project)
                 .Where(p => withResults.Contains(p.Id))
-                .Select(p => new ExportProject(p.Id, p.Name, p.TargetFramework, RelativeTo(root, p.Path)))
+                .Select(p => new ExportProject(p.Id, p.Name, p.TargetFramework, RelativeTo(root, p.Path), SourceRelative(sourceRoot, p.Path)))
                 .ToList();
             // results of projects that are gone since (removed from the workspace): still exported, under their id
             projects.AddRange(withResults.Where(pid => projects.TrueForAll(p => p.Id != pid)).Select(pid => new ExportProject(pid, pid, null, null)));
@@ -94,6 +94,15 @@ internal sealed class ExportService(WorkspaceState state, HistoryStore history, 
         if (root is not null && PathUtil.IsUnder(Path.GetFullPath(path), Path.GetFullPath(root)))
             return Path.GetRelativePath(root, path).Replace('\\', '/');
         return Path.GetFileName(path);
+    }
+
+    /// <summary><paramref name="path"/> relative to <paramref name="sourceRoot"/> with '/' separators, or the full path when outside it.</summary>
+    private static string SourceRelative(string? sourceRoot, string path)
+    {
+        var full = Path.GetFullPath(path);
+        return sourceRoot is not null && PathUtil.IsUnder(full, Path.GetFullPath(sourceRoot))
+            ? Path.GetRelativePath(sourceRoot, full).Replace('\\', '/')
+            : full;
     }
 
     /// <summary>

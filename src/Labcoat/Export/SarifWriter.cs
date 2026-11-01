@@ -112,7 +112,7 @@ public static class SarifWriter
         w.WriteString("text", $"{t.Name}{note}: {message}");
         w.WriteEndObject();
 
-        var file = t.SourceFile ?? project?.Path;
+        var file = t.SourceFile ?? project?.SourcePath ?? project?.Path;
         var line = t.SourceFile is null ? null : t.SourceLine;
         w.WriteStartArray("locations");
         w.WriteStartObject();

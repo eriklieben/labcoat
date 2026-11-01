@@ -60,7 +60,10 @@ public sealed record ExportAttempt(Outcome Outcome, string? ErrorMessage, string
 
 /// <summary>A test project of an exported run.</summary>
 /// <param name="Path">The project file relative to the workspace root ('/' separators), or its file name.</param>
-public sealed record ExportProject(string Id, string Name, string? TargetFramework, string? Path);
+/// <param name="SourcePath">The project file relative to <see cref="ExportService.Root"/>, like the tests' source
+/// locations (absolute outside it): where SARIF points a failure without a source location, since code scanning reads
+/// its paths from the repository root.</param>
+public sealed record ExportProject(string Id, string Name, string? TargetFramework, string? Path, string? SourcePath = null);
 
 /// <summary>
 /// A run as the exports see it (ExportService.Run): the summary, the projects that reported results and every result

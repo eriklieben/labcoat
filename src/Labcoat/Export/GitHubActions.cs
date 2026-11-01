@@ -6,12 +6,16 @@ namespace Labcoat.Export;
 /// What <c>--run</c> reports to GitHub Actions on its own: a Markdown summary appended to the file
 /// <c>$GITHUB_STEP_SUMMARY</c> names (<see cref="MarkdownReport"/>, cut to GitHub's 1 MiB limit) and workflow-command
 /// annotations (<c>::error file=…,line=…,title=…::message</c>) for failed tests at their source location, at most
-/// <see cref="MaxAnnotations"/> of them. Both read the environment through a lookup so tests need no process variables.
+/// <see cref="MaxAnnotationsPerKind"/> of each kind. Both read the environment through a lookup so tests need no process
+/// variables.
 /// </summary>
 public static class GitHubActions
 {
-    /// <summary>GitHub shows at most 50 annotations per job step; more are dropped silently.</summary>
-    public const int MaxAnnotations = 50;
+    /// <summary>
+    /// GitHub shows at most 10 error, 10 warning and 10 notice annotations per step (and 50 per job); more are dropped
+    /// silently.
+    /// </summary>
+    public const int MaxAnnotationsPerKind = 10;
     /// <summary>The message of one annotation.</summary>
     public const int MaxMessageChars = 2_000;
 
@@ -43,23 +47,23 @@ public static class GitHubActions
     /// <summary>
     /// The workflow commands annotating the failed tests (<see cref="ExportKinds.IsFailed"/>; quarantined failures are
     /// not failures of the run) as <c>::error</c> lines, then the flaky tests of a <c>--retry-failed</c> run as
-    /// <c>::warning</c>s at their first failure: up to <paramref name="max"/> in all, then a <c>::notice</c> counting the rest.
+    /// <c>::warning</c>s at their first failure: up to <paramref name="max"/> of each, then a <c>::notice</c> counting the
+    /// rest.
     /// </summary>
-    public static List<string> Annotations(RunExport export, int max = MaxAnnotations)
+    public static List<string> Annotations(RunExport export, int max = MaxAnnotationsPerKind)
     {
         var failed = export.Tests.Where(t => ExportKinds.IsFailed(t.Kind)).ToList();
         var flaky = export.Tests.Where(t => t.IsFlaky).ToList();
-        var lines = failed.Take(max).Select(Annotation).ToList();
-        var failedLeft = failed.Count - lines.Count;
-        lines.AddRange(flaky.Take(max - lines.Count).Select(FlakyAnnotation));
-        var flakyLeft = flaky.Count - (lines.Count - (failed.Count - failedLeft));
+        var lines = failed.Take(max).Select(Annotation).Concat(flaky.Take(max).Select(FlakyAnnotation)).ToList();
+        var failedLeft = Math.Max(failed.Count - max, 0);
+        var flakyLeft = Math.Max(flaky.Count - max, 0);
         if (failedLeft + flakyLeft == 0) return lines;
         var left = string.Join(" and ", new[]
         {
             failedLeft > 0 ? $"{failedLeft} more failed test{Words.Plural(failedLeft)}" : null,
             flakyLeft > 0 ? $"{flakyLeft} more flaky test{Words.Plural(flakyLeft)}" : null,
         }.OfType<string>());
-        lines.Add($"::notice title={Property(failedLeft > 0 ? "More failed tests" : "More flaky tests")}::{Data($"{left} not annotated (GitHub shows {max} annotations per step).")}");
+        lines.Add($"::notice title={Property(failedLeft > 0 ? "More failed tests" : "More flaky tests")}::{Data($"{left} not annotated (GitHub shows {max} of each kind per step; the job summary lists them all).")}");
         return lines;
     }
 

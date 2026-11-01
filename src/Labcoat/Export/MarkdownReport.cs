@@ -94,6 +94,12 @@ public static class MarkdownReport
         sb.Append("| ---: | ---: | ---: | ---: |").Append(flaky > 0 ? " ---: |" : "").Append(quarantined > 0 ? " ---: |" : "").Append(" ---: |\n");
         sb.Append($"| {export.Tests.Count} | {passed} | {failedCount} | {skipped} |")
             .Append(flaky > 0 ? $" {flaky} |" : "").Append(quarantined > 0 ? $" {quarantined} |" : "").Append($" {duration} |\n\n");
+        // a failure that only shows in this order needs the seed to reproduce it, and a CI job summary is where it is read
+        if (run.Seed is { } seed)
+        {
+            var s = seed.ToString(CultureInfo.InvariantCulture);
+            sb.Append($"Random order, seed {s}: rerun with `--order random --seed {s}`.\n\n");
+        }
     }
 
     private static int Count(RunExport export, ExportKind kind) => export.Tests.Count(t => t.Kind == kind);

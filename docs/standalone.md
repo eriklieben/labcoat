@@ -333,13 +333,14 @@ out/results.xml`) and the coverage with `PublishCodeCoverageResults@2` (`summary
 
 Under GitHub Actions `--run` reports to the workflow by itself; there is nothing to enable:
 
-- When `$GITHUB_STEP_SUMMARY` is set, it appends the Markdown report (totals, the failed tests first with message and
-  stack trace, the flaky tests, the slowest tests, and the coverage when it was collected) to the job summary. The text
-  is cut to fit GitHub's 1 MiB limit, with a note counting the failed tests left out.
+- When `$GITHUB_STEP_SUMMARY` is set, it appends the Markdown report (totals, the seed of an `--order random` run, the
+  failed tests first with message and stack trace, the flaky tests, the slowest tests, and the coverage when it was
+  collected) to the job summary. The text is cut to fit GitHub's 1 MiB limit, with a note counting the failed tests
+  left out.
 - When `GITHUB_ACTIONS=true`, every failed test becomes an `::error file=…,line=…,title=…::message` annotation at the
   line of its assertion, so it shows in the pull request's **Files changed**; a test that passed on a `--retry-failed`
-  retry becomes a `::warning` at its first failure. At most 50 are written (errors first), followed by a `::notice`
-  that counts the rest. Characters the workflow-command syntax reserves (`%`, line breaks, and `:` / `,` in the file
+  retry becomes a `::warning` at its first failure. GitHub shows 10 annotations of each kind per step, so at most 10
+  errors and 10 warnings are written, followed by a `::notice` that counts the rest (the job summary lists them all). Characters the workflow-command syntax reserves (`%`, line breaks, and `:` / `,` in the file
   and title) are escaped. Quarantined failures (also those of `--quarantine-file`) are not annotated.
 - Both describe the run with its `--retry-failed` retries applied, like the `--export` files. They report the test
   results only: a run that fails because of `--min-coverage`, `--min-diff-coverage` or `--max-test-duration` says why
