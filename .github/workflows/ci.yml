@@ -106,6 +106,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # ------------------------------------------------------------------------------------------------ devcontainer
+  devcontainer:
+    name: Devcontainer files in sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: .devcontainer/check-rider-sync.sh
+
   # ------------------------------------------------------------------------------------------------ .NET
   build:
     name: Build and test (${{ matrix.os }})
@@ -387,7 +396,7 @@ jobs:
     # Not `uses: ./.github/workflows/release.yml`: NuGet trusted publishing fails inside a reusable workflow
     # (https://github.com/NuGet/login/issues/6), and a top-level run of release.yml matches the nuget.org policy. A
     # GITHUB_TOKEN may start workflow_dispatch runs (unlike pushes and most other events it causes).
-    needs: [ui, build, smoke, aot-smoke]
+    needs: [ui, devcontainer, build, smoke, aot-smoke]
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/next' || github.ref == 'refs/heads/beta')
