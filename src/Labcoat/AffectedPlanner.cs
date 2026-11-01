@@ -28,6 +28,9 @@ internal sealed class AffectedPlanner
             (state, inputRoots, affectedBase, impact, coverageCache, queueImpactRefinementLocked);
     }
 
+    /// <summary>False for <c>--run --affected</c>: planning must not start coverage processes next to the run.</summary>
+    public bool RefineImpactInBackground { get; set; } = true;
+
     private static readonly HashSet<string> DocExtensions = new(StringComparer.OrdinalIgnoreCase) { ".md", ".markdown", ".rst", ".adoc" };
     private static readonly HashSet<string> ProjectFileExtensions = new(StringComparer.OrdinalIgnoreCase) { ".csproj", ".fsproj", ".vbproj" };
     private static readonly HashSet<string> ProductCodeExtensions = new(StringComparer.OrdinalIgnoreCase) { ".cs", ".fs", ".vb", ".razor", ".cshtml", ".xaml" };
@@ -37,7 +40,7 @@ internal sealed class AffectedPlanner
     private readonly SemaphoreSlim _gitInfoLock = new(1, 1);
 
     /// <summary>The directory whose repository is the workspace's: the common root of the test projects.</summary>
-    private string? WorkspaceDir()
+    internal string? WorkspaceDir()
     {
         lock (_state.Sync)
         {
@@ -56,6 +59,18 @@ internal sealed class AffectedPlanner
     {
         var repo = await RepoAsync(ct);
         return (await repo.ChangesAsync(AffectedBases.Branch, null, _affectedBase, ct), repo.Root);
+    }
+
+    /// <summary>The full sha of HEAD (a saved impact map records it); null outside a repository or without commits.</summary>
+    public async Task<string?> HeadCommitAsync(CancellationToken ct)
+    {
+        try
+        {
+            var repo = await RepoAsync(ct);
+            var (code, output, _) = await GitRepo.RunAsync(repo.Root, ["rev-parse", "HEAD"], ct);
+            return code == 0 && output.Trim() is { Length: > 0 } sha ? sha : null;
+        }
+        catch (AffectedException) { return null; }
     }
 
     private async Task<GitRepo> RepoAsync(CancellationToken ct)
@@ -219,10 +234,11 @@ internal sealed class AffectedPlanner
             return new ProjectScope(r.Id, r.Name, PathUtil.CanonicalizeOrSelf(r.Path), dir, dirs);
         }).ToList();
 
+        var stale = await StaleImpactFilesAsync(repo, changes, ct);
         lock (_state.Sync)
         {
-            var plan = BuildPlanLocked(kind, changes, info, repo.Root, scopes);
-            _queueImpactRefinementLocked(plan.ClassLevel); // impactMap "auto" (Explorer.ImpactAndWatch.cs)
+            var plan = BuildPlanLocked(kind, changes, info, repo.Root, scopes, stale);
+            if (RefineImpactInBackground) _queueImpactRefinementLocked(plan.ClassLevel); // impactMap "auto" (Explorer.ImpactAndWatch.cs)
             return plan;
         }
     }
@@ -231,11 +247,36 @@ internal sealed class AffectedPlanner
 
     private static bool InOrUnder(string path, string dir) => string.Equals(path, dir, PathUtil.Comparison) || PathUtil.IsUnder(path, dir);
 
-    private AffectedPlan BuildPlanLocked(string kind, GitChanges changes, GitInfo info, string root, List<ProjectScope> scopes)
+    /// <summary>
+    /// A loaded impact map file knows the hash of every source file when its coverage was recorded: a changed file whose
+    /// old side (the revision the changes start from) hashes differently changed after the map was built, so the map's
+    /// line numbers no longer fit it. Those files (canonical paths) get the project fallback instead of wrong methods.
+    /// </summary>
+    private async Task<HashSet<string>> StaleImpactFilesAsync(GitRepo repo, GitChanges changes, CancellationToken ct)
+    {
+        var stale = new HashSet<string>(PathComparer);
+        bool hashes;
+        lock (_state.Sync) hashes = _impact.HasHashes;
+        if (!hashes) return stale;
+        foreach (var change in changes.Files.Where(c => c.Status is GitStatuses.Modified or GitStatuses.TypeChanged))
+        {
+            var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, change.Path.Replace('/', Path.DirectorySeparatorChar)));
+            string? recorded;
+            lock (_state.Sync) recorded = _impact.HashOf(abs);
+            if (recorded is null) continue;
+            var old = changes.From is null ? null : await repo.FileAtAsync(changes.From, change.Path, ct);
+            if (old is null || ImpactMapFile.HashText(old) != recorded) stale.Add(abs);
+        }
+        return stale;
+    }
+
+    private AffectedPlan BuildPlanLocked(string kind, GitChanges changes, GitInfo info, string root, List<ProjectScope> scopes, HashSet<string> stale)
     {
         var warnings = new List<string>(changes.Warnings);
-        var builder = new AffectedPlanBuilder(this, scopes);
+        var builder = new AffectedPlanBuilder(this, scopes, stale);
         foreach (var change in changes.Files) builder.AddChange(root, change);
+        foreach (var name in builder.StaleFiles)
+            warnings.Add($"{name} changed after the impact map was built: the map says nothing reliable about it, using the project level.");
 
         // Selection + tests in tree order.
         var selection = builder.Selection();
@@ -266,6 +307,7 @@ internal sealed class AffectedPlanner
             ProjectsNeedingImpactMap = [.. builder.NeedsImpact],
             Selection = selection,
             ClassLevel = [.. builder.Granularity.Where(kv => kv.Value == "class").Select(kv => kv.Key)],
+            Changes = changes,
         };
     }
 
@@ -303,10 +345,15 @@ internal sealed class AffectedPlanner
         public HashSet<string> Mappings { get; } = [];
         public List<AffectedFile> Files { get; } = [];
 
-        public AffectedPlanBuilder(AffectedPlanner planner, List<ProjectScope> scopes)
+        private readonly HashSet<string> _stale;
+        /// <summary>Changed files whose impact data is out of date (see <see cref="StaleImpactFilesAsync"/>).</summary>
+        public List<string> StaleFiles { get; } = [];
+
+        public AffectedPlanBuilder(AffectedPlanner planner, List<ProjectScope> scopes, HashSet<string> stale)
         {
             _planner = planner;
             _scopes = scopes;
+            _stale = stale;
             foreach (var k in planner._state.Order)
             {
                 if (planner._state.Tests[k].FilePath is not { } fp) continue;
@@ -360,7 +407,17 @@ internal sealed class AffectedPlanner
                 ProjectIds = m.ProjectIds.Count > 0 ? m.ProjectIds : null,
                 Lines = change.Lines?.Select(l => new[] { l.Start, l.End }).ToList(),
                 Methods = m.Methods,
+                DataQuality = DataQualityOf(m),
             });
+        }
+
+        /// <summary>The granularity of the impact data behind a file's tests (null for other mappings).</summary>
+        private string? DataQualityOf(FileMatch m)
+        {
+            if (m.Mapping != "impactMap" || m.Selected.Count == 0) return null;
+            var kinds = m.Selected.Select(k => Granularity.GetValueOrDefault(k)).ToList();
+            if (kinds.All(g => g == "test")) return "per-test";
+            return kinds.All(g => g != "test") ? "class-level" : "per-test and class-level";
         }
 
         private void MatchTestFile(FileMatch m, List<(string ProjectId, string Id)> inFile)
@@ -414,12 +471,28 @@ internal sealed class AffectedPlanner
         private void MatchImpactMap(FileMatch m, List<LineSpan>? lines)
         {
             var impact = _planner._impact;
+            if (_stale.Contains(m.Abs))
+            {
+                StaleFiles.Add(m.Name);
+                return;
+            }
             foreach (var projectId in _scopes.Select(s => s.Id))
             {
                 if (impact.AffectedByLines(projectId, m.Abs, lines, out var outside) is not { } hits) continue;
                 m.Mapping = "impactMap";
                 foreach (var (tid, methods) in hits.Where(h => _planner._state.Tests.ContainsKey((projectId, h.Key))))
                     SelectByImpact(m, (projectId, tid), methods, outside);
+                if (impact.IsImported(projectId)) SelectUnmappedTests(m, projectId);
+            }
+        }
+
+        /// <summary>Tests the loaded map file has no data for (added after it was built): they may execute the file, so they run too.</summary>
+        private void SelectUnmappedTests(FileMatch m, string projectId)
+        {
+            foreach (var k in _planner._state.Order.Where(k => k.ProjectId == projectId && !_planner._impact.Has(k.ProjectId, k.Id)))
+            {
+                m.Selected.Add(k);
+                AddReason(k, $"{m.Name} {m.Verb} (no impact data for this test: it is newer than the impact map)");
             }
         }
 

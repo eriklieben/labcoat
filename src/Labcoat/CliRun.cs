@@ -6,7 +6,11 @@ namespace Labcoat;
 /// <summary>An <c>--export format=path</c> target of <c>--run</c>.</summary>
 public sealed record ExportTarget(string Format, string Path);
 
-// --run, --export, --filter, --export-paths, --order, --seed, --retry-failed (CliRun.cs): the non-interactive mode for CI.
+/// <summary><c>--affected</c>: what the changes are compared with (<c>AffectedBases</c>) and the ref / range of "branch" and "range".</summary>
+public sealed record AffectedSelector(string Base, string? Ref);
+
+// --run, --export, --filter, --export-paths, --order, --seed, --retry-failed, --affected, --impact-map-file,
+// --build-impact-map (CliRun.cs): the non-interactive mode for CI.
 public sealed partial class StartOptions
 {
     /// <summary>--run: build, run the tests once, write the exports and exit (no web server, no browser).</summary>
@@ -35,6 +39,13 @@ public sealed partial class StartOptions
     public string? Order { get; private set; }
     /// <summary>--seed: reproduces the order of an earlier --order random run (default: a new seed, printed).</summary>
     public int? Seed { get; private set; }
+
+    /// <summary>--affected [working|branch|&lt;range&gt;]: run only the tests the changes in git affect. Null = every test.</summary>
+    public AffectedSelector? Affected { get; private set; }
+    /// <summary>--impact-map-file: where the impact map is loaded from before planning and saved to after --build-impact-map.</summary>
+    public string? ImpactMapFile { get; private set; }
+    /// <summary>--build-impact-map: run the impact-map pass and save it to <see cref="ImpactMapFile"/>.</summary>
+    public bool BuildImpactMap { get; private set; }
 
     private static readonly string[] AllExportFormats = [.. ExportFormats.RunFormats, .. ExportFormats.CoverageFormats];
 
@@ -88,6 +99,17 @@ public sealed partial class StartOptions
                     return $"--retry-failed needs a number from 1 to {CliRun.MaxRetries}.";
                 RetryFailed = n;
                 return null;
+            case "--affected":
+                return SetAffected(args.OptionalValue(IsAffectedValue));
+            case "--impact-map-file":
+                var file = args.Value();
+                if (string.IsNullOrWhiteSpace(file)) return "--impact-map-file needs a file, e.g. impact.json (or impact.json.gz).";
+                if (Directory.Exists(file)) return $"--impact-map-file: '{file}' is a directory; give a file.";
+                ImpactMapFile = file.Trim();
+                return null;
+            case "--build-impact-map":
+                BuildImpactMap = true;
+                return null;
             default: // --export-paths
                 var mode = args.Value();
                 if (mode is not ("relative" or "absolute")) return "--export-paths needs relative or absolute.";
@@ -107,9 +129,26 @@ public sealed partial class StartOptions
         return null;
     }
 
+    /// <summary>--affected: working (uncommitted), branch (the default: against the base branch) or a commit range / commit.</summary>
+    private string? SetAffected(string? value)
+    {
+        var v = value?.Trim();
+        if (string.IsNullOrEmpty(v) || v.Equals("branch", StringComparison.OrdinalIgnoreCase)) Affected = new AffectedSelector(AffectedBases.Branch, null);
+        else if (v.ToLowerInvariant() is "working" or "uncommitted") Affected = new AffectedSelector(AffectedBases.Working, null);
+        else if (GitRepo.IsValidRef(v)) Affected = new AffectedSelector(AffectedBases.Range, v);
+        else return $"--affected needs working, branch or a commit range such as origin/main..HEAD (got '{v}').";
+        return null;
+    }
+
+    /// <summary>The value of --affected when it follows the option: only a base name or a range, so a path after a bare --affected stays a path.</summary>
+    internal static bool IsAffectedValue(string value) =>
+        value.ToLowerInvariant() is "working" or "uncommitted" or "branch"
+        || (value.Contains("..", StringComparison.Ordinal) && GitRepo.IsValidRef(value) && !Directory.Exists(value) && !File.Exists(value));
+
     /// <summary>
     /// --export / --filter / --export-paths / --shard* / --min-coverage / --min-diff-coverage / --max-test-duration /
-    /// --order / --seed / --retry-failed only make sense with --run.
+    /// --order / --seed / --retry-failed / --affected / --impact-map-file / --build-impact-map only make sense with --run;
+    /// some need or exclude each other.
     /// </summary>
     private string? ValidateRunOptions()
     {
@@ -117,8 +156,20 @@ public sealed partial class StartOptions
                          || MinCoverage is not null || MinDiffCoverage is not null || MaxTestDuration is not null
                          || Order is not null || Seed is not null || RetryFailed > 0))
             return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage, --max-test-duration, --order, --seed and --retry-failed need --run.";
+        if (!RunOnce && (Affected is not null || ImpactMapFile is not null || BuildImpactMap))
+            return "--affected, --impact-map-file and --build-impact-map need --run.";
         if (Shard is null && ShardTimings.Count > 0) return "--shard-timings needs --shard.";
         if (Seed is not null && Order is null) return "--seed needs --order random.";
+        if (BuildImpactMap && ImpactMapFile is null && Affected is null)
+            return "--build-impact-map needs --impact-map-file (to keep the map) or --affected (to use it now).";
+        if (ImpactMapFile is not null && Affected is null && !BuildImpactMap)
+            return "--impact-map-file needs --affected (to use the map) or --build-impact-map (to create it).";
+        // Every shard job would build the map of the same projects (the pass covers whole projects, not a shard).
+        if (BuildImpactMap && Shard is not null)
+            return "--build-impact-map can't be combined with --shard: build the impact map in one job.";
+        // The affected tests are a part of the suite: their overall coverage says nothing about the suite's.
+        if (Affected is not null && MinCoverage is not null)
+            return "--min-coverage can't be combined with --affected: only a part of the tests runs, so the overall coverage is not the suite's (--min-diff-coverage checks the changed lines).";
         // A retry reruns the failed tests on their own: one that fails only in this order would pass and count as flaky.
         if (Order is not null && RetryFailed > 0)
             return "--order random can't be combined with --retry-failed: a test that fails only in this order would pass on its own and be reported as flaky.";
@@ -173,14 +224,19 @@ public static partial class CliRun
         var sw = Stopwatch.StartNew();
         await explorer.DiscoverAsync(null);
         if (ct.IsCancellationRequested) return ExitFailed;
-        var (ids, exit) = await SelectTestsAsync(explorer, options);
+        if (options.Affected is not null) explorer.Affected.RefineImpactInBackground = false; // no coverage processes beside the run
+        if (options.ImpactMapFile is { } mapFile) CliAffected.LoadImpactMap(explorer, mapFile, options);
+        var (selection, exit) = await SelectTestsAsync(explorer, options, ct);
         if (exit is { } exitCode) return exitCode;
         var wantCoverage = coverage || options.MinCoverage is not null || options.MinDiffCoverage is not null
                            || options.Exports.Exists(e => ExportFormats.CoverageFormats.Contains(e.Format));
         // The seed is chosen here (not by the explorer) so it is printed before anything can go wrong.
         int? seed = options.Order is null ? null : options.Seed ?? RandomOrder.NewSeed();
         if (seed is not null) Console.WriteLine($"  Random order, seed {seed}: the tests run one at a time (reproduce: --order random --seed {seed})");
-        var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = ids, Coverage = wantCoverage, Trigger = Trigger, Order = options.Order, Seed = seed });
+        var runOptions = new Explorer.RunRequestOptions { Coverage = wantCoverage, Trigger = Trigger, Order = options.Order, Seed = seed };
+        var request = selection.Plan is { } plan
+            ? explorer.Affected.StartRun(plan, runOptions with { Selection = selection.Ids is null ? null : CliAffected.SelectionOf(plan, selection.Ids) })!
+            : explorer.RequestRun(runOptions with { TestIds = selection.Ids });
         if (request.Status != 202)
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
@@ -203,18 +259,25 @@ public static partial class CliRun
         PrintResult(run, status, broken, sw.Elapsed, retried);
         var exportsOk = WriteExports(explorer, options, run?.RunId, retried);
         ReportToCi(explorer, run?.RunId, retried);
-        // The retries run without coverage and keep the first run's id: the gates read the first run's coverage.
-        var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, ct);
+        // The retries run without coverage and keep the first run's id: the gates read the first run's coverage. With
+        // --affected the diff coverage is of the changes the plan was made of.
+        var changes = selection.Plan is { Changes: { } planned, Git.Root: { } root } ? (planned, root) : ((GitChanges, string)?)null;
+        var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, changes, ct);
         var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget, retried);
-        return ExitCode(run, broken, exportsOk, gatesOk, overBudget.Count);
+        var mapOk = await CliAffected.BuildAndSaveImpactMapAsync(explorer, options, selection.Plan is null ? CliAffected.ProjectsOf(explorer, selection.Ids).ToList() : [], ct);
+        return ExitCode(run, broken, exportsOk && mapOk, gatesOk, overBudget.Count);
     }
 
+    /// <summary>The tests to run: null ids = all (or, with a plan, the plan's own selection).</summary>
+    private sealed record TestSelection(List<string>? Ids, AffectedPlan? Plan);
+
     /// <summary>
-    /// The tests to run: null = all, else the --filter matches and of those this --shard's part. Or the exit code (after
-    /// its message) when there is nothing to run.
+    /// The tests to run: null = all, else the --filter matches, of those the ones --affected selects, and of those this
+    /// --shard's part. Or the exit code (after its message) when there is nothing to run.
     /// </summary>
-    private static async Task<(List<string>? Ids, int? Exit)> SelectTestsAsync(Explorer explorer, StartOptions options)
+    private static async Task<(TestSelection Selection, int? Exit)> SelectTestsAsync(Explorer explorer, StartOptions options, CancellationToken ct)
     {
+        var none = new TestSelection(null, null);
         List<string>? ids = null;
         if (options.Filters.Count > 0)
         {
@@ -223,17 +286,48 @@ public static partial class CliRun
             if (ids.Count == 0)
             {
                 await Console.Error.WriteLineAsync($"{ErrorLabel} No test matches --filter.");
-                return (null, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitFailed);
+                return (none, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitFailed);
             }
         }
-        if (options.Shard is not { } shard) return (ids, null);
-        var plan = PlanShard(explorer, options, shard, ids);
-        if (plan is null) return (null, ExitBuildError);
-        if (plan.TestIds.Count > 0) return (plan.TestIds, null);
+        AffectedPlan? affected = null;
+        if (options.Affected is { } selector)
+        {
+            try
+            {
+                var planned = await CliAffected.PlanAffectedRunAsync(explorer, options, selector, ids, ct);
+                if (planned.Tests == 0) return (none, NothingAffected(explorer, options));
+                (affected, ids) = (planned.Plan, planned.Ids);
+            }
+            catch (AffectedException ex)
+            {
+                await Console.Error.WriteLineAsync($"{ErrorLabel} --affected: {ex.Message}");
+                WriteExports(explorer, options, null, nothingToRun: true);
+                ReportToCi(explorer, null, null);
+                return (none, ExitBuildError);
+            }
+        }
+        if (options.Shard is not { } shard) return (new TestSelection(ids, affected), null);
+        // The affected tests are sharded, not all of them: every shard job makes the same plan.
+        var plan = PlanShard(explorer, options, shard, ids ?? affected?.Tests.Select(t => t.Id).ToList());
+        if (plan is null) return (none, ExitBuildError);
+        if (plan.TestIds.Count > 0) return (new TestSelection(plan.TestIds, affected), null);
         Console.WriteLine("  This shard has no tests: nothing to run.");
         WriteExports(explorer, options, null);
         ReportToCi(explorer, null, null);
-        return (null, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed);
+        return (none, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed);
+    }
+
+    /// <summary>--affected found nothing to run: say so, write the exports (empty reports) and exit 0 (a broken project still exits 2).</summary>
+    private static int NothingAffected(Explorer explorer, StartOptions options)
+    {
+        var broken = BrokenProjects(explorer);
+        Console.WriteLine();
+        Console.WriteLine($"  {Cli.Bold("No affected tests")}: nothing to run.");
+        foreach (var p in broken) Console.Error.WriteLine($"{ErrorLabel} {p.Name}: {p.LastError ?? "build or discovery failed"}");
+        var exportsOk = WriteExports(explorer, options, null, nothingToRun: true);
+        ReportToCi(explorer, null, null);
+        if (broken.Count > 0) return ExitBuildError;
+        return exportsOk ? ExitPassed : ExitFailed;
     }
 
     /// <summary>This shard's tests of those that would run; null (after an error message) when the timings cannot be read.</summary>
@@ -337,12 +431,12 @@ public static partial class CliRun
     }
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>
-    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId, RunExport? retried = null)
+    private static bool WriteExports(Explorer explorer, StartOptions options, string? runId, RunExport? retried = null, bool nothingToRun = false)
     {
         var ok = true;
         foreach (var target in options.Exports)
         {
-            try { ok &= WriteExport(explorer, options, target, runId, retried); }
+            try { ok &= WriteExport(explorer, options, target, runId, retried, nothingToRun); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
                 Console.Error.WriteLine($"{ErrorLabel} Could not write {target.Path}: {ex.Message}");
@@ -352,12 +446,16 @@ public static partial class CliRun
         return ok;
     }
 
-    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId, RunExport? retried)
+    private static bool WriteExport(Explorer explorer, StartOptions options, ExportTarget target, string? runId, RunExport? retried, bool nothingToRun)
     {
         var path = Path.GetFullPath(target.Path);
         if (ExportFormats.CoverageFormats.Contains(target.Format))
         {
-            if (explorer.LastCoverageReport is not { } report || report.RunId != runId)
+            // Nothing to run (--affected): an empty report, so the file CI uploads exists and says there was no coverage.
+            var report = nothingToRun
+                ? new CoverageReport { RunId = "none", GeneratedAt = Json.Now(), ProjectIds = [], Files = [], Scope = "subset", NoCoverableLines = true }
+                : explorer.LastCoverageReport;
+            if (report is null || (!nothingToRun && report.RunId != runId))
             {
                 Console.Error.WriteLine($"{WarningLabel} No coverage was collected in this run: {target.Path} not written " +
                                         "(do the test projects reference Microsoft.Testing.Extensions.CodeCoverage?).");

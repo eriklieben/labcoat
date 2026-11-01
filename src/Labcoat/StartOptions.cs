@@ -75,7 +75,7 @@ public sealed partial class StartOptions
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout", "--max-test-duration",
             "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter", "--quarantine-file",
             "--export", "--filter", "--export-paths", "--shard", "--shard-by", "--shard-timings", "--min-coverage", "--min-diff-coverage", "--order", "--seed",
-            "--retry-failed", // --run (CliRun.cs)
+            "--retry-failed", "--affected", "--impact-map-file", // --run (CliRun.cs)
         };
 
         private int _index = -1;
@@ -93,6 +93,14 @@ public sealed partial class StartOptions
                 return a[..eq];
             }
             return a;
+        }
+
+        /// <summary>The value of an option that may stand alone: its <c>=value</c>, else the next argument when <paramref name="accept"/> takes it (consumed).</summary>
+        public string? OptionalValue(Func<string, bool> accept)
+        {
+            if (_inlineValue is not null) return _inlineValue;
+            if (_index + 1 >= args.Count || !accept(args[_index + 1])) return null;
+            return args[++_index];
         }
 
         /// <summary>The option's value: its <c>=value</c>, else the next argument (consumed); null when there is none.</summary>
@@ -142,7 +150,7 @@ public sealed partial class StartOptions
             case "--verbose" or "-v": Verbose = true; return null;
             case "--diagnostics": Diagnostics = true; return null;
             case "--run" or "--export" or "--filter" or "--export-paths" or "--shard" or "--shard-by" or "--shard-timings" or "--min-coverage" or "--min-diff-coverage"
-                or "--order" or "--seed" or "--retry-failed":
+                or "--order" or "--seed" or "--retry-failed" or "--affected" or "--impact-map-file" or "--build-impact-map":
                 return ApplyRunOption(a, args); // CliRun.cs
             case "--log-file":
                 LogFile = args.Value();

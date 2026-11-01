@@ -121,11 +121,12 @@ public static class Cli
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
           --min-coverage <percent>  Fail the run (exit 1) when the line coverage of this run is below the
-                           percentage (0-100). Collects coverage like --coverage.
+                           percentage (0-100). Collects coverage like --coverage. Not with --affected.
           --min-diff-coverage <percent>  Fail the run (exit 1) when the lines changed versus the base
-                           (--affected-base, else origin/HEAD, main or master; plus uncommitted changes) are
-                           covered less than the percentage. Lists the uncovered lines; non-executable lines
-                           don't count. Collects coverage like --coverage.
+                           (--affected-base, else origin/HEAD, main or master; plus uncommitted changes; with
+                           --affected the changes it planned with) are covered less than the percentage.
+                           Lists the uncovered lines; non-executable lines don't count. Collects coverage like
+                           --coverage.
           --shard <i>/<n>  Run shard i of n (1-based) of the tests, for parallel CI jobs. Every shard
                            must get the same test list and --shard-timings. Shards without tests exit 0.
           --shard-by <u>   What is split: class (default), test or project.
@@ -137,6 +138,17 @@ public static class Cli
                            it can't be combined with --coverage, --min-coverage, --min-diff-coverage or an
                            lcov / cobertura export. See docs/features.md.
           --seed <n>       With --order random: the seed of an earlier run, to run the same order again.
+          --affected [base]  Only the tests the changes in git affect: working (uncommitted), branch (against
+                           the base branch, see --affected-base; the default) or a commit range such as
+                           origin/main..HEAD (--affected=<ref> for a single commit). Prints the plan; when
+                           nothing is affected it says so, writes the reports and exits 0. With --filter
+                           only the tests matching both run; --shard splits the affected tests.
+          --impact-map-file <file>  The impact map to use for --affected, so a changed product file selects
+                           the tests that run it instead of every test of its projects. Ignored with a
+                           warning when it is unusable. '.gz' compresses it.
+          --build-impact-map  Run the impact-map pass (one coverage run per test class; --impact-map test:
+                           per test) and save it to --impact-map-file. Run it on your main branch, cache
+                           the file, use it in pull request jobs (docs/standalone.md). Not with --shard.
 
         Merge shard reports (CI; builds and runs nothing):
           merge --export <format>=<file> <inputs...>

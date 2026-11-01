@@ -10,7 +10,10 @@ public static class PathUtil
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     /// <summary>GetFullPath + resolve symlinks on every existing path component (like realpath).</summary>
-    public static string Canonicalize(string path)
+    public static string Canonicalize(string path) => Canonicalize(path, 0);
+
+    // A link's target may itself contain links (a symlinked checkout inside /var -> /private/var): resolve it again.
+    private static string Canonicalize(string path, int depth)
     {
         var full = Path.GetFullPath(path);
         var root = Path.GetPathRoot(full)!;
@@ -22,7 +25,7 @@ public static class PathUtil
             if (info.Exists && info.LinkTarget is not null)
             {
                 var target = info.ResolveLinkTarget(returnFinalTarget: true);
-                if (target is not null) current = Path.GetFullPath(target.FullName);
+                if (target is not null) current = depth < 32 ? Canonicalize(target.FullName, depth + 1) : Path.GetFullPath(target.FullName);
             }
         }
         return current;

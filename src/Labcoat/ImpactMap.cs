@@ -32,12 +32,13 @@ public readonly record struct LineSpan(int Start, int End)
 /// snapshot of each source file's text. When a file changes, the changed line range (common prefix/suffix diff against
 /// the snapshot) selects the tests whose executed methods overlap it. A change outside every executed method (new
 /// method, field, attribute, const...) falls back to all tests that touch the file.
-/// In memory only (nothing is persisted, so there is no stored format to migrate).
+/// In memory while Labcoat runs; <c>--impact-map-file</c> (ImpactMapFile.cs) saves it for CI and loads it into a fresh
+/// process, where it is keyed on stable names instead of ids and read-only (<see cref="Import"/>).
 /// Not thread safe: callers lock (Explorer.Sync).
 /// </summary>
 public sealed class ImpactMap
 {
-    private static readonly StringComparer PathComparer =
+    internal static readonly StringComparer PathComparer =
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     // (projectId, testId) -> canonical source file -> spans of the methods that test executed.
@@ -46,6 +47,10 @@ public sealed class ImpactMap
     private readonly HashSet<(string ProjectId, string TestId)> _perTest = [];
     // canonical source file -> its lines when coverage was recorded (or the last change was accepted).
     private readonly Dictionary<string, string[]> _snapshots = new(PathComparer);
+
+    // Loaded from an --impact-map-file: the projects it holds data for, and the content hash each file had when it was recorded.
+    private readonly HashSet<string> _importedProjects = [];
+    private readonly Dictionary<string, string> _fileHashes = new(PathComparer);
 
     public DateTime? BuiltAt { get; set; }
     public bool Building { get; set; }
@@ -72,6 +77,30 @@ public sealed class ImpactMap
             else _perTest.Remove(key);
         }
     }
+
+    /// <summary>
+    /// Adds the data of one test read from a file. <paramref name="coverage"/> may be shared between the tests of a
+    /// coverage process (the loaded map is not edited afterwards, see <see cref="AcceptChange"/>); no file snapshots.
+    /// </summary>
+    internal void Import(string projectId, string testId, bool perTest, Dictionary<string, List<LineSpan>> coverage)
+    {
+        var key = (projectId, testId);
+        _byTest[key] = coverage;
+        if (perTest) _perTest.Add(key);
+        _importedProjects.Add(projectId);
+    }
+
+    /// <summary>The content hash of <paramref name="file"/> (canonical path) when it was recorded in a loaded file; null otherwise.</summary>
+    internal string? HashOf(string file) => _fileHashes.GetValueOrDefault(file);
+    internal void SetHash(string file, string hash) => _fileHashes[file] = hash;
+    internal bool HasHashes => _fileHashes.Count > 0;
+
+    /// <summary>True when <paramref name="projectId"/>'s data came from a file: a test without data is then one that appeared after it was built.</summary>
+    internal bool IsImported(string projectId) => _importedProjects.Contains(projectId);
+
+    /// <summary>Everything the map holds, for saving: (project, test, per-test?, canonical file → spans).</summary>
+    internal IEnumerable<(string ProjectId, string TestId, bool PerTest, Dictionary<string, List<LineSpan>> Files)> Entries() =>
+        _byTest.Select(kv => (kv.Key.ProjectId, kv.Key.TestId, _perTest.Contains(kv.Key), kv.Value));
 
     /// <summary>True when the test's data comes from a coverage process that ran it alone (exact); false = class-level (shared) or unknown.</summary>
     public bool IsPerTest(string projectId, string testId) => _perTest.Contains((projectId, testId));

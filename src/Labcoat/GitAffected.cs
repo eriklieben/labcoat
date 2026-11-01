@@ -64,6 +64,8 @@ public sealed record AffectedPlan
     [System.Text.Json.Serialization.JsonIgnore] public Dictionary<string, HashSet<string>?> Selection { get; init; } = [];
     /// <summary>Tests selected through class-level impact data (impactMap "auto" refines their classes per test).</summary>
     [System.Text.Json.Serialization.JsonIgnore] public List<(string ProjectId, string Id)> ClassLevel { get; init; } = [];
+    /// <summary>The changes the plan was made of (paths relative to <see cref="GitInfo.Root"/>): --min-diff-coverage of --run --affected.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public GitChanges? Changes { get; init; }
 }
 
 public sealed record AffectedFile
@@ -78,6 +80,8 @@ public sealed record AffectedFile
     public List<string>? ProjectIds { get; init; }
     public List<int[]>? Lines { get; init; }
     public List<string>? Methods { get; init; }
+    /// <summary>How precise the impact data behind <see cref="Mapping"/> is: "per-test", "class-level" or "per-test and class-level" (run --affected prints it).</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public string? DataQuality { get; init; }
 }
 
 public sealed record AffectedTest(string ProjectId, string Id, List<string> Reasons)
@@ -135,8 +139,11 @@ public sealed record GitChange(string Path, string Status, string? OldPath = nul
     public List<LineSpan>? Lines { get; set; }
 }
 
-/// <summary>The changes of one base: files plus what was compared.</summary>
-public sealed record GitChanges(List<GitChange> Files, string? Ref, string? MergeBase, List<string> Warnings);
+/// <summary>
+/// The changes of one base: files plus what was compared. <paramref name="From"/> is the revision the changes start from
+/// (the old side of every file), null when there is none (no commits, a root commit).
+/// </summary>
+public sealed record GitChanges(List<GitChange> Files, string? Ref, string? MergeBase, List<string> Warnings, string? From = null);
 
 /// <summary>
 /// Thin wrapper around the <c>git</c> CLI for one repository. Every call is a child process with an argument list (no
@@ -219,6 +226,13 @@ public sealed partial class GitRepo
 
     public async Task<bool> RefExistsAsync(string rev, CancellationToken ct = default) =>
         (await Git(ct, RevParse, "--verify", "-q", rev + "^{commit}")).Code == 0;
+
+    /// <summary>The text of <paramref name="path"/> (relative to the repository root) at <paramref name="rev"/>; null when it does not exist there.</summary>
+    public async Task<string?> FileAtAsync(string rev, string path, CancellationToken ct = default)
+    {
+        var (code, output, _) = await Git(ct, "show", $"{rev}:{path}");
+        return code == 0 ? output : null;
+    }
 
     private async Task<string?> ShortShaAsync(string rev, CancellationToken ct)
     {
@@ -341,7 +355,7 @@ public sealed partial class GitRepo
         var from = hasHead ? "HEAD" : await EmptyTreeAsync(ct);
         var files = await DiffAsync([from], ct);
         files.AddRange(await UntrackedAsync(ct));
-        return new GitChanges(Sort(files), hasHead ? "HEAD" : null, null, []);
+        return new GitChanges(Sort(files), hasHead ? "HEAD" : null, null, [], hasHead ? "HEAD" : null);
     }
 
     private async Task<GitChanges> BranchChangesAsync(bool hasHead, string? reference, string? configuredBase, CancellationToken ct)
@@ -355,7 +369,7 @@ public sealed partial class GitRepo
         var (from, mergeBase) = await MergeBaseAsync(baseRef, warnings, ct);
         var files = await DiffAsync([from], ct);
         files.AddRange(await UntrackedAsync(ct));
-        return new GitChanges(Sort(files), baseRef, mergeBase, warnings);
+        return new GitChanges(Sort(files), baseRef, mergeBase, warnings, from);
     }
 
     /// <summary>What "branch vs <paramref name="baseRef"/>" compares with: the merge base, else the base itself (warning).</summary>
@@ -378,11 +392,20 @@ public sealed partial class GitRepo
         if (RangeSeparator(reference) is { } sep)
         {
             await CheckRangeSidesAsync(reference, sep, ct);
-            return new GitChanges(Sort(await DiffAsync([reference], ct)), reference, null, []);
+            return new GitChanges(Sort(await DiffAsync([reference], ct)), reference, null, [], await RangeFromAsync(reference, sep, ct));
         }
         if (!await RefExistsAsync(reference, ct)) throw new AffectedException(404, "unknownRef", $"Unknown git ref '{reference}'.");
         var parent = await RefExistsAsync(reference + "^1", ct) ? reference + "^1" : await EmptyTreeAsync(ct);
-        return new GitChanges(Sort(await DiffAsync([parent, reference], ct)), reference, null, []);
+        return new GitChanges(Sort(await DiffAsync([parent, reference], ct)), reference, null, [], await RefExistsAsync(reference + "^1", ct) ? parent : null);
+    }
+
+    /// <summary>The old side of "A..B" (A) or "A...B" (their merge base); null when it can't be determined.</summary>
+    private async Task<string?> RangeFromAsync(string reference, string sep, CancellationToken ct)
+    {
+        var sides = reference.Split(sep).Select(s => s.Length == 0 ? "HEAD" : s).ToArray();
+        if (sep == "..") return sides[0];
+        var (code, output, _) = await Git(ct, "merge-base", sides[0], sides[1]);
+        return code == 0 && output.Trim() is { Length: > 0 } mb ? mb : null;
     }
 
     /// <summary>"..." or ".." of a commit range, null for a single commit.</summary>

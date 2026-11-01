@@ -30,6 +30,9 @@ labcoat [paths...] [options]
 | `--test-timeout <duration>` | Per-test timeout: a test running longer is marked **Timed out** and its project's run is cancelled. Off by default. |
 | `--max-test-duration <duration>` | With `--run`: fail the run (exit code 1) when a test took longer, and list those tests. Quarantined tests are left out; nothing is cancelled. Off by default (see [Duration budget](#duration-budget)). |
 | `--affected-base <ref>` | The base of **Run affected → Branch vs …** (see [features.md](features.md#run-affected-tests)), for example `origin/develop`. Default: the remote's default branch (`origin/HEAD`), else `origin/main`, `origin/master`, `main` or `master`. |
+| `--affected [base]` | With `--run`: only the tests the changes in git affect: `working`, `branch` (the default, against `--affected-base`) or a commit range such as `origin/main..HEAD` (`--affected=<ref>` for one commit). See [Running only the affected tests in CI](standalone.md#running-only-the-affected-tests-in-ci). |
+| `--impact-map-file <file>` | With `--run`: the [impact map](features.md#the-impact-map) file that `--affected` loads or `--build-impact-map` saves (`.gz` compresses it). |
+| `--build-impact-map` | With `--run`: run the impact-map pass and save the map to `--impact-map-file`. |
 | `--config <file>` | The settings file to use instead of the nearest `.labcoat.json` / `.config/labcoat.json` (see [Settings files](#settings-files)). Fails when the file is missing or not valid JSON. |
 | `--no-user-config` | Ignore the user settings file (`~/.labcoat.json`). |
 | `--theme <name>` | Default theme: `catppuccin`, `aspire`, `github`, `one`, `dracula`, `solarized`, `gruvbox`. |

@@ -78,9 +78,11 @@ public static class CoverageGate
 
     /// <summary>
     /// Checks the thresholds of <paramref name="options"/> against the coverage of run <paramref name="runId"/> and prints
-    /// the numbers; false when one is missed, or cannot be checked (no coverage collected, no git base).
+    /// the numbers; false when one is missed, or cannot be checked (no coverage collected, no git base). The diff is of
+    /// <paramref name="changes"/> (the changes --affected planned the run with), else of the affected base.
     /// </summary>
-    public static async Task<bool> CheckAsync(Explorer explorer, StartOptions options, string runId, CancellationToken ct)
+    public static async Task<bool> CheckAsync(Explorer explorer, StartOptions options, string runId, (GitChanges Changes, string Root)? changes,
+        CancellationToken ct)
     {
         if (options.MinCoverage is null && options.MinDiffCoverage is null) return true;
         Console.WriteLine();
@@ -92,7 +94,7 @@ public static class CoverageGate
         }
         var ok = true;
         if (options.MinCoverage is { } min) ok &= CheckOverall(report, min);
-        if (options.MinDiffCoverage is { } minDiff) ok &= await CheckDiffAsync(explorer, report, minDiff, ct);
+        if (options.MinDiffCoverage is { } minDiff) ok &= await CheckDiffAsync(explorer, report, minDiff, changes, ct);
         return ok;
     }
 
@@ -105,17 +107,22 @@ public static class CoverageGate
         return met;
     }
 
-    private static async Task<bool> CheckDiffAsync(Explorer explorer, CoverageReport report, double min, CancellationToken ct)
+    private static async Task<bool> CheckDiffAsync(Explorer explorer, CoverageReport report, double min, (GitChanges Changes, string Root)? planned,
+        CancellationToken ct)
     {
         GitChanges changes;
         string root;
-        try { (changes, root) = await explorer.Affected.ChangedFilesAsync(ct); }
-        catch (AffectedException ex)
+        if (planned is { } known) (changes, root) = known; // its warnings were printed with the plan
+        else
         {
-            await Console.Error.WriteLineAsync($"{ErrorLabel} --min-diff-coverage: {ex.Message}");
-            return false;
+            try { (changes, root) = await explorer.Affected.ChangedFilesAsync(ct); }
+            catch (AffectedException ex)
+            {
+                await Console.Error.WriteLineAsync($"{ErrorLabel} --min-diff-coverage: {ex.Message}");
+                return false;
+            }
+            foreach (var warning in changes.Warnings) Console.Error.WriteLine($"{Cli.Yellow("warning")} {warning}");
         }
-        foreach (var warning in changes.Warnings) Console.Error.WriteLine($"{Cli.Yellow("warning")} {warning}");
         var diff = Diff(report, changes.Files, root);
         var against = $"changes vs {changes.Ref}{(changes.MergeBase is null ? "" : $" ({changes.MergeBase})")}";
         if (diff.Valid == 0)

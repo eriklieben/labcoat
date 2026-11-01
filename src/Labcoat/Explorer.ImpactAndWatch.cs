@@ -34,7 +34,7 @@ public sealed partial class Explorer
     private readonly HashSet<(string ProjectId, string ClassKey)> _refineSeen = [];
     private Task? _refineWorker;
 
-    private static string ClassKeyOf(TestNode t) => (t.Namespace is { Length: > 0 } ns ? ns + "." : "") + (t.ClassName ?? "(no class)");
+    internal static string ClassKeyOf(TestNode t) => (t.Namespace is { Length: > 0 } ns ? ns + "." : "") + (t.ClassName ?? "(no class)");
 
     /// <summary>Records which source files the tests <paramref name="testIds"/> covered (from a coverage run of exactly those tests).</summary>
     private void RecordImpact(ProjectEntry p, IEnumerable<string>? testIds, string coverageFile, bool replacePerTest = false)

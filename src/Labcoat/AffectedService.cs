@@ -26,6 +26,13 @@ internal sealed class AffectedService(IExplorerEffects effects, OperationGate ga
     /// <summary>Drops the cached answer of <see cref="ChangedTestsAsync"/> (the next call asks git again).</summary>
     public void InvalidateChangedTests() => planner.InvalidateChangedTests();
 
+    /// <inheritdoc cref="AffectedPlanner.RefineImpactInBackground"/>
+    public bool RefineImpactInBackground
+    {
+        get => planner.RefineImpactInBackground;
+        set => planner.RefineImpactInBackground = value;
+    }
+
     /// <summary>GET /api/affected: which tests the changes of <paramref name="baseKind"/> affect. Never runs anything.</summary>
     public Task<AffectedPlan> PlanAsync(string? baseKind, string? reference, CancellationToken ct = default) =>
         planner.PlanAsync(baseKind, reference, ct);
@@ -91,8 +98,17 @@ internal sealed class AffectedService(IExplorerEffects effects, OperationGate ga
         catch (OperationCanceledException) { return null; }
     }
 
-    private Explorer.RunRequestResult? StartRun(AffectedPlan plan, bool? coverage, string trigger)
+    private Explorer.RunRequestResult? StartRun(AffectedPlan plan, bool? coverage, string trigger) =>
+        StartRun(plan, new Explorer.RunRequestOptions { Coverage = coverage, Trigger = trigger });
+
+    /// <summary>
+    /// Queues the run of a plan with the coverage, trigger and order of <paramref name="run"/>. Its Selection, when set,
+    /// narrows the plan's (<c>--run --affected</c> with <c>--filter</c> / <c>--shard</c>: explicit test ids).
+    /// </summary>
+    internal Explorer.RunRequestResult? StartRun(AffectedPlan plan, Explorer.RunRequestOptions run)
     {
+        var selection = run.Selection ?? plan.Selection;
+        var tests = run.Selection is null ? plan.Counts.Tests : selection.Values.Sum(ids => ids?.Count ?? 0);
         var what = plan.Base switch
         {
             AffectedBases.Branch => $"branch vs {plan.Ref}",
@@ -100,22 +116,22 @@ internal sealed class AffectedService(IExplorerEffects effects, OperationGate ga
             _ => BaseLabels[plan.Base],
         };
         var fileCount = $"{plan.Counts.Files} file{Words.Plural(plan.Counts.Files)}";
-        if (plan.Selection.Count == 0)
+        if (selection.Count == 0)
         {
             effects.Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} changed → no affected tests");
             return null;
         }
-        effects.Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} → {plan.Counts.Tests} test{Words.Plural(plan.Counts.Tests)} in " +
-            $"{plan.Counts.Projects} project{Words.Plural(plan.Counts.Projects)} ({plan.Strategy})");
+        effects.Log(null, LogLevels.Info, $"Run affected ({what}): {fileCount} → {tests} test{Words.Plural(tests)} in " +
+            $"{selection.Count} project{Words.Plural(selection.Count)} ({plan.Strategy})");
         var affected = new AffectedRun
         {
             Strategy = "git",
             ChangedFiles = plan.Files.Select(f => f.Path).ToList(),
             Base = plan.Base,
             Ref = plan.Ref,
-            Tests = plan.Counts.Tests,
+            Tests = tests,
         };
-        var r = requestRun(new Explorer.RunRequestOptions { Coverage = coverage, Trigger = trigger, Affected = affected, Selection = plan.Selection });
+        var r = requestRun(run with { Affected = affected, Selection = selection });
         if (r.Status != 202) effects.Log(null, LogLevels.Warning, "Run affected: " + r.Error);
         return r;
     }
