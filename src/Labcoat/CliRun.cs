@@ -329,7 +329,7 @@ public static class CliRun
         return s.Length - at >= last.Length && s.EndsWith(last, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Ctrl+C (or <paramref name="outer"/>) cancels the run: the reports of what ran are still written; a second Ctrl+C ends the process.</summary>
+    /// <summary>Ctrl+C (or the caller's token) cancels the run: the reports of what ran are still written; a second Ctrl+C ends the process.</summary>
     private sealed class CancelOnInterrupt : IDisposable
     {
         private readonly CancellationTokenSource _cts;

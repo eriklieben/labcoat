@@ -4,7 +4,7 @@ namespace Labcoat;
 // REST callers (Aspire dashboard commands), suite summary, debug runs, target framework selection, lean payloads.
 public sealed partial class Explorer
 {
-    /// <summary>Result of <see cref="RequestRun"/>: HTTP-like status (202 accepted, 400 / 404 rejected).</summary>
+    /// <summary>Result of <see cref="RequestRun(RunRequestOptions)"/>: HTTP-like status (202 accepted, 400 / 404 rejected).</summary>
     public sealed record RunRequestResult(int Status, string? RunId = null, string? Error = null, bool Queued = false, bool Merged = false,
         List<string>? UnknownTestIds = null, List<string>? KnownProjects = null, Task? Completion = null);
 
