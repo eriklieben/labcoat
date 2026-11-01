@@ -12,8 +12,8 @@ public static partial class MtpMapping
 
     public static TestNode ToTestNode(string projectId, JsonObject node)
     {
-        string? Str(string key) => node[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
-        int? Int(string key) => node[key] is JsonValue v && v.TryGetValue<int>(out var i) ? i : null;
+        string? Str(string name) => node[name] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+        int? Int(string name) => node[name] is JsonValue v && v.TryGetValue<int>(out var i) ? i : null;
 
         var (ns, cls) = SplitTypeName(Str("location.type"));
         var method = MethodName(Str("location.method"));
