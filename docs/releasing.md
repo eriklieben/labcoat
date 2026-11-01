@@ -66,7 +66,7 @@ prereleases: `1.3.0-beta.1`, `1.3.0-beta.2`, ... as NuGet prerelease versions an
 | What | Where | Made by |
 | --- | --- | --- |
 | SPDX 2.2 SBOM of each package: every file in the `.nupkg` with its SHA-256 (also the bundled runner and UI), and the NuGet packages it depends on, transitively, as `pkg:nuget` purls | in the `.nupkg` at `_manifest/spdx_2.2/manifest.spdx.json`; release asset `<id>.<version>.spdx.json` | [`Microsoft.Sbom.Targets`](https://github.com/microsoft/sbom-tool), on every `dotnet pack` |
-| CycloneDX SBOM of the web UI's npm production dependencies | in `Labcoat`, `Labcoat.Aspire.Hosting` and `Labcoat.TestingPlatform` at `sbom/ui.cdx.json` next to `wwwroot`; release asset `labcoat-ui.<version>.cdx.json` | `npm sbom --omit dev` in `eng/release.mjs prepare` |
+| CycloneDX SBOM of the web UI's npm production dependencies | in `Labcoat`, `Labcoat.Aspire.Hosting` and `Labcoat.TestingPlatform` at `sbom/ui.cdx.json` next to `wwwroot`; release asset `labcoat-ui.<version>.cdx.json` | `pnpm sbom --prod` in `eng/release.mjs prepare` |
 
 sbom-tool only sees a cleaned copy of `project.assets.json` (`src/Directory.Build.targets`): build-only references and
 downloads removed, project references that flow to the package turned into package references, so the SBOM matches the

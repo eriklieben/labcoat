@@ -13,7 +13,7 @@
 //                                             The package READMEs are packed with their repository links pinned to
 //                                             the release tag (see pinReadme); the files are restored afterwards.
 //                                             SBOMs (docs/releasing.md, "SBOM"): the UI's npm production
-//                                             dependencies (`npm sbom`, CycloneDX) go into the packages that bundle
+//                                             dependencies (`pnpm sbom`, CycloneDX) go into the packages that bundle
 //                                             the UI and to artifacts/labcoat-ui.<version>.cdx.json; each package's
 //                                             SPDX SBOM (Microsoft.Sbom.Targets, _manifest/spdx_2.2/ in the .nupkg)
 //                                             is checked and copied to artifacts/<id>.<version>.spdx.json. Both are
@@ -55,7 +55,7 @@ function run(command, args, { cwd = root, redact = [] } = {}) {
   const result = spawnSync(command, args, {
     cwd,
     stdio: ["ignore", process.stderr, process.stderr],
-    // npm is a .cmd script on Windows.
+    // pnpm is a .cmd script on Windows.
     shell: process.platform === "win32",
   });
   if (result.error) fail(`${command}: ${result.error.message}`);
@@ -187,20 +187,21 @@ function readZip(file) {
 }
 
 // The UI's production dependencies (no devDependencies: Vite, Vitest, TypeScript, ... aren't shipped) as CycloneDX,
-// from ui/package-lock.json: `npm sbom` is built into npm 10+, no extra tool. The fonts in ui/public/fonts aren't npm
-// packages: they are in the package SBOMs' file lists and in THIRD-PARTY-NOTICES.md.
+// from ui/pnpm-lock.yaml: `pnpm sbom` is built into pnpm 11+, no extra tool. CycloneDX 1.5, the version of the SBOMs
+// released before the move to pnpm. The fonts in ui/public/fonts aren't npm packages: they are in the package SBOMs'
+// file lists and in THIRD-PARTY-NOTICES.md.
 function uiSbom(version) {
-  const result = spawnSync("npm", ["sbom", "--omit", "dev", "--package-lock-only", "--sbom-format", "cyclonedx",
-    "--sbom-type", "application"], {
+  const result = spawnSync("pnpm", ["sbom", "--prod", "--lockfile-only", "--sbom-format", "cyclonedx",
+    "--sbom-spec-version", "1.5", "--sbom-type", "application"], {
     cwd: path.join(root, "ui"),
     stdio: ["ignore", "pipe", process.stderr],
     shell: process.platform === "win32",
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (result.error) fail(`npm sbom: ${result.error.message}`);
-  if (result.status !== 0) fail(`npm sbom exited with code ${result.status} (needs npm 10 or later)`);
+  if (result.error) fail(`pnpm sbom: ${result.error.message}`);
+  if (result.status !== 0) fail(`pnpm sbom exited with code ${result.status} (needs pnpm 11 or later)`);
   const bom = JSON.parse(result.stdout.toString("utf8"));
-  if (bom.bomFormat !== "CycloneDX" || !Array.isArray(bom.components)) fail("npm sbom: not a CycloneDX document");
+  if (bom.bomFormat !== "CycloneDX" || !Array.isArray(bom.components)) fail("pnpm sbom: not a CycloneDX document");
   const file = uiSbomFile(version);
   writeFileSync(file, JSON.stringify(bom, null, 2) + "\n");
   log(`UI SBOM: ${path.relative(root, file)} (${bom.components.map((c) => `${c.name} ${c.version}`).join(", ")})`);
@@ -234,7 +235,7 @@ const packageFiles = (version) =>
 
 function verify(dryRun) {
   run("dotnet", ["--version"]);
-  run("npm", ["--version"]);
+  run("pnpm", ["--version"]);
   if (!existsSync(props) || !/<VersionPrefix>[^<]*<\/VersionPrefix>/.test(readFileSync(props, "utf8"))) {
     fail(`no <VersionPrefix> in ${path.relative(root, props)}`);
   }
@@ -268,8 +269,8 @@ function prepare(version, prefix, baseline) {
   if (process.env.LABCOAT_RELEASE_SKIP_UI === "1" && existsSync(path.join(root, "src/Labcoat/wwwroot/index.html"))) {
     log("LABCOAT_RELEASE_SKIP_UI=1: reusing src/Labcoat/wwwroot");
   } else {
-    run("npm", ["ci"], { cwd: path.join(root, "ui") });
-    run("npm", ["run", "build"], { cwd: path.join(root, "ui") });
+    run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], { cwd: path.join(root, "ui") });
+    run("pnpm", ["run", "build"], { cwd: path.join(root, "ui") });
   }
 
   // 3. Pack. Version overrides VersionPrefix/VersionSuffix; SourceLink, the symbol packages and the package SBOMs come
