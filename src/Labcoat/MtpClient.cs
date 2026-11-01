@@ -210,6 +210,9 @@ public sealed class MtpHost : IAsyncDisposable
             {
                 lock (_errors) _errors.Add(ex);
                 if (ct.IsCancellationRequested) Done.TrySetCanceled(ct);
+                // The host answered with an error (a controller never answers the run request): that's the result. Other
+                // failures (a connection dropped) wait for another connection or the process to exit.
+                else if (ex is MtpRpcException) Done.TrySetException(ex);
             }
         }
     }
@@ -566,9 +569,12 @@ public sealed class MtpConnection : IAsyncDisposable
             var id = idNode.GetValue<int>();
             if (_pending.TryRemove(id, out var tcs))
             {
+                // read leniently: a response that fails to parse would leave its request waiting forever
                 if (obj[ErrorMember] is JsonObject err)
                     tcs.TrySetException(new MtpRpcException(
-                        err["code"]?.GetValue<int>() ?? 0, err["message"]?.GetValue<string>() ?? "error", err["data"]?.ToJsonString()));
+                        err["code"] is JsonValue c && c.TryGetValue<int>(out var code) ? code : 0,
+                        err["message"] is JsonValue m && m.TryGetValue<string>(out var text) ? text : "error",
+                        err["data"]?.ToJsonString()));
                 else
                     tcs.TrySetResult(obj["result"]);
             }

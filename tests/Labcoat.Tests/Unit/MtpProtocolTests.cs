@@ -229,6 +229,16 @@ public class MtpProtocolTests
         var e2 = await Assert.ThrowsExactlyAsync<MtpRpcException>(() => second.WaitAsync(Timeout, TestContext.CancellationToken));
         Assert.AreEqual(0, e2.Code);
         Assert.AreEqual("JSON-RPC error 0: error", e2.Message);
+
+        // A code that isn't a number (Node's "ENOENT") still fails the request rather than leaving it waiting.
+        var third = host.Connection.RequestAsync("x", null, CancellationToken.None);
+        var req3 = await host.ReadAsync();
+        await host.SendAsync(new JsonObject
+        {
+            ["jsonrpc"] = "2.0", ["id"] = req3["id"]!.GetValue<int>(), ["error"] = new JsonObject { ["code"] = "ENOENT", ["message"] = "no file" },
+        });
+        var e3 = await Assert.ThrowsExactlyAsync<MtpRpcException>(() => third.WaitAsync(Timeout, TestContext.CancellationToken));
+        Assert.AreEqual("JSON-RPC error 0: no file", e3.Message);
     }
 
     [TestMethod]

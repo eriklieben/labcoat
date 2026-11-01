@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { parseArgs, encodeMessage, MessageReader } from "./protocol.mjs";
+import { parseArgs, encodeMessage, MessageReader, rpcError } from "./protocol.mjs";
 import { TestIndex, toNode, outputOf } from "./mapping.mjs";
 
 const VERSION = "1.0.0";
@@ -98,7 +98,7 @@ async function handle(msg) {
     const result = await request(msg);
     if (!current?.cancelled) send({ jsonrpc: "2.0", id: msg.id, result });
   } catch (e) {
-    if (!current?.cancelled) send({ jsonrpc: "2.0", id: msg.id, error: { code: e?.code ?? -32000, message: e?.message ?? String(e), data: e?.stack } });
+    if (!current?.cancelled) send({ jsonrpc: "2.0", id: msg.id, error: rpcError(e) });
   } finally {
     current = undefined;
   }
@@ -246,7 +246,7 @@ async function run(runId, tests) {
   }
   // Coverage outside vitest.start(): the provider has to be created, and its folders (raw data in .tmp) set up, before
   // every run; without that the run fails with "Something removed the coverage directory".
-  if (coverage) await (await vitest.createCoverageProvider())?.clean(true);
+  if (coverage) await prepareCoverage();
   // Vitest reports the tests a subset run filtered out as skipped: only the requested ones go to Labcoat.
   updates.start(runId, Array.isArray(tests) ? new Set(tests.map((t) => t.uid)) : undefined);
   try {
@@ -268,6 +268,18 @@ async function run(runId, tests) {
     log("Warning", "Vitest wrote no coverage report (is a coverage provider such as @vitest/coverage-v8 installed?).");
   }
   return {};
+}
+
+/** Creates the coverage provider and cleans its folders; a provider package that isn't installed is named. */
+async function prepareCoverage() {
+  try {
+    await (await vitest.createCoverageProvider())?.clean(true);
+  } catch (e) {
+    const missing = e?.code === "ERR_MODULE_NOT_FOUND" ? /'(@vitest\/coverage-[\w-]+)'/.exec(e.message ?? "")?.[1] : undefined;
+    if (!missing) throw e;
+    const message = `Coverage needs ${missing}, which isn't installed in this project: add it as a dev dependency (pnpm add -D ${missing}, or npm install -D ${missing}).`;
+    throw Object.assign(new Error(message), { data: undefined }); // no stack: the message says it all
+  }
 }
 
 // ------------------------------------------------------------------ reporter
