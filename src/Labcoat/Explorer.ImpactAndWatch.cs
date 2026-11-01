@@ -355,7 +355,7 @@ public sealed partial class Explorer
             p.PendingChanges.Clear();
         }
         if (changed.Length == 0) return;
-        var names = string.Join(", ", changed.Select(Path.GetFileName).Distinct().Take(3)) + MoreSuffix(changed.Length, 3);
+        var names = string.Join(", ", changed.Select(Path.GetFileName).Distinct().Take(3)) + Words.MoreSuffix(changed.Length, 3);
 
         // Build and re-discover first so test locations (and new tests in a changed test file) are current.
         var ct = _gate.CurrentToken();

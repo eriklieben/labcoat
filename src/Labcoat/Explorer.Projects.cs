@@ -41,7 +41,7 @@ public sealed partial class Explorer
     internal async Task OnProjectFilesChangedAsync(IReadOnlyCollection<string> changed)
     {
         if (_gate.ShutdownToken.IsCancellationRequested) return;
-        var shown = string.Join(", ", changed.Select(Path.GetFileName).Distinct().Take(3)) + MoreSuffix(changed.Count, 3);
+        var shown = string.Join(", ", changed.Select(Path.GetFileName).Distinct().Take(3)) + Words.MoreSuffix(changed.Count, 3);
         Log(null, LogLevels.Info, $"Project files changed ({shown}); looking for test projects again");
         var ct = _gate.CurrentToken();
         var (added, _) = await RefreshProjectListAsync(ct);

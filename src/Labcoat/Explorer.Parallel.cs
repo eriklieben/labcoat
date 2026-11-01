@@ -1,7 +1,8 @@
 namespace Labcoat;
 
 // Several projects at once (docs/features.md "Running tests"): one build for every project that needs one
-// (ProjectBuilder.cs), then discovery (TestDiscovery.cs) and runs of up to MaxParallelProjects projects in parallel.
+// (ProjectBuilder.cs), then discovery (TestDiscovery.cs) and runs (RunExecutor.cs) of up to MaxParallelProjects projects in
+// parallel.
 public sealed partial class Explorer
 {
     /// <summary>
@@ -36,27 +37,4 @@ public sealed partial class Explorer
     /// <summary>Runs <paramref name="work"/> for every item, at most <see cref="MaxParallelProjects"/> at a time (BoundedParallel.cs).</summary>
     private Task<List<T>> ForEachProjectAsync<T>(IReadOnlyList<T> items, Func<T, Task<bool>> work, CancellationToken ct) =>
         BoundedParallel.ForEachAsync(items, MaxParallelProjects, work, ct);
-
-    // ------------------------------------------------------------------ runs
-
-    /// <summary>
-    /// One repetition of a run: the projects run at the same time (up to <see cref="MaxParallelProjects"/>), each with its
-    /// own cancellation (linked to the run's) so a test timeout stops that project only (HangMonitor.cs). Results stream
-    /// as they come; the tree keeps its order (discovery order).
-    /// </summary>
-    private async Task RunProjectsOfIterationAsync(RunExecution x, List<(ProjectEntry Project, HashSet<string>? Ids)> ready,
-        Dictionary<(string, string), Outcome> iterationResults, CancellationToken ct)
-    {
-        await ForEachProjectAsync(ready, async item =>
-        {
-            var (p, ids) = item;
-            if (ct.IsCancellationRequested) return false;
-            var projectRequested = x.Requested.Where(k => k.ProjectId == p.Project.Id).ToList();
-            var project = new ProjectRun(p, ids, x.Run!, iterationResults, x.Quarantined, projectRequested, x.Request.Debug);
-            using var scope = BeginProjectRun(project, ct);
-            await RunProjectOfIterationAsync(x, project, scope.Token);
-            if (scope.TimeoutReason is { } why) lock (x.Aborts) x.Aborts.Add(why);
-            return true;
-        }, ct);
-    }
 }

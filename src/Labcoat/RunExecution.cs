@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Labcoat;
 
-/// <summary>The state of one Explorer.ExecuteRunAsync: what was requested, the results so far and the coverage collected.</summary>
+/// <summary>The state of one RunExecutor.ExecuteAsync: what was requested, the results so far and the coverage collected.</summary>
 internal sealed class RunExecution(RunRequest request, bool collectCoverage, HashSet<string> quarantined)
 {
     public RunRequest Request { get; } = request;
@@ -26,7 +26,7 @@ internal sealed class RunExecution(RunRequest request, bool collectCoverage, Has
     public List<string> Aborts { get; } = [];
 }
 
-/// <summary>One project's part of a run (Explorer.RunProjectAsync).</summary>
+/// <summary>One project's part of a run (RunExecutor.RunProjectAsync).</summary>
 /// <param name="Quarantined">"projectId|id" keys whose results are counted separately (RunSummary.quarantined).</param>
 /// <param name="RequestedKeys">The tests of this project the run asked for (to settle them when the host crashes).</param>
 /// <param name="Debug">Debug run: a one-off host that waits for a debugger (TESTINGPLATFORM_WAIT_ATTACH_DEBUGGER).</param>

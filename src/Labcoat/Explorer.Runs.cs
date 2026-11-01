@@ -11,30 +11,14 @@ public sealed partial class Explorer
     /// <summary>Lifecycle of a run request, for <c>GET /api/runs/{runId}/status</c>.</summary>
     public sealed record RunRequestStatus(string RunId, string State, string? Reason = null, RunSummary? Run = null, string? SupersededBy = null);
 
-    private readonly Dictionary<string, RunRequestStatus> _runStatus = [];
-    private readonly Queue<string> _runStatusOrder = new();
-    private void SetRunStatus(string runId, string state, string? reason = null, RunSummary? run = null, string? supersededBy = null)
-    {
-        lock (Sync)
-        {
-            if (!_runStatus.ContainsKey(runId))
-            {
-                _runStatusOrder.Enqueue(runId);
-                while (_runStatusOrder.Count > 200) _runStatus.Remove(_runStatusOrder.Dequeue());
-            }
-            _runStatus[runId] = new RunRequestStatus(runId, state, reason, run?.Copy(), supersededBy);
-        }
-    }
+    private readonly RunStatuses _runStatuses = new();
 
     /// <summary>
     /// "queued" | "building" (build + discovery before the run) | "running" | "finished" | "cancelled" | "aborted" |
     /// "skipped" (nothing could run, e.g. the build failed) | "superseded" (replaced by another request, see supersededBy);
     /// null when unknown (or older than the last 200 requests).
     /// </summary>
-    public RunRequestStatus? GetRunStatus(string runId)
-    {
-        lock (Sync) return _runStatus.GetValueOrDefault(runId);
-    }
+    public RunRequestStatus? GetRunStatus(string runId) => _runStatuses.Get(runId);
 
     /// <summary>A run request (<see cref="RequestRun(RunRequestOptions)"/>): what to run and how.</summary>
     public sealed record RunRequestOptions
@@ -108,14 +92,14 @@ public sealed partial class Explorer
     {
         if (superseded is not null)
         {
-            SetRunStatus(superseded.RunId, "superseded", "A different run request replaced it while it was waiting.", supersededBy: req.RunId);
+            _runStatuses.Set(superseded.RunId, "superseded", "A different run request replaced it while it was waiting.", supersededBy: req.RunId);
             superseded.Completion.TrySetResult();
             Log(null, LogLevels.Info, $"Queued run request replaced by a new one ({(req.Debug ? "debug" : DescribeOptions(req))}).");
         }
         if (merged) Log(null, LogLevels.Info, $"Run request merged into the queued run ({req.Requests} requests).");
         else
         {
-            SetRunStatus(req.RunId, "queued");
+            _runStatuses.Set(req.RunId, "queued");
             _ = ProcessPendingRunAsync(_gate.CurrentToken());
         }
     }
@@ -303,7 +287,7 @@ public sealed partial class Explorer
         }
         if (pending is not null)
         {
-            SetRunStatus(pending.RunId, "cancelled", "Cancelled while queued.");
+            _runStatuses.Set(pending.RunId, "cancelled", "Cancelled while queued.");
             pending.Completion.TrySetResult();
         }
         var active = cancellation.Active;
@@ -392,25 +376,6 @@ public sealed partial class Explorer
     }
 
     private readonly OutputStore _outputs = new();
-
-    /// <summary>Caps a fresh result's stdOut/stdErr (<see cref="TestOutput"/>) and keeps the full text of cut outputs.</summary>
-    private void CapOutput(TestNode t)
-    {
-        var fullOut = t.StdOut;
-        var fullErr = t.StdErr;
-        t.StdOut = TestOutput.Cap(fullOut, out var cutOut);
-        t.StdErr = TestOutput.Cap(fullErr, out var cutErr);
-        if (cutOut || cutErr)
-        {
-            t.OutputTruncated = true;
-            _outputs.Put(t.ProjectId, t.Id, fullOut, fullErr);
-        }
-        else
-        {
-            t.OutputTruncated = null;
-            _outputs.Remove(t.ProjectId, t.Id);
-        }
-    }
 
     // ------------------------------------------------------------------ settings broadcasts
 

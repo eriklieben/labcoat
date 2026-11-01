@@ -21,37 +21,8 @@ public sealed partial class Explorer
 
     void IExplorerEffects.Emit(ServerEvent evt) => Emit(evt);
 
-    // ------------------------------------------------------------------ test lifecycle (caller holds Sync)
-
-    private void LiveStarted(TestNode t)
-    {
-        LiveService.Started(t);
-        Hang.Started(t);
-    }
-
-    private void LivePartial(TestNode t, TestNode incoming) => LiveService.Partial(t, incoming);
-
-    private void LiveFinished(TestNode t)
-    {
-        if (t.Outcome != Outcome.Running) return;
-        LiveService.Finished(t);
-        Hang.Finished(t);
-    }
-
-    private void LiveReset()
-    {
-        LiveService.Reset();
-        Hang.Reset();
-    }
-
     /// <summary>GET /api/tests/live-output: the output streamed so far for a running test; null when it is not running.</summary>
     public LiveOutputSnapshot? GetLiveOutput(string? projectId, string id) => LiveService.Get(projectId, id);
-
-    private HangMonitor.ProjectRunScope BeginProjectRun(ProjectRun run, CancellationToken ct)
-    {
-        var args = HostArgumentsOf(run.Project);
-        return Hang.BeginProjectRun(run, args.SessionTimeout, args.SessionTimeoutText, ct);
-    }
 
     /// <summary>ExplorerState.limits.</summary>
     private RunLimitsInfo LimitsInfo() => new()
