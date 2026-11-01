@@ -78,9 +78,10 @@ public class CliRunRetryTests
         finally
         {
             Console.SetOut(originalOut);
-            try { File.Delete(ws.FlakyCounter); } catch (IOException) { } // the scratch workspace is shared: other tests count Flaky runs from 1
+            // The scratch workspace is shared: other tests count Flaky runs from 1.
+            try { File.Delete(ws.FlakyCounter); } catch (IOException) { /* in use: best effort */ }
             foreach (var (k, v) in saved) Environment.SetEnvironmentVariable(k, v);
-            try { dir.Delete(recursive: true); } catch (IOException) { }
+            try { dir.Delete(recursive: true); } catch (IOException) { /* temp folder: best effort */ }
         }
     }
 }

@@ -72,3 +72,29 @@ public sealed class QuarantineFile
         if (t.DisplayName != method) yield return cls.Length > 0 ? $"{cls}.{t.DisplayName}" : t.DisplayName;
     }
 }
+
+// The quarantined tests the runs, exports, slowest tests and clients see (Explorer.Quarantine.cs): the ones quarantined in
+// the UI (WorkspaceSettings) plus the ones the quarantine file lists.
+internal sealed class QuarantineService(WorkspaceState state, WorkspaceSettings settings, QuarantineFile? file)
+{
+    /// <summary>The quarantined tests as "projectId|id" keys (caller holds Sync).</summary>
+    public List<string> KeysLocked()
+    {
+        var keys = settings.Quarantined();
+        if (file is null) return keys;
+        var known = keys.ToHashSet(StringComparer.Ordinal);
+        foreach (var t in state.Tests.Values)
+        {
+            var key = WorkspaceSettings.QuarantineKey(t.ProjectId, t.Id);
+            if (file.Matches(t) && known.Add(key)) keys.Add(key);
+        }
+        return keys;
+    }
+
+    /// <summary>The quarantine file when it lists the test (the UI cannot release it), else null.</summary>
+    public QuarantineFile? ListingFile(string projectId, string id)
+    {
+        if (file is null) return null;
+        lock (state.Sync) return state.Tests.TryGetValue((projectId, id), out var t) && file.Matches(t) ? file : null;
+    }
+}

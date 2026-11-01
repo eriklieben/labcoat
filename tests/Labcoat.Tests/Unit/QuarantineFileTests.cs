@@ -103,7 +103,7 @@ public class QuarantineFileTests
         finally
         {
             Environment.SetEnvironmentVariable("LABCOAT_HISTORY_DIR", history);
-            try { dir.Delete(recursive: true); } catch (IOException) { }
+            try { dir.Delete(recursive: true); } catch (IOException) { /* temp folder: best effort */ }
         }
     }
 }

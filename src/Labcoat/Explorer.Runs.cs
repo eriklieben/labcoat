@@ -406,7 +406,7 @@ public sealed partial class Explorer
                 Watch = WatchMode.Enabled,
                 CoverageEnabled = _coverageEnabled,
                 TracingEnabled = _tracingEnabled,
-                Quarantined = QuarantinedKeysLocked(),
+                Quarantined = Quarantine.KeysLocked(),
                 ImpactMap = _impact.Info(),
             }));
         }

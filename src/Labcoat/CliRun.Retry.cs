@@ -26,7 +26,7 @@ public static partial class CliRun
         var pending = failures.Keys.ToList();
         for (var attempt = 2; attempt <= retries + 1 && pending.Count > 0 && !ct.IsCancellationRequested; attempt++)
         {
-            Console.WriteLine($"  Retrying {pending.Count} failed test{(pending.Count == 1 ? "" : "s")} (attempt {attempt} of {retries + 1})...");
+            Console.WriteLine($"  Retrying {pending.Count} failed test{Words.Plural(pending.Count)} (attempt {attempt} of {retries + 1})...");
             var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = pending.Select(k => k.Item2).Distinct().ToList(), Coverage = false, Trigger = RetryTrigger });
             if (request.Status != 202)
             {
@@ -77,7 +77,7 @@ public static partial class CliRun
     private static void PrintRetried(RunExport export)
     {
         foreach (var t in export.Tests.Where(t => t.IsFlaky))
-            Console.WriteLine($"  {WarningLabel} Flaky: {t.Name} failed {t.Attempts - 1} time{(t.Attempts == 2 ? "" : "s")} and passed on attempt {t.Attempts}" +
+            Console.WriteLine($"  {WarningLabel} Flaky: {t.Name} failed {t.Attempts - 1} time{Words.Plural(t.Attempts - 1)} and passed on attempt {t.Attempts}" +
                               (t.FailedAttempts?.FirstOrDefault() is { } f ? Cli.Dim($" (first failure: {ExportText.FirstLine(f.ErrorMessage, 160)})") : ""));
         foreach (var t in export.Tests.Where(t => t.Attempts > 1 && ExportKinds.IsFailed(t.Kind)))
             Console.WriteLine($"  Still failing after {t.Attempts} attempts: {t.Name}");

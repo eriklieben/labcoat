@@ -53,15 +53,8 @@ public static partial class LabcoatApp
             Include = options.CoverageInclude, Exclude = options.CoverageExclude,
         });
 
-        // The shared quarantine list: a missing file is an error (ignoring it would let quarantined tests fail the run).
-        QuarantineFile? quarantineFile = null;
-        var quarantinePath = options.QuarantineFile ?? config.QuarantineFile;
-        if (quarantinePath is not null)
-        {
-            quarantineFile = QuarantineFile.Load(quarantinePath, out var quarantineError);
-            if (quarantineFile is null) return Fail(quarantineError!, usageHint: false, ErrorExitCode(options));
-            startupNotes.Add($"Quarantine file: {quarantineFile.Path} ({quarantineFile.Count} entries)");
-        }
+        var quarantineFile = StartupSettings.LoadQuarantineFile(options, config, startupNotes, out var quarantineError);
+        if (quarantineError is not null) return Fail(quarantineError, usageHint: false, ErrorExitCode(options));
 
         var aspireDashboardUrl = AspireDashboardUrl();
 

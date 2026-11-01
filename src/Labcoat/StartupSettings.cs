@@ -93,6 +93,19 @@ internal static class StartupSettings
         }
     }
 
+    /// <summary>
+    /// The shared quarantine list: --quarantine-file &gt; "quarantineFile" of the settings files; null without one. A file
+    /// that cannot be read is an error (<paramref name="error"/>): ignoring it would let quarantined tests fail the run.
+    /// </summary>
+    internal static QuarantineFile? LoadQuarantineFile(StartOptions options, LabcoatConfig config, List<string> notes, out string? error)
+    {
+        error = null;
+        if ((options.QuarantineFile ?? config.QuarantineFile) is not { } path) return null;
+        var file = QuarantineFile.Load(path, out error);
+        if (file is not null) notes.Add($"Quarantine file: {file.Path} ({file.Count} entries)");
+        return file;
+    }
+
     /// <summary>LABCOAT_LOG_LEVEL (default Warning); --verbose lowers it to Debug at least. An invalid value is a settings warning.</summary>
     internal static LogLevel ResolveLogLevel(StartOptions options, LabcoatConfig config)
     {

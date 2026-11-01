@@ -400,7 +400,8 @@ interface ExplorerState {
   sourceRoots?: string[];       // canonical absolute directories GET /api/source serves (CLI root(s), --root dirs, project dirs and
                                 // their ProjectReference closure; nested roots folded). A stack frame whose file is under one of
                                 // these is "my code". Paths outside (e.g. "/_/src/…" from NuGet packages) are not served.
-  quarantined?: string[];       // quarantined tests as "projectId|id" keys (persisted per workspace)
+  quarantined?: string[];       // quarantined tests as "projectId|id" keys (persisted per workspace), plus the tests the
+                                // quarantine file lists (--quarantine-file / "quarantineFile"; read only)
   editors?: EditorInfo[];       // exactly 3 entries, in this order: vscode, rider, visualstudio
 }
 interface EditorInfo { id: "vscode" | "rider" | "visualstudio"; name: string; available: boolean }
@@ -470,7 +471,7 @@ type ClientCommand =
   /* … */
   | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number; order?: "random"; seed?: number }   // repeat: 2–50 (values > 50 are clamped); order/seed: see "Random order" below
   | { type: "setTracing"; enabled: boolean }
-  | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };
+  | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };   // commandRejected 409: releasing a test the quarantine file lists
 
 // ---- GET /api/coverage/line response
 interface CoveringTests {
@@ -521,7 +522,7 @@ interface TelemetryLog {
 | --- | --- | --- |
 | `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat? }` | `202 { accepted: true }` |
 | `POST /api/tracing` | `{ enabled: boolean }` | `200 { tracingEnabled: boolean }` |
-| `POST /api/quarantine` | `{ projectId, id, quarantined?: boolean }` (default `true`) | `200 { quarantined: string[] }`, `400` without projectId/id |
+| `POST /api/quarantine` | `{ projectId, id, quarantined?: boolean }` (default `true`) | `200 { quarantined: string[] }`, `400` without projectId/id, `409 { error }` when releasing a test the quarantine file lists |
 | `GET /api/coverage/line` | `?path=<abs>&line=<n>` | `200 CoveringTests`, `400` without path / line ≥ 1. Never starts a run. |
 | `GET /api/tests/telemetry` | `?projectId=<id>&id=<testId>` (or `?traceId=<hex>`) | `200 TestTelemetry`; `409` tracing off; `503` not hosted by Aspire; `404` unknown test / test without trace id; `502` dashboard error (body `{ error }`) |
 | `POST /api/open-in-editor` | `{ editor: "vscode" \| "rider" \| "visualstudio", path, line?, column? }` | `200 { ok: boolean, message? }`; `400` unknown editor; `403` path outside the served roots (same rule as `/api/source`); `404` missing file |
@@ -557,7 +558,9 @@ interface TelemetryLog {
   and `order` together with `debug` or `repeat`.
 - **Quarantine (F5):** quarantined tests still run and keep their outcomes, but their results count in
   `RunSummary.quarantined` instead of passed/failed/skipped. Persisted per workspace (`settings.json`); changes broadcast
-  `state`. Keys of tests that no longer exist are kept.
+  `state`. Keys of tests that no longer exist are kept. The tests a quarantine file lists (`--quarantine-file`,
+  `"quarantineFile"`, docs/standalone.md) are added to `quarantined` and are read only: releasing one is rejected with
+  `409` (`setQuarantine`: `commandRejected`), quarantining one again is a no-op.
 - **Coalesced test updates (P2-13):** `testsUpdated` is buffered and flushed at most every ~50 ms, merged per
   (projectId, id) with the last write winning, in order of first appearance. Any other ordered event (`runStarted`,
   `runFinished`, `runsUpdated`, `projectStatus`, `coverageUpdated`) flushes pending updates first; a `state` snapshot
@@ -1309,18 +1312,22 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
   (`name` = display name, `classname` = `Namespace.Class` (else the project name), `time` in seconds). `failure` = an
   assertion (no `errorType`, or an assertion library's type), `error` = any other exception, a timeout or a crashed test
   host; `message` attribute = the error message, text = the stack trace. `skipped` = skipped, not run, cancelled, and
-  failures of quarantined tests (`message` says which). `system-out` / `system-err` per test case, 16 K chars each,
+  failures of quarantined tests (`message` says which). With `--retry-failed`, a test that passed on a retry has one
+  `flakyFailure` / `flakyError` per failed attempt and a test that never passed one `rerunFailure` / `rerunError` per
+  retry (`message`, `type`, `stackTrace`), and a project with flaky tests gets the property `labcoat.flaky`. `system-out` / `system-err` per test case, 16 K chars each,
   8 M chars per report (failed tests first). Text without ANSI sequences; characters XML 1.0 can't carry become U+FFFD.
   Valid against the Jenkins xunit plugin's `junit-10.xsd` (tests/Labcoat.Tests/Fixtures/JUnit).
 - **HTML:** one static file; its CSP (`<meta http-equiv>`) is `default-src 'none'` plus the hashes of its one inline
   style and script. All test data HTML-escaped. Passed / skipped tests one line each; details for the first 500
-  failures (message 8 K, stack 16 K, output 8 K chars each).
+  failures (message 8 K, stack 16 K, output 8 K chars each). Flaky tests (`--retry-failed`) get a "Flaky" card and a note
+  on their row.
 - **lcov:** per file `TN:`, `SF:`, `BRDA:<line>,0,<i>,<taken>` (the report has per-line branch counts: branches
   `0..n-1` of one block, the first `branchesCovered` taken, `-` when the line never ran), `BRF`, `BRH`, `DA`, `LF`, `LH`,
   `end_of_record`. **Cobertura:** `coverage > sources > packages > package (module) > classes > class (file) > lines`, a
   leading comment with the run, scope, path root and the coverage settings per project. Paths relative to the workspace
   root (the git repository root, else the common root of the inputs and source roots) with `/`, absolute outside it.
-- `RunSummary.trigger` gains `"cli"`: a run of `labcoat --run` (docs/standalone.md "Labcoat in CI").
+- `RunSummary.trigger` gains `"cli"`: a run of `labcoat --run` (docs/standalone.md "Labcoat in CI"), and `"cli-retry"`:
+  a `--retry-failed` rerun of its failed tests.
 
 ## Slowest tests (added)
 
