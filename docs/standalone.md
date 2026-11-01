@@ -154,9 +154,9 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 
 | Exit code | Meaning |
 | --- | --- |
-| `0` | No test failed (skipped tests, failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests and failures that passed on a [`--retry-failed`](#flaky-tests-and-the-quarantine-file) retry don't count). |
-| `1` | A test failed or timed out, a test took longer than `--max-test-duration`, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, a report could not be written, or a coverage threshold was missed or could not be checked. |
-| `2` | A project did not build or discover, nothing could run, or the command line is invalid. |
+| `0` | No test failed (skipped tests, failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests and failures that passed on a [`--retry-failed`](#flaky-tests-and-the-quarantine-file) retry don't count), or `--affected` found no affected test. |
+| `1` | A test failed or timed out, a test took longer than `--max-test-duration`, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, a report or the `--build-impact-map` file could not be written, or a coverage threshold was missed or could not be checked. |
+| `2` | A project did not build or discover, nothing could run, git could not answer for `--affected` (not a repository, unknown ref, no base branch), or the command line is invalid. |
 
 | Option | |
 | --- | --- |
@@ -170,8 +170,9 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | `--order random` | Run the tests one at a time in a random order, to find tests that depend on each other (fixtures run again for each test). Random-order runs do not collect coverage, so `--order random` together with `--coverage`, `--min-coverage`, `--min-diff-coverage` or an lcov / cobertura `--export` is an error (exit code 2). The seed is printed first and written to the JUnit (`labcoat.randomSeed`) and HTML reports. |
 | `--seed <n>` | With `--order random`: the seed of an earlier run, to run the same order again. Without it a new seed is chosen. |
 | `--export-paths absolute` | Absolute source paths in lcov / Cobertura. The default writes them relative to the workspace root: the git repository root, else the common folder of the inputs and the test projects (and what they reference); files outside it stay absolute. |
-| `--min-coverage <percent>` | Fails the run (exit code 1) when the line coverage of this run is below the percentage (0-100). Collects coverage like `--coverage`; with `--filter` the coverage is that of the filtered tests. |
-| `--min-diff-coverage <percent>` | Fails the run (exit code 1) when the lines changed versus the base are covered less than the percentage. The base is the merge base with `--affected-base` (else `origin/HEAD`, `origin/main`, `main` or `master`), plus uncommitted and untracked files, as in "Run affected"; the changed lines come from `git diff` and only the executable ones count. Collects coverage like `--coverage`. |
+| `--min-coverage <percent>` | Fails the run (exit code 1) when the line coverage of this run is below the percentage (0-100). Collects coverage like `--coverage`; with `--filter` the coverage is that of the filtered tests. Refused with `--affected`. |
+| `--min-diff-coverage <percent>` | Fails the run (exit code 1) when the lines changed versus the base are covered less than the percentage. The base is the merge base with `--affected-base` (else `origin/HEAD`, `origin/main`, `main` or `master`), plus uncommitted and untracked files, as in "Run affected"; with `--affected` it is the changes that selected the tests. The changed lines come from `git diff` and only the executable ones count. Collects coverage like `--coverage`. |
+| `--affected [base]` | Only the tests the changes in git affect, with an optional `--impact-map-file` from a job on main. See [Running only the affected tests in CI](#running-only-the-affected-tests-in-ci). |
 | `--max-test-duration <duration>` | A budget per test: tests that took longer are listed and fail the run (exit code `1`), quarantined tests excepted. Nothing is cancelled, unlike `--test-timeout`. Also `maxTestDuration` in the settings file ([Duration budget](configuration.md#duration-budget)). |
 | `--retry-failed <n>` | After the run, rerun only the tests that failed, up to `n` times (1 to 10). See [Flaky tests](#flaky-tests-and-the-quarantine-file). |
 | `--quarantine-file <file>` | A committed list of quarantined tests by name. See [Flaky tests](#flaky-tests-and-the-quarantine-file). |

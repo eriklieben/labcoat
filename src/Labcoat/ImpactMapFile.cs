@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -65,7 +66,7 @@ internal static class ImpactMapFile
         }
         finally
         {
-            try { File.Delete(temp); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort */ }
+            try { File.Delete(temp); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort: a temp file left beside the map */ }
         }
     }
 
@@ -161,6 +162,7 @@ internal static class ImpactMapFile
             using var gzip = new GZipStream(file, CompressionMode.Decompress);
             return Read(gzip);
         }
+        // Not JSON or not gzip, or JSON of another shape: a missing key, a value of the wrong kind, a too short array.
         catch (Exception ex) when (ex is JsonException or InvalidDataException or InvalidOperationException or KeyNotFoundException or FormatException or IndexOutOfRangeException)
         {
             throw new ImpactMapFileException($"{path} is not a valid impact map file ({ex.Message})");
@@ -235,10 +237,11 @@ internal static class ImpactMapFile
     /// </summary>
     public static string HashText(string text)
     {
-        var normalized = text.TrimStart('﻿').Replace("\r", "", StringComparison.Ordinal);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))[..16].ToLowerInvariant();
+        var normalized = text.TrimStart('\uFEFF').Replace("\r", "", StringComparison.Ordinal);
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))[..16];
     }
 
+    /// <summary>The hash of a file's text; null when it can't be read (the map then treats it as changed).</summary>
     public static string? HashFile(string path)
     {
         try { return HashText(File.ReadAllText(path)); }
@@ -339,7 +342,7 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
                 }
             }
             foreach (var i in usedFiles) impact.SetHash(files[i], doc.Hashes[i]);
-            if (loaded > 0 && DateTime.TryParse(doc.BuiltAt, null, System.Globalization.DateTimeStyles.RoundtripKind, out var built)) impact.BuiltAt = built;
+            if (loaded > 0 && DateTime.TryParse(doc.BuiltAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var built)) impact.BuiltAt = built;
             publishSettingsLocked();
         }
         return new ImpactMapLoadResult(true, loaded, unmatched, usedFiles.Count, doc.BuiltAt, doc.Commit, null);
@@ -354,7 +357,7 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
         var doc = new ImpactMapDocument { Labcoat = Cli.Version, Commit = await headCommitAsync(ct) };
         lock (state.Sync)
         {
-            if (impact.BuiltAt is { } built) doc.BuiltAt = built.ToUniversalTime().ToString("o");
+            if (impact.BuiltAt is { } built) doc.BuiltAt = built.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture);
             doc.Mode = impact.Mode;
             BuildDocumentLocked(doc);
         }

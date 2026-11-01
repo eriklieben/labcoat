@@ -102,10 +102,10 @@ public sealed partial class StartOptions
             case "--affected":
                 return SetAffected(args.OptionalValue(IsAffectedValue));
             case "--impact-map-file":
-                var file = args.Value();
-                if (string.IsNullOrWhiteSpace(file)) return "--impact-map-file needs a file, e.g. impact.json (or impact.json.gz).";
+                var file = args.Value()?.Trim();
+                if (string.IsNullOrEmpty(file)) return "--impact-map-file needs a file, e.g. impact.json (or impact.json.gz).";
                 if (Directory.Exists(file)) return $"--impact-map-file: '{file}' is a directory; give a file.";
-                ImpactMapFile = file.Trim();
+                ImpactMapFile = file;
                 return null;
             case "--build-impact-map":
                 BuildImpactMap = true;
@@ -182,12 +182,12 @@ public sealed partial class StartOptions
 
 /// <summary>
 /// <c>labcoat --run</c>: the non-interactive mode for CI. Builds and discovers the test projects, runs every test (or
-/// the <c>--filter</c>ed ones; with <c>--coverage</c>, which an lcov / Cobertura export implies), writes the
-/// <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed, <see cref="ExitFailed"/> when a test
-/// failed or took longer than <c>--max-test-duration</c> (or the run was aborted / cancelled, or a <c>--min-coverage</c> /
-/// <c>--min-diff-coverage</c> threshold was missed; a failure that passed on a <c>--retry-failed</c> retry does not count),
-/// <see cref="ExitBuildError"/> when a project did not build or discover
-/// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
+/// the <c>--filter</c>ed / <c>--affected</c> ones; with <c>--coverage</c>, which an lcov / Cobertura export implies),
+/// writes the <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed (or nothing was affected),
+/// <see cref="ExitFailed"/> when a test failed or took longer than <c>--max-test-duration</c> (or the run was aborted /
+/// cancelled, or a <c>--min-coverage</c> / <c>--min-diff-coverage</c> threshold was missed; a failure that passed on a
+/// <c>--retry-failed</c> retry does not count), <see cref="ExitBuildError"/> when a project did not build or discover
+/// (or nothing could run, or git could not answer for <c>--affected</c>). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
 public static partial class CliRun
 {
@@ -264,7 +264,7 @@ public static partial class CliRun
         var changes = selection.Plan is { Changes: { } planned, Git.Root: { } root } ? (planned, root) : ((GitChanges, string)?)null;
         var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, changes, ct);
         var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget, retried);
-        var mapOk = await CliAffected.BuildAndSaveImpactMapAsync(explorer, options, selection.Plan is null ? CliAffected.ProjectsOf(explorer, selection.Ids).ToList() : [], ct);
+        var mapOk = await CliAffected.BuildAndSaveImpactMapAsync(explorer, options, selection.Ids, ct);
         return ExitCode(run, broken, exportsOk && mapOk, gatesOk, overBudget.Count);
     }
 

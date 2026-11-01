@@ -395,8 +395,9 @@ public sealed partial class GitRepo
             return new GitChanges(Sort(await DiffAsync([reference], ct)), reference, null, [], await RangeFromAsync(reference, sep, ct));
         }
         if (!await RefExistsAsync(reference, ct)) throw new AffectedException(404, "unknownRef", $"Unknown git ref '{reference}'.");
-        var parent = await RefExistsAsync(reference + "^1", ct) ? reference + "^1" : await EmptyTreeAsync(ct);
-        return new GitChanges(Sort(await DiffAsync([parent, reference], ct)), reference, null, [], await RefExistsAsync(reference + "^1", ct) ? parent : null);
+        var hasParent = await RefExistsAsync(reference + "^1", ct);
+        var parent = hasParent ? reference + "^1" : await EmptyTreeAsync(ct);
+        return new GitChanges(Sort(await DiffAsync([parent, reference], ct)), reference, null, [], hasParent ? parent : null);
     }
 
     /// <summary>The old side of "A..B" (A) or "A...B" (their merge base); null when it can't be determined.</summary>

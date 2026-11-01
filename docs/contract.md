@@ -1002,6 +1002,10 @@ interface AffectedProject { projectId: string; name: string; tests: number; all?
   queued request) with an exact per-project selection (`all` projects run whole). `trigger` is `"user"` (WS) or `"api"`
   (REST); `RunSummary.affected = { strategy: "git", base, ref, changedFiles, tests }`. Log: `Run affected (uncommitted
   changes): 3 files → 12 tests in 2 projects`. Nothing affected → log `info` and no run. Errors → `commandRejected`.
+- `labcoat --run --affected` (no server; [standalone.md](standalone.md#running-only-the-affected-tests-in-ci)) queues
+  the same run with trigger `"cli"`, narrowed by `--filter` / `--shard`, so its history entry has the same
+  `RunSummary.affected` (`tests` = the tests it ran). With an `--impact-map-file` the plan's `reasons` and `warnings`
+  can also say that a test is newer than the map or that a file changed after the map was built.
 - `buildImpactMap: true` runs the impact-map pass first for the projects whose product files had no impact data
   (`needsImpactMap`), then (impactMap `"auto"`) refines the classes the plan selected through class-level data per test,
   then recomputes the plan and runs it. Without it, a run uses the plan as it is (class-level selections are a safe
