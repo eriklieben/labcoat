@@ -45,6 +45,10 @@ public sealed partial class StartOptions
     public string? LogFile { get; set; }
     /// <summary>--diagnostics: print the diagnostics report and exit.</summary>
     public bool Diagnostics { get; set; }
+    /// <summary>--runners: the test runners to use ("dotnet", "vitest", …); null = the default (Runners.cs).</summary>
+    public List<string>? Runners { get; set; }
+    /// <summary>--runner-path: folders with runner packages (repeatable).</summary>
+    public List<string> RunnerPaths { get; } = [];
 
     private static readonly Dictionary<string, string> CliUiFlags = new(StringComparer.Ordinal)
     {
@@ -73,7 +77,7 @@ public sealed partial class StartOptions
         private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
         {
             "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout", "--max-test-duration",
-            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter", "--quarantine-file",
+            "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter", "--quarantine-file", "--runners", "--runner-path",
             "--export", "--filter", "--export-paths", "--shard", "--shard-by", "--shard-timings", "--min-coverage", "--min-diff-coverage", "--order", "--seed",
             "--retry-failed", "--affected", "--impact-map-file", // --run (CliRun.cs)
         };
@@ -134,6 +138,14 @@ public sealed partial class StartOptions
             case "--impact-map":
                 ImpactMap = ImpactMapModes.Parse(args.Value());
                 return ErrorUnless(ImpactMap is not null, "--impact-map needs class, test or auto.");
+            case "--runners":
+                Runners = TestRunners.ParseList(args.Value());
+                return ErrorUnless(Runners is not null, "--runners needs runner names (comma-separated), e.g. dotnet,vitest.");
+            case "--runner-path":
+                var runnerPath = args.Value();
+                if (string.IsNullOrWhiteSpace(runnerPath)) return "--runner-path needs a folder.";
+                RunnerPaths.Add(Path.GetFullPath(runnerPath));
+                return null;
             case "--max-parallel":
                 MaxParallel = RunLimits.ParseMaxParallel(args.Value());
                 return ErrorUnless(MaxParallel is not null, $"--max-parallel needs a number from 1 to {RunLimits.MaxParallelLimit}.");

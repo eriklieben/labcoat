@@ -50,12 +50,13 @@ interface TestNode {
 }
 
 interface TestProject {
-  id: string;              // stable id, e.g. project file name without extension
+  id: string;              // stable id, e.g. project file name without extension (a runner package's project: its folder name)
   name: string;            // "SampleTests"
-  path: string;            // absolute .csproj path
+  path: string;            // absolute .csproj path (a runner package's project: its package.json or config file)
   status: "idle" | "building" | "discovering" | "running" | "error";
   lastError?: string;
   buildOutput?: string;    // tail of last build output when it failed
+  runner?: string;         // the runner package that runs the project, e.g. "vitest" (runners.md); absent = a .NET test project
 }
 
 interface RunSummary {
@@ -142,10 +143,10 @@ interface CoverageReport {
 interface CoverageMergedRun { runId: string; generatedAt: string; projectId: string; testCount: number; filesChanged: number }
 interface CoverageSettingsInfo {
   projectId: string;
-  source: "file" | "testconfig" | "defaults";
-  path?: string;                                  // the settings file (absent for "defaults")
-  origin?: "option" | "msbuild" | "convention";   // Coverage.Settings / TestingPlatformCommandLineArguments / found by name
-  instrumentation: "dynamic" | "static";          // static = assemblies of the output folder instrumented in place
+  source: "file" | "testconfig" | "defaults" | "runner"; // runner: a runner package's project, the runner's own settings
+  path?: string;                                  // the settings file (absent for "defaults"; "runner": its config file)
+  origin?: "option" | "msbuild" | "convention" | string; // Coverage.Settings / TestingPlatformCommandLineArguments / found by name; "runner": its name ("Vitest")
+  instrumentation: "dynamic" | "static" | "runner"; // static = assemblies of the output folder instrumented in place; runner = the runner's own
   modules?: string[];                             // "defaults": the assemblies counted (referenced projects)
   include?: string[]; exclude?: string[];         // Coverage.Include / Coverage.Exclude in effect
 }

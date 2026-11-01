@@ -52,6 +52,10 @@ repository. Code coverage uses `Microsoft.Testing.Extensions.CodeCoverage` (incl
 with the test project's own `coverage.settings.xml` / `CodeCoverage.xml` / `*.runsettings` when it has one; otherwise
 Labcoat counts the projects the tests reference and leaves out Labcoat's assemblies, test frameworks and generated code.
 
+Vitest projects run too, with the `Labcoat.Vitest` runner package: `labcoat --runners dotnet,vitest` fetches it on the
+first start (Node.js 20+ and the project's dependencies installed). See
+[docs/runners.md](https://github.com/eriklieben/labcoat/blob/main/docs/runners.md).
+
 ## Aspire
 
 Using [Aspire](https://aspire.dev)? Add [`Labcoat.Aspire.Hosting`](https://www.nuget.org/packages/Labcoat.Aspire.Hosting)

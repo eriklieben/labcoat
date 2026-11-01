@@ -6,6 +6,14 @@ namespace Labcoat;
 internal sealed class ProjectEntry(TestProject project)
 {
     public TestProject Project { get; } = project;
+
+    /// <summary>The entry of a project path found by ProjectDiscovery, with id <paramref name="id"/> and the runner package that runs it.</summary>
+    public static ProjectEntry Create(string path, string id, TestRunners runners)
+    {
+        var plugin = runners.PluginFor(path);
+        return new ProjectEntry(new TestProject { Id = id, Name = ProjectDiscovery.ProjectNameOf(path), Path = path, Runner = plugin?.Id }) { Plugin = plugin };
+    }
+
     public string? TargetPath;
     public DateTime TargetPathStamp;           // csproj write time when TargetPath was computed
     public List<string> WatchDirs = [];
@@ -18,6 +26,8 @@ internal sealed class ProjectEntry(TestProject project)
     public DateTime SupportsCoverageStamp;
     public Dictionary<string, string> Properties = new(StringComparer.OrdinalIgnoreCase); // evaluated MSBuild properties (diagnostics)
     public List<string> PackageReferences = [];
+    /// <summary>The runner package of the project (RunnerProjects.cs); null = a .NET test project.</summary>
+    public RunnerPlugin? Plugin;
 
     /// <summary>The MSBuild property TestingPlatformCommandLineArguments (may name --coverage-settings).</summary>
     public string? TestingPlatformArguments;

@@ -40,13 +40,17 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     private readonly Timer _flushTimer;
 
     private readonly List<string> _inputRoots;
+    /// <summary>The test runners in use: which runner package runs a project (Runners.cs).</summary>
+    private readonly TestRunners _runners;
 
     /// <param name="inputRoots">Common root of the CLI input paths (for the source endpoint).</param>
     /// <param name="workspaceName">Display name (ExplorerState.workspaceName); null = derived from the project paths.</param>
     /// <param name="tracingOnStart">Initial trace collection state (<c>--traces</c>); a persisted runtime choice wins.</param>
+    /// <param name="runners">The test runners in use (null = only the .NET runner): which runner package runs a project.</param>
     public Explorer(EventHub hub, IEnumerable<string> projectPaths, string? aspireDashboardUrl, IEnumerable<string>? inputRoots = null,
-        string? workspaceName = null, bool tracingOnStart = false, IEnumerable<string>? inputPaths = null)
+        string? workspaceName = null, bool tracingOnStart = false, IEnumerable<string>? inputPaths = null, TestRunners? runners = null)
     {
+        _runners = runners ?? TestRunners.DotnetOnly;
         projectPaths = projectPaths.ToList();
         _gate = new OperationGate(_state.Sync);
         _inputRoots = inputRoots?.ToList() ?? [];
@@ -64,11 +68,11 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in projectPaths)
         {
-            var name = Path.GetFileNameWithoutExtension(path);
+            var name = ProjectDiscovery.ProjectNameOf(path);
             var id = name;
             var suffix = 2;
             while (!used.Add(id)) id = $"{name}-{suffix++}";
-            _state.Projects.Add(new ProjectEntry(new TestProject { Id = id, Name = name, Path = path }));
+            _state.Projects.Add(ProjectEntry.Create(path, id, _runners));
         }
     }
 
@@ -404,7 +408,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     private HashSet<string> TestAssemblyNames()
     {
         lock (Sync)
-            return _state.Projects.Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
+            return _state.Projects.Where(p => p.Plugin is null).Select(p => p.TargetPath is null ? p.Project.Name : Path.GetFileNameWithoutExtension(p.TargetPath))
                             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -421,7 +425,7 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
         lock (Sync) tracingEnabled = tracing ?? _tracingEnabled;
         (extraArgs, environment) = LiveService.HostOptions(p, extraArgs, environment);
         extraArgs = WithProjectArguments(p, extraArgs); // TestingPlatformCommandLineArguments
-        var host = MtpHost.Start(p.TargetPath!, extraArgs, (method, prm) =>
+        var host = MtpHost.Start(RunnerProjects.HostCommandOf(p), extraArgs, (method, prm) =>
         {
             switch (method)
             {

@@ -17,6 +17,8 @@ public static partial class MtpMapping
 
         var (ns, cls) = SplitTypeName(Str("location.type"));
         var method = MethodName(Str("location.method"));
+        // Runner packages (docs/runners.md) name the tree levels themselves: a file name or test name has dots and parentheses.
+        if (Str("labcoat.namespace") is { } runnerNs) (ns, cls, method) = (runnerNs, Str("labcoat.class"), Str("labcoat.method"));
         var traits = Traits(node["traits"]);
 
         double? duration = node["time.duration-ms"] is JsonValue d && d.TryGetValue<double>(out var ms) ? Math.Round(ms, 2) : null;

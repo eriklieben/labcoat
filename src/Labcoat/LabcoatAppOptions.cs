@@ -9,6 +9,8 @@ public sealed class LabcoatAppOptions
     public required IReadOnlyList<string> Paths { get; init; }
     /// <summary>The test projects found for <see cref="Paths"/>.</summary>
     public required IReadOnlyList<string> Projects { get; init; }
+    /// <summary>The test runners in use (Runners.cs).</summary>
+    public TestRunners Runners { get; init; } = TestRunners.DotnetOnly;
     /// <summary>--root directories (absolute).</summary>
     public IReadOnlyList<string> ExtraRoots { get; init; } = [];
     /// <summary>Listen URL; null = leave ASPNETCORE_URLS as configured.</summary>

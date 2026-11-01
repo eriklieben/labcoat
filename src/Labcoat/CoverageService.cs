@@ -24,6 +24,7 @@ internal sealed class CoverageService(WorkspaceState state, IExplorerEffects eff
     /// <summary>The settings of a coverage run of <paramref name="p"/> (logged, and listed in the report).</summary>
     public CoveragePlan PlanFor(ProjectEntry p)
     {
+        if (p.Plugin is { } plugin) return RunnerPlanFor(p, plugin);
         CoverageProject project;
         var tests = testAssemblyNames();
         lock (state.Sync)
@@ -44,9 +45,29 @@ internal sealed class CoverageService(WorkspaceState state, IExplorerEffects eff
         return plan;
     }
 
+    /// <summary>
+    /// A runner package's project: the runner collects coverage with its own settings (e.g. the coverage section of the
+    /// Vitest config); Labcoat only picks the output and keeps its include / exclude globs for the report.
+    /// </summary>
+    private CoveragePlan RunnerPlanFor(ProjectEntry p, RunnerPlugin plugin)
+    {
+        var dir = Path.GetDirectoryName(p.Project.Path)!;
+        var config = plugin.ConfigFiles.Select(f => Path.Combine(dir, f)).FirstOrDefault(File.Exists) ?? p.Project.Path;
+        var info = new CoverageSettingsInfo
+        {
+            ProjectId = p.Project.Id, Source = CoverageSettingsInfo.RunnerSource, Path = config, Origin = plugin.DisplayName,
+            Instrumentation = CoverageSettingsInfo.RunnerSource,
+            Include = options.Include.Count > 0 ? [.. options.Include] : null,
+            Exclude = options.Exclude.Count > 0 ? [.. options.Exclude] : null,
+        };
+        effects.Log(p.Project.Id, LogLevels.Info, "Coverage settings: " + info.Describe(dir));
+        return new CoveragePlan([], info, CoverageFilter.ForSettingsFile(options));
+    }
+
     /// <summary>Does the test app support <c>--coverage</c> (Microsoft.Testing.Extensions.CodeCoverage)? Cached per build.</summary>
     public async Task<bool> SupportsAsync(ProjectEntry p, CancellationToken ct)
     {
+        if (p.Plugin is { } plugin) return plugin.Coverage; // runner.json says so
         var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
         if (p.SupportsCoverage is { } cached && p.SupportsCoverageStamp == stamp) return cached;
         var (_, output) = await runDotnetAsync([p.TargetPath!, "--help"], Path.GetDirectoryName(p.TargetPath!)!, ct);

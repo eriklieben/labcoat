@@ -120,6 +120,13 @@ public sealed partial class Explorer
     /// <summary>One project's part of the impact-map pass; returns the number of coverage processes recorded.</summary>
     private async Task<int> BuildProjectImpactMapAsync(ProjectEntry p, bool perTest, CancellationToken ct)
     {
+        // Watch and run affected map only C#, F# and VB changes through the map (SourceExtensions.Code): coverage runs of a
+        // runner package's project would record data nothing reads.
+        if (p.Project.Runner is { } runner)
+        {
+            Log(p.Project.Id, LogLevels.Info, $"Impact map: skipping this {runner} project (a changed test file runs its tests, any other change in the project all of them).");
+            return 0;
+        }
         if (!await Builder.BuildAsync(p, ct, onlyIfChanged: true) || !await Discovery.EnsureDiscoveredAsync(p, ct)) return 0;
         if (!await Coverage.SupportsAsync(p, ct))
         {

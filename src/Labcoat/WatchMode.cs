@@ -60,9 +60,11 @@ internal sealed class WatchMode(WorkspaceState state, IExplorerEffects effects, 
 
     private void OnFileChanged(ProjectEntry p, string path)
     {
-        if (!Extensions.Contains(Path.GetExtension(path))) return;
+        if (!RunnerProjects.SourceExtensionsOf(p).Contains(Path.GetExtension(path))) return;
         var sep = Path.DirectorySeparatorChar;
         if (path.Contains($"{sep}bin{sep}") || path.Contains($"{sep}obj{sep}")) return;
+        // runner packages' projects: dependencies and tool caches (node_modules/.vite, .turbo, ...) aren't sources
+        if (path.Contains($"{sep}node_modules{sep}") || path.Contains($"{sep}.")) return;
         lock (state.Sync)
         {
             if (!Enabled) return;

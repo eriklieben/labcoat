@@ -15,9 +15,10 @@ internal static class ProjectDiagnostics
     /// <summary>
     /// Why a project discovered no tests (<paramref name="failure"/> null) or its test host could not start/answer:
     /// host exit code + stderr tail, OutputType not Exe, no Microsoft.Testing.Platform runner enabled, no tests found.
+    /// <paramref name="plugin"/>: the runner package of the project (null = a .NET test project).
     /// </summary>
     public static List<ProjectDiagnostic> Diagnose(IReadOnlyDictionary<string, string> properties, IReadOnlyList<string> packageReferences,
-        string projectPath, string? targetPath, Exception? failure)
+        string projectPath, string? targetPath, Exception? failure, RunnerPlugin? plugin = null)
     {
         var list = new List<ProjectDiagnostic>();
         switch (failure)
@@ -25,7 +26,9 @@ internal static class ProjectDiagnostics
             case TestHostExitedException th:
                 list.Add(new ProjectDiagnostic(LogLevels.Error,
                     $"The test host exited{(th.ExitCode is { } code ? $" with code {code}" : "")} before it answered.",
-                    "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
+                    plugin is not null
+                        ? $"Check that the project's dependencies are installed (npm install) and that {plugin.DisplayName} runs in {Path.GetDirectoryName(projectPath)} on its own."
+                        : "Run the test app directly (dotnet <test dll> --list-tests) to see why it does not start.",
                     th.StderrTail.Count > 0 ? string.Join('\n', th.StderrTail) : null));
                 break;
             case TimeoutException:

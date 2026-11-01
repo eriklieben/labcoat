@@ -36,6 +36,8 @@ you browse, run and debug their tests in the browser. Run it on its own as a .NE
 - **Coverage.** Line and branch coverage per file, coverage of a single test, and which tests cover a given line.
 - **History.** Results survive restarts. Every test has a run history, flaky tests are flagged, and you can compare
   any two runs. Repeat a test 20 times or quarantine a known-flaky one.
+- **Vitest too.** With the `Labcoat.Vitest` package, the Vitest tests of your JavaScript / TypeScript projects run in
+  the same tree as the .NET tests. See [docs/runners.md](docs/runners.md).
 - **Aspire integration.** A dashboard resource with run, watch and coverage commands, and optional links from each test
   to the traces and logs it caused.
 - **Keyboard first.** Command palette (`Ctrl+K`), shortcuts for everything, light and dark mode in seven theme
@@ -112,6 +114,7 @@ This opens Labcoat for that one project instead of running its tests. See [docs/
 | NUnit 4.4+ | `<OutputType>Exe</OutputType>` and `<EnableNUnitRunner>true</EnableNUnitRunner>` (NUnit3TestAdapter 6 or later: adapter 5 is on MTP 1.x) | [NUnitSample](samples/NUnitSample) (NUnit 5) |
 | xUnit v3 | `<OutputType>Exe</OutputType>`, package `xunit.v3.mtp-v2` and `<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>` | [XUnitV3Sample](samples/XUnitV3Sample) |
 | TUnit 1 | `<OutputType>Exe</OutputType>` | [TUnitSample](samples/TUnitSample) |
+| Vitest 4+ | The `Labcoat.Vitest` runner package, Node.js 20+ and the project's dependencies installed ([docs/runners.md](docs/runners.md)) | [AspireSample.Web](samples/AspireSample/AspireSample.Web) |
 
 Coverage needs `Microsoft.Testing.Extensions.CodeCoverage`. The MSTest and TUnit packages include it; add it to NUnit
 and xUnit v3 projects. If a project shows no tests, see [docs/troubleshooting.md](docs/troubleshooting.md). Projects
@@ -131,6 +134,7 @@ still on VSTest are listed with the switch for their framework but not run: see
 | [`Labcoat.Testing.XUnit`](src/Labcoat.Testing.XUnit/README.md) | Optional: per-test traces for xUnit v3 + Aspire integration tests (no hooks to write). |
 | [`Labcoat.Testing`](src/Labcoat.Testing/README.md) | The framework-neutral core of the four above (brought in by them); for your own hooks in other frameworks. |
 | [`Labcoat.TestingPlatform`](src/Labcoat.TestingPlatform/README.md) | Preview: `dotnet run -- --labcoat` for a test project. Includes the runner. |
+| [`Labcoat.Vitest`](src/Labcoat.Vitest/README.md) | Optional: runs Vitest projects in Labcoat. Reference it from the AppHost; the tool fetches it on `--runners vitest`. |
 
 Per-test traces take two steps in every framework: add the `Labcoat.Testing.*` package for it, and call
 `LabcoatTracing.ConfigureAspireTesting(builder)` in the fixture that creates the Aspire app (see

@@ -45,7 +45,8 @@ internal sealed class LiveOutputService(WorkspaceState state, IExplorerEffects e
     /// <summary>Adds the options that make the test framework stream output (detected from the output folder).</summary>
     public (string[] Args, IReadOnlyDictionary<string, string>? Env) HostOptions(ProjectEntry p, string[] args, IReadOnlyDictionary<string, string>? env)
     {
-        var support = LiveOutput.Detect(Path.GetDirectoryName(p.TargetPath));
+        // A runner package's host streams the output so far in in-progress updates, like TUnit's IDE streaming.
+        var support = p.Plugin is null ? LiveOutput.Detect(Path.GetDirectoryName(p.TargetPath)) : LiveOutputSupport.Streaming;
         Live.Configure(p.Project.Id, support);
         var (extraArgs, extraEnv) = LiveOutput.HostOptions(support);
         if (extraArgs.Length == 0 && extraEnv.Count == 0) return (args, env);

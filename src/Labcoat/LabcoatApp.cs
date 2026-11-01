@@ -26,16 +26,18 @@ public static partial class LabcoatApp
             return 0;
         }
         var paths = options.Paths;
-        // No paths: the test project in the current directory, else the nearest solution walking up, else the current directory.
-        if (paths.Count == 0) paths.Add(Cli.ResolveDefaultPath(Directory.GetCurrentDirectory(), Cli.Warn));
-
-        var startupNotes = new List<string>(); // printed below the banner
-        var (projects, pathError) = await WorkspaceDiscovery.FindProjectsAsync(paths, startupNotes, ct);
-        if (pathError is not null) return Fail(pathError, usageHint: false, ErrorExitCode(options));
+        var requestedRunners = StartupSettings.RequestedRunners(options);
+        if (paths.Count == 0) paths.Add(StartupSettings.DefaultPath(requestedRunners));
 
         // Settings files + layered UI defaults (LabcoatConfig.cs): user file < workspace file < AppHost < LABCOAT_UI_SETTINGS < CLI.
         var config = StartupSettings.LoadConfig(options, paths, out var configError);
         if (config is null) return Fail(configError!, usageHint: false, ErrorExitCode(options));
+
+        var startupNotes = new List<string>(); // printed below the banner
+        var runners = StartupSettings.ResolveRunners(options, requestedRunners ?? config.Runners, startupNotes, out var runnerError);
+        if (runners is null) return Fail(runnerError!, usageHint: false, ErrorExitCode(options));
+        var (projects, pathError) = await WorkspaceDiscovery.FindProjectsAsync(paths, runners, startupNotes, ct);
+        if (pathError is not null) return Fail(pathError, usageHint: false, ErrorExitCode(options));
         var watch = options.Watch;
         var coverage = options.Coverage;
         var traces = options.Traces;
@@ -74,6 +76,7 @@ public static partial class LabcoatApp
         {
             Paths = paths,
             Projects = projects,
+            Runners = runners,
             ExtraRoots = options.ExtraRoots,
             Url = url,
             Guard = guard,
@@ -243,11 +246,11 @@ public static partial class LabcoatApp
         if (PathUtil.CommonRoot(o.Paths) is { } inputRoot) sourceRoots.Insert(0, inputRoot);
         var uiDefaultsJson = o.UiDefaults is null ? (JsonElement?)null : JsonSerializer.SerializeToElement(o.UiDefaults);
         return new Explorer(hub, o.Projects, o.AspireDashboardUrl, sourceRoots,
-            o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
+            o.WorkspaceName, tracingOnStart: o.Traces, inputPaths: o.Paths, runners: o.Runners) { UiDefaults = uiDefaultsJson, AffectedBase = o.AffectedBase, CoverageOptions = o.Coverage,
               TraceFilter = o.TraceFilter, QuarantineFile = o.QuarantineFile,
               ImpactMapMode = o.ImpactMap ?? ImpactMapModes.Default,
               MaxParallelProjects = o.Limits.EffectiveMaxParallel, HangThreshold = o.Limits.EffectiveHangThreshold, TestTimeout = o.Limits.EffectiveTestTimeout,
-              ProjectFinder = (warn, ct) => ProjectDiscovery.FindProjectsAsync(o.Paths, warn, ct: ct), WorkspaceRoots = WorkspaceDiscovery.WorkspaceRootsOf(o.Paths) };
+              ProjectFinder = (warn, ct) => ProjectDiscovery.FindProjectsAsync(o.Paths, warn, runners: o.Runners, ct: ct), WorkspaceRoots = WorkspaceDiscovery.WorkspaceRootsOf(o.Paths) };
     }
 
 

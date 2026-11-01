@@ -92,7 +92,7 @@ internal sealed class TestHostPool(WorkspaceState state, IExplorerEffects effect
     public async Task<WarmSession?> EnsureWarmAsync(ProjectEntry p, CancellationToken ct)
     {
         if (p.WarmUnsupported || owner.ColdForVerify(p)) return null; // ColdForVerify: Explorer.Snapshots.cs
-        var hashes = OutputFingerprints.OutputHashes(p.TargetPath!);
+        var hashes = RunnerProjects.HostHashes(p);
         var fingerprint = OutputFingerprints.FingerprintOf(hashes);
         WarmSession? existing;
         bool tracing;
@@ -255,7 +255,7 @@ internal sealed class TestHostPool(WorkspaceState state, IExplorerEffects effect
     {
         WarmSession? w;
         lock (state.Sync) w = p.Warm;
-        if (w is not null && p.TargetPath is not null && OutputFingerprints.Of(p.TargetPath) != w.Fingerprint)
+        if (w is not null && p.TargetPath is not null && OutputFingerprints.FingerprintOf(RunnerProjects.HostHashes(p)) != w.Fingerprint)
             Retire(p, w, "the test app was rebuilt");
     }
 

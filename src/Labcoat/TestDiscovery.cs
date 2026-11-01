@@ -16,7 +16,7 @@ internal sealed class TestDiscovery(WorkspaceState state, IExplorerEffects effec
     /// <summary>Discovers the project unless its output is unchanged since its last discovery.</summary>
     public async Task<bool> EnsureDiscoveredAsync(ProjectEntry p, CancellationToken ct)
     {
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
+        var stamp = RunnerProjects.OutputStampOf(p);
         if (stamp == p.DiscoveredDllStamp) return true;
         return await DiscoverAsync(p, ct);
     }
@@ -24,7 +24,7 @@ internal sealed class TestDiscovery(WorkspaceState state, IExplorerEffects effec
     public async Task<bool> DiscoverAsync(ProjectEntry p, CancellationToken ct)
     {
         effects.SetStatus(p, ProjectStatus.Discovering);
-        var stamp = File.GetLastWriteTimeUtc(p.TargetPath!);
+        var stamp = RunnerProjects.OutputStampOf(p);
         var found = new List<TestNode>();
         var runId = Guid.NewGuid();
         try
@@ -40,7 +40,7 @@ internal sealed class TestDiscovery(WorkspaceState state, IExplorerEffects effec
         }
         catch (Exception ex)
         {
-            lock (state.Sync) p.Project.Diagnostics = ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, ex);
+            lock (state.Sync) p.Project.Diagnostics = ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, ex, p.Plugin);
             effects.SetStatus(p, ProjectStatus.Error, "Discovery failed: " + ex.Message);
             effects.Log(p.Project.Id, LogLevels.Error, "Discovery failed: " + ex.Message);
             return false;
@@ -101,7 +101,7 @@ internal sealed class TestDiscovery(WorkspaceState state, IExplorerEffects effec
             p.Project.BuildErrors = null;
             p.Project.BuildErrorCount = null;
             p.Project.BuildWarningCount = null;
-            p.Project.Diagnostics = found.Count == 0 ? ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, null) : null;
+            p.Project.Diagnostics = found.Count == 0 ? ProjectDiagnostics.Diagnose(p.Properties, p.PackageReferences, p.Project.Path, p.TargetPath, null, p.Plugin) : null;
             effects.Emit(new ProjectStatusEvent(p.Project.Copy()));
             publishState();
         }

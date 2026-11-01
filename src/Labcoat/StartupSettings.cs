@@ -28,6 +28,34 @@ internal static class StartupSettings
         }
     }
 
+    /// <summary>The runners the command line or LABCOAT_RUNNERS (Aspire WithRunners) name; null = not chosen there.</summary>
+    internal static List<string>? RequestedRunners(StartOptions options) =>
+        options.Runners ?? TestRunners.ParseList(Environment.GetEnvironmentVariable(TestRunners.RunnersEnv));
+
+    /// <summary>
+    /// The path without paths: the test project in the current directory, else the nearest solution walking up, else the
+    /// current directory (always the current directory when the .NET runner is off: there is no solution to look for).
+    /// </summary>
+    internal static string DefaultPath(List<string>? requestedRunners) =>
+        requestedRunners is { } only && !only.Contains(TestRunners.DotnetId)
+            ? Directory.GetCurrentDirectory()
+            : Cli.ResolveDefaultPath(Directory.GetCurrentDirectory(), Cli.Warn);
+
+    /// <summary>
+    /// The test runners: --runners > LABCOAT_RUNNERS (Aspire WithRunners) > settings files (<paramref name="requested"/>);
+    /// null = the .NET runner plus every installed runner package. A requested runner that isn't installed is fetched from
+    /// NuGet (RunnerPackages.cs); null + <paramref name="error"/> when that fails.
+    /// </summary>
+    internal static TestRunners? ResolveRunners(StartOptions options, IReadOnlyList<string>? requested, List<string> startupNotes, out string? error)
+    {
+        var installed = TestRunners.FindPlugins(TestRunners.SearchDirectories(options.RunnerPaths), Cli.Warn);
+        var runners = TestRunners.Resolve(requested, installed,
+            id => RunnerPackages.Fetch(id, Cli.Version, Directory.GetCurrentDirectory(), message => Console.Error.WriteLine(Cli.Dim(message)), Cli.Warn),
+            out error);
+        if (runners is not null && (runners.Plugins.Count > 0 || !runners.IncludesDotnet)) startupNotes.Add($"Test runners: {runners.Describe()}");
+        return runners;
+    }
+
     /// <summary>affectedBase: --affected-base > LABCOAT_AFFECTED_BASE (Aspire WithAffectedBase) > workspace file > user file.</summary>
     internal static string? ResolveAffectedBase(StartOptions options, LabcoatConfig config)
     {

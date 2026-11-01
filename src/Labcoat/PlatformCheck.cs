@@ -13,6 +13,7 @@ internal sealed class PlatformCheck(WorkspaceState state, IExplorerEffects effec
     /// </summary>
     public async Task<bool> CheckAsync(ProjectEntry p, CancellationToken ct)
     {
+        if (p.Plugin is not null) return true; // a runner package's project (RunnerProjects.cs)
         var stamp = ProjectDiscovery.DetectionStamp(p.Project.Path);
         if (p.PlatformStamp != stamp || p.Platform is null)
         {

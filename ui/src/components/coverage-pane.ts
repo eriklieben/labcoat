@@ -802,7 +802,8 @@ define("lc-coverage-overview", CoverageOverview);
 export function coverageSettingsLabel(s: CoverageSettingsInfo): string {
   const what = settingsSource(s);
   const filters = [s.include?.length ? `+ ${s.include.join(", ")}` : "", s.exclude?.length ? `− ${s.exclude.join(", ")}` : ""].filter(Boolean);
-  return [what, ...filters, `${s.instrumentation} instrumentation`].join(" · ");
+  const instrumentation = s.source === "runner" ? [] : [`${s.instrumentation} instrumentation`];
+  return [what, ...filters, ...instrumentation].join(" · ");
 }
 
 const sortDirection = (desc: boolean) => (desc ? "descending" : "ascending");
@@ -813,6 +814,7 @@ const testsTitle = (subset: boolean) => (subset ? "Selected tests" : "All tests"
 function settingsSource(s: CoverageSettingsInfo): string {
   if (s.source === "file") return `${fileName(s.path ?? "")} (${settingsOrigin(s.origin)})`;
   if (s.source === "testconfig") return `${fileName(s.path ?? "testconfig.json")} (codeCoverage)`;
+  if (s.source === "runner") return `${fileName(s.path ?? "")} (${s.origin ?? "runner"} settings)`;
   const modules = s.modules?.length ? s.modules.join(", ") : "all but tests, test frameworks and Labcoat";
   return `Labcoat defaults: ${modules}`;
 }

@@ -142,6 +142,8 @@ public sealed record TestProject
     /// Microsoft.Testing.Platform (or not known yet).
     /// </summary>
     public string? TestPlatform { get; set; }
+    /// <summary>The runner package that runs the project ("vitest", docs/runners.md); null: a .NET test project.</summary>
+    public string? Runner { get; init; }
 
     public TestProject Copy() => this with { BuildErrors = BuildErrors?.ToList(), Diagnostics = Diagnostics?.ToList(), AvailableFrameworks = AvailableFrameworks?.ToList() };
 }

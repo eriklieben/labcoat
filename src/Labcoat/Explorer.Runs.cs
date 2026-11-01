@@ -72,6 +72,9 @@ public sealed partial class Explorer
             unknown = unknownIds;
             if (o.Debug && !IsTestsOfOneProject(selection))
                 return new RunRequestResult(400, Error: "debug needs testIds of exactly one project.");
+            // A runner package's host has no wait-for-debugger switch (docs/runners.md).
+            if (o.Debug && _state.FindProject(selection.Keys.Single())?.Project.Runner is { } runner)
+                return new RunRequestResult(400, Error: $"debug isn't supported for {runner} tests: run them, or debug them in your editor.");
 
             (req, merged, superseded) = QueueLocked(new RunRequest
             {

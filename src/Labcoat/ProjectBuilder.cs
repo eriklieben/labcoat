@@ -25,7 +25,10 @@ internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effe
     public async Task<List<ProjectEntry>> BuildProjectsAsync(IReadOnlyList<ProjectEntry> projects, bool onlyIfChanged, CancellationToken ct)
     {
         if (projects.Count <= 1) return await BuildOneByOneAsync(projects, ct, onlyIfChanged);
-        var (ready, batch, separate) = PlanBuilds(projects, onlyIfChanged);
+        // Runner packages' projects have nothing to build: ready at once, never in the batch.
+        foreach (var p in projects.Where(p => p.Plugin is not null)) PrepareRunnerProject(p);
+        var (ready, batch, separate) = PlanBuilds(projects.Where(p => p.Plugin is null).ToList(), onlyIfChanged);
+        ready.UnionWith(projects.Where(p => p.Plugin is not null));
         if (batch.Count > 0) ready.UnionWith(await BuildBatchAsync(batch, ct));
         ready.UnionWith(await BuildOneByOneAsync(separate, ct));
         return projects.Where(ready.Contains).ToList();
@@ -34,6 +37,11 @@ internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effe
     /// <summary>Builds one project (unless <paramref name="onlyIfChanged"/> and it is up to date); false when it can't run.</summary>
     public async Task<bool> BuildAsync(ProjectEntry p, CancellationToken ct, bool onlyIfChanged = false)
     {
+        if (p.Plugin is not null)
+        {
+            PrepareRunnerProject(p);
+            return true;
+        }
         if (!await platform.CheckAsync(p, ct)) return false; // not on Microsoft.Testing.Platform: never built or started
         if (onlyIfChanged && IsBuildUpToDate(p))
         {
@@ -60,6 +68,25 @@ internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effe
             return false;
         }
         return await CompleteBuildAsync(p, buildStart, sw.Elapsed, ct);
+    }
+
+    /// <summary>
+    /// The "build" of a runner package's project (RunnerProjects.cs): nothing to compile (the runner transforms sources
+    /// itself), so only what a build sets up: the test app path, the watched folder and the build time the up-to-date
+    /// checks compare with.
+    /// </summary>
+    private void PrepareRunnerProject(ProjectEntry p)
+    {
+        var dir = Path.GetDirectoryName(p.Project.Path)!;
+        p.TargetPath = p.Project.Path;
+        p.TargetPathStamp = File.GetLastWriteTimeUtc(p.Project.Path);
+        var changedWatch = p.WatchDirs is not [var only] || only != dir;
+        p.WatchDirs = [dir];
+        p.LastBuildStartUtc = DateTime.UtcNow;
+        if (changedWatch && watch.Enabled) watch.Start(p);
+        hosts.InvalidateIfStale(p);
+        lock (state.Sync) p.Project.ResultsOutdated = null;
+        effects.SetStatus(p, ProjectStatus.Idle);
     }
 
     /// <summary>Up to date (no build), in the batch, or on their own (one framework; a batch of one).</summary>
@@ -214,10 +241,11 @@ internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effe
     private static bool SourcesChangedSince(ProjectEntry p, DateTime sinceUtc)
     {
         var dirs = p.WatchDirs.Count > 0 ? p.WatchDirs : [Path.GetDirectoryName(p.Project.Path)!];
-        return dirs.Distinct().Any(dir => SourcesChangedUnder(dir, sinceUtc));
+        var extensions = RunnerProjects.SourceExtensionsOf(p);
+        return dirs.Distinct().Any(dir => SourcesChangedUnder(dir, sinceUtc, extensions));
     }
 
-    private static bool SourcesChangedUnder(string dir, DateTime sinceUtc)
+    private static bool SourcesChangedUnder(string dir, DateTime sinceUtc, IReadOnlySet<string> extensions)
     {
         var stack = new Stack<string>([dir]);
         while (stack.Count > 0)
@@ -225,7 +253,7 @@ internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effe
             var d = stack.Pop();
             try
             {
-                if (Directory.EnumerateFiles(d).Any(f => WatchMode.Extensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
+                if (Directory.EnumerateFiles(d).Any(f => extensions.Contains(Path.GetExtension(f)) && File.GetLastWriteTimeUtc(f) > sinceUtc))
                     return true;
                 foreach (var sub in Directory.EnumerateDirectories(d).Where(sub => !IsIgnoredSourceDir(Path.GetFileName(sub))))
                     stack.Push(sub);
@@ -235,7 +263,7 @@ internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effe
         return false;
     }
 
-    private static bool IsIgnoredSourceDir(string name) => name is "bin" or "obj" or "node_modules" || name.StartsWith('.');
+    internal static bool IsIgnoredSourceDir(string name) => name is "bin" or "obj" or "node_modules" || name.StartsWith('.');
 
     private async Task ResolveTargetPathAsync(ProjectEntry p, CancellationToken ct)
     {
