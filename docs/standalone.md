@@ -155,7 +155,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | Exit code | Meaning |
 | --- | --- |
 | `0` | No test failed (skipped tests and failures of [quarantined](features.md#history-flaky-tests-and-past-runs) tests don't count). |
-| `1` | A test failed or timed out, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, a report could not be written, or a coverage threshold was missed or could not be checked. |
+| `1` | A test failed or timed out, a test took longer than `--max-test-duration`, the run was aborted (a test host crashed) or cancelled, `--filter` matched nothing, a report could not be written, or a coverage threshold was missed or could not be checked. |
 | `2` | A project did not build or discover, nothing could run, or the command line is invalid. |
 
 | Option | |
@@ -167,6 +167,7 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | `--export-paths absolute` | Absolute source paths in lcov / Cobertura. The default writes them relative to the workspace root: the git repository root, else the common folder of the inputs and the test projects (and what they reference); files outside it stay absolute. |
 | `--min-coverage <percent>` | Fails the run (exit code 1) when the line coverage of this run is below the percentage (0-100). Collects coverage like `--coverage`; with `--filter` the coverage is that of the filtered tests. |
 | `--min-diff-coverage <percent>` | Fails the run (exit code 1) when the lines changed versus the base are covered less than the percentage. The base is the merge base with `--affected-base` (else `origin/HEAD`, `origin/main`, `main` or `master`), plus uncommitted and untracked files, as in "Run affected"; the changed lines come from `git diff` and only the executable ones count. Collects coverage like `--coverage`. |
+| `--max-test-duration <duration>` | A budget per test: tests that took longer are listed and fail the run (exit code `1`), quarantined tests excepted. Nothing is cancelled, unlike `--test-timeout`. Also `maxTestDuration` in the settings file ([Duration budget](configuration.md#duration-budget)). |
 | `--filter <pattern>` | Only tests whose display name, `Namespace.Class(.Method)` or project contains the pattern; `*` is a wildcard over the whole name (`*CartTests.Pay*`). Comma-separated; repeatable. |
 
 The thresholds print their result and, for the diff, the lines that lack coverage:

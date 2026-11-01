@@ -84,6 +84,12 @@ public sealed class LabcoatOptions
     /// </summary>
     public TimeSpan? TestTimeout { get; set; }
 
+    /// <summary>
+    /// Duration budget of <c>labcoat --run</c> (<see cref="LabcoatRunLimitsExtensions.WithMaxTestDuration"/>): a test that took
+    /// longer fails the run. Null or <see cref="TimeSpan.Zero"/> = no budget (the default).
+    /// </summary>
+    public TimeSpan? MaxTestDuration { get; set; }
+
     /// <summary>A fixed host port for the UI instead of a random one (<see cref="LabcoatResourceBuilderExtensions.WithHostPort"/>).</summary>
     public int? HostPort { get; set; }
 
@@ -122,6 +128,7 @@ public sealed class LabcoatOptions
         MaxParallelProjects = ReadMaxParallel(section) ?? MaxParallelProjects;
         HangThreshold = ReadDuration(section, nameof(HangThreshold)) ?? HangThreshold;
         TestTimeout = ReadDuration(section, nameof(TestTimeout)) ?? TestTimeout;
+        MaxTestDuration = ReadDuration(section, nameof(MaxTestDuration)) ?? MaxTestDuration;
         Ui.Bind(section.GetSection(nameof(Ui)));
         return this;
     }

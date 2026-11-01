@@ -69,8 +69,9 @@ internal static class StartupSettings
     }
 
     /// <summary>
-    /// maxParallelProjects / hangThreshold / testTimeout: the command line (--max-parallel, --hang-threshold, --test-timeout)
-    /// &gt; LABCOAT_MAX_PARALLEL / LABCOAT_HANG_THRESHOLD / LABCOAT_TEST_TIMEOUT (Labcoat.Aspire.Hosting sets them) &gt; workspace
+    /// maxParallelProjects / hangThreshold / testTimeout / maxTestDuration: the command line (--max-parallel, --hang-threshold,
+    /// --test-timeout, --max-test-duration) &gt; LABCOAT_MAX_PARALLEL / LABCOAT_HANG_THRESHOLD / LABCOAT_TEST_TIMEOUT /
+    /// LABCOAT_MAX_TEST_DURATION (Labcoat.Aspire.Hosting sets them) &gt; workspace
     /// file &gt; user file &gt; the defaults. An invalid environment value is a settings warning.
     /// </summary>
     internal static RunLimitOptions ResolveRunLimits(StartOptions options, LabcoatConfig config, Func<string, string?>? env = null)
@@ -80,7 +81,8 @@ internal static class StartupSettings
             ?? config.MaxParallelProjects;
         var hang = options.HangThreshold ?? FromEnv(RunLimits.HangThresholdEnv, RunLimits.ParseDuration, "a duration such as 90s or 2m") ?? config.HangThreshold;
         var timeout = options.TestTimeout ?? FromEnv(RunLimits.TestTimeoutEnv, RunLimits.ParseDuration, "a duration such as 30s or 5m") ?? config.TestTimeout;
-        return new RunLimitOptions(maxParallel, hang, timeout);
+        var budget = options.MaxTestDuration ?? FromEnv(RunLimits.MaxTestDurationEnv, RunLimits.ParseDuration, "a duration such as 2s or 500ms") ?? config.MaxTestDuration;
+        return new RunLimitOptions(maxParallel, hang, timeout, budget);
 
         T? FromEnv<T>(string name, Func<string?, T?> parse, string expected) where T : struct
         {

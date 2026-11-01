@@ -86,12 +86,15 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--export / --filter / --export-paths / --shard* / --min-coverage / --min-diff-coverage only make sense with --run.</summary>
+    /// <summary>
+    /// --export / --filter / --export-paths / --shard* / --min-coverage / --min-diff-coverage / --max-test-duration only
+    /// make sense with --run.
+    /// </summary>
     private string? ValidateRunOptions()
     {
         if (!RunOnce && (Exports.Count > 0 || Filters.Count > 0 || ExportAbsolutePaths || Shard is not null || ShardTimings.Count > 0
-                         || MinCoverage is not null || MinDiffCoverage is not null))
-            return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage and --min-diff-coverage need --run.";
+                         || MinCoverage is not null || MinDiffCoverage is not null || MaxTestDuration is not null))
+            return "--export, --filter, --export-paths, --shard, --shard-timings, --min-coverage, --min-diff-coverage and --max-test-duration need --run.";
         return Shard is null && ShardTimings.Count > 0 ? "--shard-timings needs --shard." : null;
     }
 }
@@ -100,8 +103,8 @@ public sealed partial class StartOptions
 /// <c>labcoat --run</c>: the non-interactive mode for CI. Builds and discovers the test projects, runs every test (or
 /// the <c>--filter</c>ed ones; with <c>--coverage</c>, which an lcov / Cobertura export implies), writes the
 /// <c>--export</c> files and exits: <see cref="ExitPassed"/> when nothing failed, <see cref="ExitFailed"/> when a test
-/// failed (or the run was aborted / cancelled, or a <c>--min-coverage</c> / <c>--min-diff-coverage</c> threshold was
-/// missed), <see cref="ExitBuildError"/> when a project did not build or discover
+/// failed or took longer than <c>--max-test-duration</c> (or the run was aborted / cancelled, or a <c>--min-coverage</c> /
+/// <c>--min-diff-coverage</c> threshold was missed), <see cref="ExitBuildError"/> when a project did not build or discover
 /// (or nothing could run). No web server, no browser. Uses the same explorer, history and settings files as the UI.
 /// </summary>
 public static class CliRun
@@ -130,11 +133,11 @@ public static class CliRun
         {
             explorer.ReleaseConsole();
             using var cancel = new CancelOnInterrupt(explorer, ct);
-            return await RunAndExportAsync(explorer, options, coverage, cancel.Token);
+            return await RunAndExportAsync(explorer, options, app.Limits.EffectiveMaxTestDuration, coverage, cancel.Token);
         }
     }
 
-    private static async Task<int> RunAndExportAsync(Explorer explorer, StartOptions options, bool coverage, CancellationToken ct)
+    private static async Task<int> RunAndExportAsync(Explorer explorer, StartOptions options, TimeSpan budget, bool coverage, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         await explorer.DiscoverAsync(null);
@@ -158,7 +161,8 @@ public static class CliRun
         PrintResult(run, status, broken, sw.Elapsed);
         var exportsOk = WriteExports(explorer, options, run?.RunId);
         var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, ct);
-        return ExitCode(run, broken, exportsOk, gatesOk);
+        var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget);
+        return ExitCode(run, broken, exportsOk, gatesOk, overBudget.Count);
     }
 
     /// <summary>
@@ -221,10 +225,22 @@ public static class CliRun
     private static List<TestProject> BrokenProjects(Explorer explorer) =>
         explorer.Snapshot().Projects.Where(p => p.Status == ProjectStatus.Error).ToList();
 
-    internal static int ExitCode(RunSummary? run, IReadOnlyCollection<TestProject> broken, bool exportsOk, bool gatesOk = true)
+    /// <summary>Lists the tests of the run that took longer than the <c>maxTestDuration</c> budget (they fail the run).</summary>
+    private static List<OverBudgetTest> ReportOverBudget(Explorer explorer, string runId, TimeSpan budget)
+    {
+        var over = explorer.Exports.Run(runId) is { } export ? DurationBudget.OverBudget(export, budget) : [];
+        if (over.Count == 0) return over;
+        Console.Error.WriteLine($"{ErrorLabel} {over.Count} test{(over.Count == 1 ? "" : "s")} took longer than maxTestDuration ({RunLimits.Describe(budget)}):");
+        foreach (var t in over)
+            Console.Error.WriteLine($"  {HtmlReport.Duration(t.DurationMs)}  {(t.ClassName is { Length: > 0 } c ? c + "." : "")}{t.Name} [{t.ProjectId}]" +
+                                    (t.Outcome is Outcome.Passed ? "" : Cli.Dim($" ({t.Outcome})")));
+        return over;
+    }
+
+    internal static int ExitCode(RunSummary? run, IReadOnlyCollection<TestProject> broken, bool exportsOk, bool gatesOk = true, int overBudget = 0)
     {
         if (broken.Count > 0 || run is null) return ExitBuildError;
-        if (run.Failed > 0 || run.Aborted == true || run.Cancelled == true || !exportsOk || !gatesOk) return ExitFailed;
+        if (run.Failed > 0 || run.Aborted == true || run.Cancelled == true || !exportsOk || !gatesOk || overBudget > 0) return ExitFailed;
         return ExitPassed;
     }
 

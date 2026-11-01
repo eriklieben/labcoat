@@ -24,6 +24,8 @@ public sealed partial class StartOptions
     public TimeSpan? HangThreshold { get; set; }
     /// <summary>--test-timeout: per-test timeout (zero = off).</summary>
     public TimeSpan? TestTimeout { get; set; }
+    /// <summary>--max-test-duration: with --run, a test that took longer fails the run (zero = no budget).</summary>
+    public TimeSpan? MaxTestDuration { get; set; }
     public string? ConfigFile { get; set; }
     public bool NoUserConfig { get; set; }
     /// <summary>--coverage-settings: the coverage settings file for every test project (relative: to each project, then the current directory).</summary>
@@ -68,7 +70,7 @@ public sealed partial class StartOptions
     {
         private static readonly HashSet<string> ValueOptions = new(StringComparer.Ordinal)
         {
-            "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout",
+            "--config", "--theme", "--mode", "--editor", "--motion", "--lock", "--affected-base", "--impact-map", "--max-parallel", "--hang-threshold", "--test-timeout", "--max-test-duration",
             "--coverage-settings", "--coverage-include", "--coverage-exclude", "--log-file", "--trace-filter",
             "--export", "--filter", "--export-paths", "--shard", "--shard-by", "--shard-timings", "--min-coverage", "--min-diff-coverage", // --run (CliRun.cs)
         };
@@ -121,7 +123,7 @@ public sealed partial class StartOptions
             case "--max-parallel":
                 MaxParallel = RunLimits.ParseMaxParallel(args.Value());
                 return ErrorUnless(MaxParallel is not null, $"--max-parallel needs a number from 1 to {RunLimits.MaxParallelLimit}.");
-            case "--hang-threshold" or "--test-timeout": return SetDuration(a, args.Value());
+            case "--hang-threshold" or "--test-timeout" or "--max-test-duration": return SetDuration(a, args.Value());
             case "--theme" or "--mode" or "--editor" or "--motion": return SetUi(a, args.Value());
             case "--lock": return Lock(args.Value());
             case "--port" or "-p": return SetPort(args.Value(), $"{a} needs a port number (1-65535).");
@@ -155,13 +157,14 @@ public sealed partial class StartOptions
         return null;
     }
 
-    /// <summary>--hang-threshold / --test-timeout: seconds or a duration ("90s", "5m"); 0 or "off" turns it off.</summary>
+    /// <summary>--hang-threshold / --test-timeout / --max-test-duration: seconds or a duration ("90s", "5m"); 0 or "off" turns it off.</summary>
     private string? SetDuration(string option, string? value)
     {
         var d = RunLimits.ParseDuration(value);
         if (d is null) return $"{option} needs seconds or a duration such as 90s or 5m (0 or off turns it off).";
         if (option == "--hang-threshold") HangThreshold = d;
-        else TestTimeout = d;
+        else if (option == "--test-timeout") TestTimeout = d;
+        else MaxTestDuration = d;
         return null;
     }
 

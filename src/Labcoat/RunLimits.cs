@@ -5,16 +5,18 @@ namespace Labcoat;
 
 /// <summary>
 /// How many projects build / discover / run at once, when a running test counts as slow, and the optional per-test
-/// timeout (docs/configuration.md "Parallel projects, slow tests and timeouts"). Options: <c>maxParallelProjects</c>,
-/// <c>hangThreshold</c>, <c>testTimeout</c> in a settings file; <c>--max-parallel</c>, <c>--hang-threshold</c>,
-/// <c>--test-timeout</c>; <c>LABCOAT_MAX_PARALLEL</c>, <c>LABCOAT_HANG_THRESHOLD</c>, <c>LABCOAT_TEST_TIMEOUT</c> (set by
-/// Labcoat.Aspire.Hosting).
+/// timeout (docs/configuration.md "Parallel projects, slow tests and timeouts"), plus the <c>--run</c> duration budget.
+/// Options: <c>maxParallelProjects</c>, <c>hangThreshold</c>, <c>testTimeout</c>, <c>maxTestDuration</c> in a settings
+/// file; <c>--max-parallel</c>, <c>--hang-threshold</c>, <c>--test-timeout</c>, <c>--max-test-duration</c>;
+/// <c>LABCOAT_MAX_PARALLEL</c>, <c>LABCOAT_HANG_THRESHOLD</c>, <c>LABCOAT_TEST_TIMEOUT</c>, <c>LABCOAT_MAX_TEST_DURATION</c>
+/// (set by Labcoat.Aspire.Hosting).
 /// </summary>
 public static class RunLimits
 {
     public const string MaxParallelEnv = "LABCOAT_MAX_PARALLEL";
     public const string HangThresholdEnv = "LABCOAT_HANG_THRESHOLD";
     public const string TestTimeoutEnv = "LABCOAT_TEST_TIMEOUT";
+    public const string MaxTestDurationEnv = "LABCOAT_MAX_TEST_DURATION";
 
     /// <summary>Largest accepted <c>maxParallelProjects</c>.</summary>
     public const int MaxParallelLimit = 64;

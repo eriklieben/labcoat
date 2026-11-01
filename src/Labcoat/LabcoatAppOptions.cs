@@ -29,7 +29,7 @@ public sealed class LabcoatAppOptions
     public string? ImpactMap { get; init; }
     /// <summary>Coverage settings file and include / exclude globs (settings files &lt; command line).</summary>
     public CoverageOptions Coverage { get; init; } = CoverageOptions.None;
-    /// <summary>maxParallelProjects, hangThreshold, testTimeout (RunLimitOptions.cs).</summary>
+    /// <summary>maxParallelProjects, hangThreshold, testTimeout, maxTestDuration (RunLimitOptions.cs).</summary>
     public RunLimitOptions Limits { get; init; } = RunLimitOptions.Default;
     /// <summary>The settings files in use (for the diagnostics report).</summary>
     public IReadOnlyList<string> SettingsFiles { get; init; } = [];

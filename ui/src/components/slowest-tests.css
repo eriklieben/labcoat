@@ -1,0 +1,24 @@
+/* "Slowest tests" of a project: duration trend per test. */
+
+@layer app.components {
+  .slowest-item {
+    gap: var(--lc-space-8);
+  }
+  .slowest-factor {
+    display: block;
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+  .slowest-factor.is-slow {
+    color: var(--lc-status-failed);
+  }
+  .slowest-spark {
+    display: inline-flex;
+    flex: none;
+  }
+  .slowest-more {
+    padding: var(--lc-space-4) var(--lc-space-8);
+    color: var(--lc-fg-muted);
+    font-size: var(--lc-text-sm);
+  }
+}

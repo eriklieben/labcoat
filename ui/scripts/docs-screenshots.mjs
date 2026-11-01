@@ -203,6 +203,21 @@ const shots = {
     await save(page, "failure-stack.png", { x: pane.x, y, width: pane.width, height: trace.y + trace.height + 16 - y });
   },
 
+  "slowest-tests": async () => {
+    const page = await openApp("?mock");
+    await prepare(page);
+    await select(page, "SampleTests"); // the project: its slowest tests with sparklines and "N\u00d7 median"
+    await page.waitForSelector("lc-detail-pane .slowest-item");
+    await settle(page);
+    const section = page.locator("lc-detail-pane .detail-section", { has: page.locator(".section-header h3", { hasText: "Slowest tests" }) }).first();
+    await section.evaluate((e) => e.scrollIntoView({ block: "start" }));
+    await settle(page);
+    const pane = await boxOf(page, page.locator("lc-detail-pane"));
+    const box = await section.boundingBox();
+    const y = Math.max(pane.y, box.y - 12);
+    await save(page, "slowest-tests.png", { x: pane.x, y, width: pane.width, height: Math.min(pane.y + pane.height, box.y + box.height + 12) - y });
+  },
+
   "tree-filters": async () => {
     const page = await openApp("?mock&coverage");
     await prepare(page);
