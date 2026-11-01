@@ -163,7 +163,18 @@ the config: `pnpm dlx --package renovate@44.115.1 -- renovate-config-validator -
   runs no tests. Fork pull requests get no secrets, so the job is skipped for them; the analysis of `main` after the
   merge picks the change up.
 
-The analysis settings are the `/d:` arguments of the *Begin analysis* step in [`ci.yml`](../.github/workflows/ci.yml):
+**Before a push.** The C# rules of the quality profile also run in every build: `src/` references SonarAnalyzer.CSharp
+(the analyzer SonarQube Cloud runs) with [`src/sonar.globalconfig`](../src/sonar.globalconfig), which turns on exactly
+the profile's rules (the package's own defaults differ: S107 and S3776 are off there). So a C# finding is a build
+warning, which `-warnaserror` (CI's build job) makes an error. `node eng/sonar-rules.mjs` writes the file again from the
+profile when SonarQube Cloud updates it. For the TypeScript, JavaScript, CSS and shell, `node eng/sonar.mjs` runs CI's
+analysis from your machine as an analysis of the branch's pull request (open one first; a draft will do) and lists the
+issues it adds. It needs a token that may analyse the project, in `$SONAR_TOKEN` or the file
+`~/.config/sonarcloud-token` (`chmod 600`); it's never written into the repository. A pull request, because the plan
+shows no results of branches other than `main`.
+
+The analysis settings are in [`eng/SonarQube.Analysis.xml`](../eng/SonarQube.Analysis.xml), which CI's *Begin
+analysis* step ([`ci.yml`](../.github/workflows/ci.yml)) and `eng/sonar.mjs` pass to the scanner (`/s:`):
 
 - **Excluded:** samples, benchmarks, build output, generated code, `node_modules`, the mock backend `ui/src/mock/**`,
   the design system gallery, the build and release scripts and the tool configuration. Duplication leaves out the theme
@@ -185,14 +196,21 @@ The analysis settings are the `/d:` arguments of the *Begin analysis* step in [`
     with code points, the colours of project ids with characters outside the BMP would change.
   - `typescript:S5906` (more specific matcher) in `ui/test/app/tree-filter.test.ts`: one identity check avoids
     `.not.toBe` on purpose, because that matcher's failure message deep-compares two large trees.
+  - `css:S9423` (`!important`) in `ui/design-system/src/tokens/motion.css`: the motion policy (the busy gate, reduced
+    motion, motion off) has to beat every component's and every later cascade layer's animation and transition, which
+    is what `!important` across layers is for. And in `ui/design-system/src/components/dialog.css`: `.visually-hidden`
+    has to win over a later layer's `position` on the same element.
+- **C# false positives and conventions** are `[SuppressMessage]`s in the code, each with its justification, so the build
+  and SonarQube Cloud skip them alike: `S5332` on the TRX XML namespace (an identifier, never fetched), `S1075` on
+  `TestPlatform.DocsUrl`, and `S107` on the constructors that `Explorer` calls once with its services (`RunExecutor`,
+  `CoverageService`, `ProjectBuilder`) and on `Explorer`'s own (separate optional settings).
 - **Marked in SonarQube Cloud** (one issue each, narrower than a file-wide ignore):
   - `tssecurity:S8480` (connection hijacking) on `new WebSocket(...)` in `ui/src/transport.ts`: *False positive*. The
     URL is `./ws` resolved against the page's own URL, so the host is always the one that served the page; the other
     parts are a fixed scheme (`ws:` / `wss:`) and a fixed `?lean=1`. The path always starts with `/`, so nothing in the
     page URL can add an authority, and the server checks Origin and Host as well.
-  - `csharpsquid:S1075` (hard-coded URI) on `TestPlatform.DocsUrl` in `src/Labcoat/TestPlatform.cs`: *Accept*. It is
-    a named constant already: the link to Labcoat's own troubleshooting page, the same for every user, so there is
-    nothing to configure.
 
-A new finding gets the same treatment: fix the code if that doesn't make it worse; otherwise a scoped ignore here and in
-`ci.yml` with its reason, or, for a single issue, *Accept* / *False positive* in SonarQube Cloud with a comment.
+A new finding gets the same treatment: fix the code if that doesn't make it worse; otherwise, for C#, a
+`[SuppressMessage]` with its justification, for the other languages a scoped ignore here and in
+`eng/SonarQube.Analysis.xml` with its reason, or, for a single issue, *Accept* / *False positive* in SonarQube Cloud
+with a comment.
