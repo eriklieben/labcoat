@@ -1,7 +1,7 @@
 // The pieces of the Vitest runner that need no Vitest: the protocol framing and the mapping of results onto test nodes.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeMessage, MessageReader, parseArgs } from "../../src/Labcoat.Vitest/runner/protocol.mjs";
+import { encodeMessage, MessageReader, parseArgs, rpcError } from "../../src/Labcoat.Vitest/runner/protocol.mjs";
 import { errorProperties, outputOf, TestIndex, toNode } from "../../src/Labcoat.Vitest/runner/mapping.mjs";
 
 describe("protocol", () => {
@@ -25,6 +25,16 @@ describe("protocol", () => {
   it("rejects a message without Content-Length", () => {
     const reader = new MessageReader(() => {});
     assert.throws(() => reader.push(Buffer.from("X-Other: 1\r\n\r\n{}")), /Missing Content-Length/);
+  });
+
+  it("gives every error a numeric code, with Node's string codes in the message", () => {
+    const missing = Object.assign(new Error("Cannot find package '@vitest/coverage-v8'"), { code: "ERR_MODULE_NOT_FOUND" });
+    assert.equal(rpcError(missing).code, -32000);
+    assert.equal(rpcError(missing).message, "ERR_MODULE_NOT_FOUND: Cannot find package '@vitest/coverage-v8'");
+    assert.equal(rpcError(Object.assign(new Error("no such method"), { code: -32601 })).code, -32601);
+    assert.deepEqual(rpcError("plain"), { code: -32000, message: "plain", data: undefined });
+    assert.match(rpcError(new Error("with stack")).data, /^Error: with stack\n\s+at /);
+    assert.equal(rpcError(Object.assign(new Error("for the user"), { data: undefined })).data, undefined);
   });
 });
 

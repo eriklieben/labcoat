@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -98,20 +99,7 @@ public sealed class MtpHost : IAsyncDisposable
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var psi = new ProcessStartInfo(command.FileName)
-        {
-            WorkingDirectory = command.WorkingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        foreach (var a in command.Arguments) psi.ArgumentList.Add(a);
-        psi.ArgumentList.Add("--server");
-        psi.ArgumentList.Add("--client-host");
-        psi.ArgumentList.Add("localhost");
-        psi.ArgumentList.Add("--client-port");
-        psi.ArgumentList.Add(port.ToString());
-        foreach (var a in extraArgs) psi.ArgumentList.Add(a);
+        var psi = ServerStartInfo(command, port, extraArgs);
         var removed = ConfigureTestHostEnvironment(psi.Environment, environment, tracingEnabled, traceFilter);
         if (TestHostEnvironment.DescribeOnce(removed) is { } removedInfo) log(LogLevels.Info, removedInfo);
 
@@ -119,25 +107,8 @@ public sealed class MtpHost : IAsyncDisposable
         var stderr = new Queue<string>();
         var sink = new OutputSink();
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is null) return;
-            sink.Line?.Invoke(e.Data, false);
-            // Labcoat.Testing's live output markers are a side channel, not process output.
-            if (!e.Data.StartsWith(LiveOutput.Marker, StringComparison.Ordinal)) lock (output) AppendCapped(output, e.Data);
-        };
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is null) return;
-            sink.Line?.Invoke(e.Data, true);
-            lock (output) AppendCapped(output, e.Data);
-            lock (stderr)
-            {
-                stderr.Enqueue(e.Data);
-                while (stderr.Count > StderrLines) stderr.Dequeue();
-            }
-            if (!string.IsNullOrWhiteSpace(e.Data)) log(LogLevels.Warning, "[test host stderr] " + e.Data);
-        };
+        process.OutputDataReceived += (_, e) => { if (e.Data is not null) OnStdout(e.Data, sink, output); };
+        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) OnStderr(e.Data, sink, output, stderr, log); };
         try
         {
             process.Start();
@@ -154,6 +125,45 @@ public sealed class MtpHost : IAsyncDisposable
         var shown = string.Join(' ', command.Arguments.Select(a => File.Exists(a) ? Path.GetFileName(a) : a));
         log(LogLevels.Info, $"Started test host (pid {process.Id}): {program} {shown} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
         return new MtpHost(process, listener, output, stderr, onNotification, log, sink);
+    }
+
+    private static ProcessStartInfo ServerStartInfo(HostCommand command, int port, IEnumerable<string> extraArgs)
+    {
+        var psi = new ProcessStartInfo(command.FileName)
+        {
+            WorkingDirectory = command.WorkingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var a in command.Arguments) psi.ArgumentList.Add(a);
+        psi.ArgumentList.Add("--server");
+        psi.ArgumentList.Add("--client-host");
+        psi.ArgumentList.Add("localhost");
+        psi.ArgumentList.Add("--client-port");
+        psi.ArgumentList.Add(port.ToString(CultureInfo.InvariantCulture));
+        foreach (var a in extraArgs) psi.ArgumentList.Add(a);
+        return psi;
+    }
+
+    private static void OnStdout(string line, OutputSink sink, StringBuilder output)
+    {
+        sink.Line?.Invoke(line, false);
+        // Labcoat.Testing's live output markers are a side channel, not process output.
+        if (line.StartsWith(LiveOutput.Marker, StringComparison.Ordinal)) return;
+        lock (output) AppendCapped(output, line);
+    }
+
+    private static void OnStderr(string line, OutputSink sink, StringBuilder output, Queue<string> stderr, Action<string, string> log)
+    {
+        sink.Line?.Invoke(line, true);
+        lock (output) AppendCapped(output, line);
+        lock (stderr)
+        {
+            stderr.Enqueue(line);
+            while (stderr.Count > StderrLines) stderr.Dequeue();
+        }
+        if (!string.IsNullOrWhiteSpace(line)) log(LogLevels.Warning, "[test host stderr] " + line);
     }
 
     /// <summary>
@@ -210,6 +220,9 @@ public sealed class MtpHost : IAsyncDisposable
             {
                 lock (_errors) _errors.Add(ex);
                 if (ct.IsCancellationRequested) Done.TrySetCanceled(ct);
+                // The host answered with an error (a controller never answers the run request): that's the result. Other
+                // failures (a connection dropped) wait for another connection or the process to exit.
+                else if (ex is MtpRpcException) Done.TrySetException(ex);
             }
         }
     }
@@ -566,9 +579,12 @@ public sealed class MtpConnection : IAsyncDisposable
             var id = idNode.GetValue<int>();
             if (_pending.TryRemove(id, out var tcs))
             {
+                // read leniently: a response that fails to parse would leave its request waiting forever
                 if (obj[ErrorMember] is JsonObject err)
                     tcs.TrySetException(new MtpRpcException(
-                        err["code"]?.GetValue<int>() ?? 0, err["message"]?.GetValue<string>() ?? "error", err["data"]?.ToJsonString()));
+                        err["code"] is JsonValue c && c.TryGetValue<int>(out var code) ? code : 0,
+                        err["message"] is JsonValue m && m.TryGetValue<string>(out var text) ? text : "error",
+                        err["data"]?.ToJsonString()));
                 else
                     tcs.TrySetResult(obj["result"]);
             }

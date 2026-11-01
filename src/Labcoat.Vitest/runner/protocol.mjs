@@ -25,6 +25,17 @@ export function encodeMessage(message) {
   return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, "ascii"), body]);
 }
 
+/**
+ * A JSON-RPC error: its code is a number; Node's string codes ("ENOENT", "ERR_MODULE_NOT_FOUND") go into the message.
+ * The stack goes along as data, except for an error that sets its own `data` (a message meant for the user as it is).
+ */
+export function rpcError(e) {
+  const message = e?.message ?? String(e);
+  const data = e !== null && typeof e === "object" && "data" in e ? e.data : e?.stack;
+  if (Number.isInteger(e?.code)) return { code: e.code, message, data };
+  return { code: -32000, message: typeof e?.code === "string" ? `${e.code}: ${message}` : message, data };
+}
+
 /** Splits a byte stream into messages; calls `onMessage` with each parsed one. */
 export class MessageReader {
   #buffer = Buffer.alloc(0);

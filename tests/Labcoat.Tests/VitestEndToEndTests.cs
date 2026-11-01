@@ -48,22 +48,8 @@ public class VitestEndToEndTests
         var dir = root.CreateSubdirectory("web");
         try
         {
-            File.WriteAllText(Path.Combine(dir.FullName, "package.json"), """{ "name": "web", "private": true, "type": "module", "devDependencies": { "vitest": "*" } }""");
-            File.WriteAllText(Path.Combine(dir.FullName, "vitest.config.mjs"),
-                """export default { test: { include: ["test/**/*.test.js"], coverage: { provider: "v8", include: ["src/**/*.js"] } } };""");
-            Directory.CreateDirectory(Path.Combine(dir.FullName, "src"));
-            Directory.CreateDirectory(Path.Combine(dir.FullName, "test"));
-            var source = Path.Combine(dir.FullName, "src", "math.js");
-            File.WriteAllText(source, "export const add = (a, b) => a + b;\n");
-            File.WriteAllText(Path.Combine(dir.FullName, "test", "math.test.js"), MathTests);
-            Directory.CreateSymbolicLink(Path.Combine(dir.FullName, "node_modules"), modules);
-
-            var warnings = new List<string>();
-            var plugin = TestRunners.FindPlugins([Path.Combine(Repo, "src", "Labcoat.Vitest", "runner")], warnings.Add).Single();
-            var runners = new TestRunners(false, [plugin]);
-            var project = (await ProjectDiscovery.FindProjectsAsync([dir.FullName], warnings.Add, runners: runners)).Single();
-            Assert.IsEmpty(warnings);
-            await using var explorer = new Explorer(new EventHub(), [project], null, [dir.FullName], runners: runners);
+            var source = WriteProject(dir, modules, "v8");
+            await using var explorer = await ExplorerForAsync(dir);
             string Logs() => string.Join("\n", explorer.Snapshot(includeLogs: true).Logs!.Select(l => l.Message));
 
             // ---- discovery: the tree levels and the test.each rows grouped under their template
@@ -106,6 +92,59 @@ public class VitestEndToEndTests
             await explorer.BuildImpactMapAsync(null);
             Assert.Contains("Impact map: skipping this vitest project", Logs());
             Assert.AreEqual(mapped, explorer.Snapshot().ImpactMap?.Tests, "the pass ran no coverage of its own");
+        }
+        finally
+        {
+            try { root.Delete(recursive: true); } catch (IOException) { /* a host may still hold a file: temp folder */ }
+        }
+    }
+
+    /// <summary>The scratch project in <paramref name="dir"/>, with <paramref name="provider"/> for coverage; the source file.</summary>
+    private static string WriteProject(DirectoryInfo dir, string modules, string provider)
+    {
+        File.WriteAllText(Path.Combine(dir.FullName, "package.json"), """{ "name": "web", "private": true, "type": "module", "devDependencies": { "vitest": "*" } }""");
+        File.WriteAllText(Path.Combine(dir.FullName, "vitest.config.mjs"),
+            $$"""export default { test: { include: ["test/**/*.test.js"], coverage: { provider: "{{provider}}", include: ["src/**/*.js"] } } };""");
+        Directory.CreateDirectory(Path.Combine(dir.FullName, "src"));
+        Directory.CreateDirectory(Path.Combine(dir.FullName, "test"));
+        var source = Path.Combine(dir.FullName, "src", "math.js");
+        File.WriteAllText(source, "export const add = (a, b) => a + b;\n");
+        File.WriteAllText(Path.Combine(dir.FullName, "test", "math.test.js"), MathTests);
+        Directory.CreateSymbolicLink(Path.Combine(dir.FullName, "node_modules"), modules);
+        return source;
+    }
+
+    private static async Task<Explorer> ExplorerForAsync(DirectoryInfo dir)
+    {
+        var warnings = new List<string>();
+        var plugin = TestRunners.FindPlugins([Path.Combine(Repo, "src", "Labcoat.Vitest", "runner")], warnings.Add).Single();
+        var runners = new TestRunners(false, [plugin]);
+        var project = (await ProjectDiscovery.FindProjectsAsync([dir.FullName], warnings.Add, runners: runners)).Single();
+        Assert.IsEmpty(warnings);
+        return new Explorer(new EventHub(), [project], null, [dir.FullName], runners: runners);
+    }
+
+    [TestMethod]
+    [Timeout(120_000, CooperativeCancellation = true)]
+    public async Task A_coverage_run_without_the_coverage_package_fails_with_its_name()
+    {
+        if (RunnerPlugin.ExecutableOnPath("node") is null) Assert.Inconclusive("Node.js isn't on PATH.");
+        var modules = VitestModules();
+        if (modules is null) Assert.Inconclusive("No Vitest install to link to (pnpm install in ui/, or set LABCOAT_VITEST_NODE_MODULES).");
+
+        var root = Directory.CreateTempSubdirectory("labcoat-vitest-e2e-");
+        var dir = root.CreateSubdirectory("web");
+        try
+        {
+            WriteProject(dir, modules, "istanbul"); // @vitest/coverage-istanbul isn't installed
+            await using var explorer = await ExplorerForAsync(dir);
+            string Logs() => string.Join("\n", explorer.Snapshot(includeLogs: true).Logs!.Select(l => l.Message));
+            await explorer.DiscoverAsync(null);
+
+            // The bridge answers the run with an error: the run ends with it rather than waiting for the host to exit.
+            await explorer.RunAsync(null, null, coverage: true);
+            Assert.Contains("@vitest/coverage-istanbul", Logs());
+            Assert.AreEqual(ProjectStatus.Error, explorer.Snapshot().Projects.Single().Status, Logs());
         }
         finally
         {
