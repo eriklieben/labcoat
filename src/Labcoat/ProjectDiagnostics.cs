@@ -63,7 +63,7 @@ internal static class ProjectDiagnostics
         TimeoutException => new ProjectDiagnostic(LogLevels.Error, "The test host did not connect within 60 s.",
             "Labcoat starts the test app with --server; only Microsoft.Testing.Platform test apps support that."),
         not null => new ProjectDiagnostic(LogLevels.Error, "Discovery failed: " + FirstLine(failure.Message)),
-        null => null,
+        _ => null,
     };
 
     private static string FirstLine(string s) => s.Split('\n', 2)[0].Trim();
