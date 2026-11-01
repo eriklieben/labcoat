@@ -236,8 +236,9 @@ public sealed partial class HistoryStore
             return map;
         }
         // Before workspace folders: the ids came from the absolute project paths (file name, "-2" for repeats).
-        var legacyIds = WorkspaceIdentity.ProjectIds(model.Projects);
-        for (var i = 0; i < model.Projects.Count; i++) map.TryAdd(legacyIds[i], Workspace.RelativeProjectPath(model.Projects[i]));
+        var projects = model.Projects ?? [];
+        var legacyIds = WorkspaceIdentity.ProjectIds(projects);
+        for (var i = 0; i < projects.Count; i++) map.TryAdd(legacyIds[i], Workspace.RelativeProjectPath(projects[i]));
         return map;
     }
 

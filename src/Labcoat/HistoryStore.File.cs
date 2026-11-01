@@ -36,7 +36,7 @@ public sealed partial class HistoryStore
     internal sealed class FileModel
     {
         public int Version { get; init; } = 1;
-        public List<string> Projects { get; init; } = [];
+        public List<string>? Projects { get; init; }
 
         // version 1
         public Dictionary<string, V1Entry>? Tests { get; init; }
@@ -71,7 +71,7 @@ public sealed partial class HistoryStore
         public int Project { get; init; }
         public string Id { get; init; } = "";
         /// <summary>One <see cref="OutcomeCodes"/> character per history entry (oldest first); the arrays below are parallel.</summary>
-        public string Outcomes { get; init; } = "";
+        public string? Outcomes { get; init; }
         public double?[]? Durations { get; init; }
         public string?[]? At { get; init; }
         /// <summary>Index into <see cref="FileModel.RunIds"/>, -1 = no run id.</summary>
@@ -85,8 +85,8 @@ public sealed partial class HistoryStore
     {
         public RunSummary? Run { get; init; }
         /// <summary>Test key index per result.</summary>
-        public int[] Tests { get; init; } = [];
-        public string Outcomes { get; init; } = "";
+        public int[]? Tests { get; init; }
+        public string? Outcomes { get; init; }
         public double?[]? Durations { get; init; }
         public List<ErrorModel>? Errors { get; init; }
     }
@@ -137,14 +137,15 @@ public sealed partial class HistoryStore
 
     private static List<HistoryEntry> HistoryEntries(TestModel t, List<string?> runIds)
     {
-        var n = t.Outcomes.Length;
+        var outcomes = t.Outcomes ?? "";
+        var n = outcomes.Length;
         if (t.Durations?.Length is { } d && d != n || t.At?.Length is { } a && a != n || t.RunIds?.Length is { } r && r != n)
             throw new JsonException($"Test {t.Id}: the columns differ in length.");
         var entries = new List<HistoryEntry>(n);
         for (var i = 0; i < n; i++)
         {
             var run = t.RunIds is { } ri && ri[i] >= 0 ? Item(runIds, ri[i], "run") : null;
-            entries.Add(new HistoryEntry(FromCode(t.Outcomes[i]), t.Durations?[i], t.At?[i]!, run, t.Flaky is { } f && Array.IndexOf(f, i) >= 0 ? true : null));
+            entries.Add(new HistoryEntry(FromCode(outcomes[i]), t.Durations?[i], t.At?[i]!, run, t.Flaky is { } f && Array.IndexOf(f, i) >= 0 ? true : null));
         }
         return entries;
     }
@@ -155,8 +156,9 @@ public sealed partial class HistoryStore
 
     private static StoredRun StoredRunOf(RunModel r, List<(string ProjectId, string Id)> keys)
     {
-        var n = r.Tests.Length;
-        if (r.Outcomes.Length != n) throw new JsonException($"Run {r.Run!.RunId}: {n} tests but {r.Outcomes.Length} outcomes.");
+        var (tests, outcomes) = (r.Tests ?? [], r.Outcomes ?? "");
+        var n = tests.Length;
+        if (outcomes.Length != n) throw new JsonException($"Run {r.Run!.RunId}: {n} tests but {outcomes.Length} outcomes.");
         if (r.Durations is { } durations && durations.Length != n) throw new JsonException($"Run {r.Run!.RunId}: {n} tests but {durations.Length} durations.");
         var stored = new StoredRun
         {
@@ -169,8 +171,8 @@ public sealed partial class HistoryStore
         };
         for (var i = 0; i < n; i++)
         {
-            (stored.ProjectIds[i], stored.Ids[i]) = Item(keys, r.Tests[i], "test key");
-            stored.Outcomes[i] = FromCode(r.Outcomes[i]);
+            (stored.ProjectIds[i], stored.Ids[i]) = Item(keys, tests[i], "test key");
+            stored.Outcomes[i] = FromCode(outcomes[i]);
             stored.Durations[i] = r.Durations?[i] ?? double.NaN;
         }
         return stored;

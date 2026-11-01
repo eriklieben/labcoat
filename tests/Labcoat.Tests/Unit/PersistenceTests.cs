@@ -246,6 +246,8 @@ public class PersistenceTests
     [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"pp","durations":[1]}]}""", DisplayName = "history columns of different lengths")]
     [DataRow("""{"version":2,"projectIds":["P"],"runIds":["r"],"history":[{"project":0,"id":"a","outcomes":"p","runIds":[5]}]}""", DisplayName = "run index out of range")]
     [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[4],"outcomes":"p"}]}""", DisplayName = "test key out of range")]
+    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":null,"durations":[1]}]}""", DisplayName = "history outcomes null")]
+    [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[0],"outcomes":null}]}""", DisplayName = "run outcomes null")]
     public void A_damaged_version_2_file_is_a_warning(string json)
     {
         var ws = Directory.CreateTempSubdirectory("labcoat-hist-").FullName;
@@ -259,6 +261,27 @@ public class PersistenceTests
             using var store = Store(ws, log);
             Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history", StringComparison.Ordinal)), string.Join("\n", log));
             Assert.IsEmpty(store.Runs());
+        }
+        finally { Directory.Delete(ws, recursive: true); }
+    }
+
+    [TestMethod]
+    public void A_null_column_reads_like_a_missing_one()
+    {
+        var ws = Directory.CreateTempSubdirectory("labcoat-hist-").FullName;
+        try
+        {
+            string file;
+            using (var probe = Store(ws)) file = probe.FilePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, """
+                {"version":2,"projects":null,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":null}],
+                 "pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":null,"outcomes":null}]}
+                """);
+            var log = new List<string>();
+            using var store = Store(ws, log);
+            Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 1 tests and 1 runs", StringComparison.Ordinal)), string.Join("\n", log));
+            Assert.IsEmpty(store.GetRun("r")!.Results);
         }
         finally { Directory.Delete(ws, recursive: true); }
     }
