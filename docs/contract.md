@@ -1317,16 +1317,21 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
   retry (`message`, `type`, `stackTrace`), and a project with flaky tests gets the property `labcoat.flaky`. `system-out` / `system-err` per test case, 16 K chars each,
   8 M chars per report (failed tests first). Text without ANSI sequences; characters XML 1.0 can't carry become U+FFFD.
   Valid against the Jenkins xunit plugin's `junit-10.xsd` (tests/Labcoat.Tests/Fixtures/JUnit).
-- **Markdown:** `## Test results: <verdict>`, a totals table, `### Failed tests` (name, class, `file:line`, message in a
-  code fence, stack trace in `<details>`), `### Slowest tests` (10), coverage when given. At most 60,000 bytes as a
-  download; the remaining failed tests are counted in a note. Test text is escaped (markup, `@`).
+- **Markdown:** `## Test results: <verdict>`, a totals table (`Flaky` and `Quarantined` columns when there are any),
+  `### Failed tests` (name, class, `file:line`, "Failed all n attempts" after retries, message in a code fence, stack
+  trace in `<details>`), `### Flaky tests` (20: test, the attempt that passed, the first failure), `### Slowest tests`
+  (10), coverage when given. At most 60,000 bytes as a download; the remaining failed tests are counted in a note. Test
+  text is escaped (markup, `@`). Numbers are formatted the same in every culture.
 - **TRX:** `TestRun` (namespace `http://microsoft.com/schemas/VisualStudio/TeamTest/2010`) `> Times, TestSettings, Results
   > UnitTestResult` (`outcome` Passed / Failed / Timeout / NotExecuted, `duration` `hh:mm:ss.fffffff`, `Output > StdOut,
-  StdErr, ErrorInfo`), `TestDefinitions > UnitTest`, `TestEntries`, `TestLists`, `ResultSummary > Counters`. Ids are
-  derived from the run and test ids.
+  StdErr, ErrorInfo, TextMessages`), `TestDefinitions > UnitTest`, `TestEntries`, `TestLists`, `ResultSummary >
+  Counters`. Ids are derived from the run and test ids. A retried test's `TextMessages` say "Flaky: passed on attempt n"
+  (outcome Passed) or "Failed all n attempts", then one `Attempt k failed: <message>` per failed attempt.
 - **SARIF:** 2.1.0, one `run` (`tool.driver` Labcoat, rules `labcoat/assertion-failure` and `labcoat/test-error`), one
-  `result` per failed test (`level` `error`; `note` for a quarantined failure) with the assertion's `physicalLocation`
-  (relative to `%SRCROOT%`; else the test's, else the project file) and a `partialFingerprints` entry per test.
+  `result` per failed test (`level` `error`; `note` for a quarantined failure; `warning` for a test that passed on a
+  retry, with its first failure) with the assertion's `physicalLocation` (relative to `%SRCROOT%`; else the test's, else
+  the project file), a `partialFingerprints` entry per test and `properties` (`project`, `testId`, `errorType`,
+  `quarantined`, `flaky`, `attempts`).
 - **Source location:** the first stack frame with a file and line under the workspace root, else the test's own file and
   line (`ExportTest.sourceFile` / `sourceLine`).
 - **HTML:** one static file; its CSP (`<meta http-equiv>`) is `default-src 'none'` plus the hashes of its one inline

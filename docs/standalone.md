@@ -162,9 +162,9 @@ dotnet labcoat --run --export junit=out/results.xml --export html=out/report.htm
 | --- | --- |
 | `--export junit=<file>` | JUnit XML: one `testsuite` per test project, one `testcase` per test (data rows by their display name) with `classname` = `Namespace.Class`, `failure` for assertion failures, `error` for unexpected exceptions, timeouts and crashed test hosts, `skipped` (also not run, cancelled and quarantined failures), `flakyFailure` / `flakyError` (a test that passed on a retry) and `rerunFailure` / `rerunError` (a retry that failed again), capped `system-out` / `system-err`, and `properties` (Labcoat version, run id, trigger, target framework). Valid against the Jenkins / Surefire `junit-10.xsd`; read by Azure Pipelines `PublishTestResults` (`JUnit`), GitLab and Jenkins. |
 | `--export html=<file>` | A single static HTML file: summary, the failed tests first (message, expected / actual diff, stack trace, output), then every project and class with durations, and filters. No external requests (its Content-Security-Policy allows nothing else); every test name and output is escaped. Light and dark follow the system. For 20,000 tests passed tests are one line each and details are kept for the first 500 failures. |
-| `--export markdown=<file>` | The run as GitHub-flavored Markdown, sized for a pull request comment (under 60 KB): the verdict and totals, the failed tests first (message, source location, stack trace folded away), the ten slowest tests. Test names and output are escaped, so they cannot inject markup or mention a user. When it does not fit, the remaining failed tests are counted in a note. |
-| `--export trx=<file>` | A VSTest TRX file (`TestRun`, `Results`, `TestDefinitions`, `TestEntries`, `ResultSummary` with counters) that Visual Studio and Azure Pipelines (`PublishTestResults@2`, `testResultsFormat: VSTest`) read. Passed, Failed, Timeout and NotExecuted (skipped, not run, cancelled, quarantined failures); the result ids are the same for the same run. |
-| `--export sarif=<file>` | The failures as SARIF 2.1.0 for code scanning (`github/codeql-action/upload-sarif`, the Azure DevOps and VS Code SARIF viewers): one result per failed test with its message and the file and line of the assertion (else the test, else the project file), relative to the workspace root. Quarantined failures are `note`s; passed and skipped tests are not results. |
+| `--export markdown=<file>` | The run as GitHub-flavored Markdown, sized for a pull request comment (under 60 KB): the verdict and totals, the failed tests first (message, source location, stack trace folded away), the flaky tests of a `--retry-failed` run, the ten slowest tests. Test names and output are escaped, so they cannot inject markup or mention a user. When it does not fit, the remaining failed tests are counted in a note. |
+| `--export trx=<file>` | A VSTest TRX file (`TestRun`, `Results`, `TestDefinitions`, `TestEntries`, `ResultSummary` with counters) that Visual Studio and Azure Pipelines (`PublishTestResults@2`, `testResultsFormat: VSTest`) read. Passed, Failed, Timeout and NotExecuted (skipped, not run, cancelled, quarantined failures); a test that passed on a `--retry-failed` retry is Passed, with its failed attempts as text messages. The result ids are the same for the same run. |
+| `--export sarif=<file>` | The failures as SARIF 2.1.0 for code scanning (`github/codeql-action/upload-sarif`, the Azure DevOps and VS Code SARIF viewers): one result per failed test with its message and the file and line of the assertion (else the test, else the project file), relative to the workspace root. Quarantined failures are `note`s, tests that passed on a `--retry-failed` retry `warning`s with their first failure; other passed and skipped tests are not results. |
 | `--export lcov=<file>` | This run's coverage as `lcov.info` (`SF`, `DA`, `BRDA`, `BRF` / `BRH`, `LF` / `LH`, `end_of_record`) for Codecov, Coveralls, SonarQube or `genhtml`. Collects coverage like `--coverage`. |
 | `--export cobertura=<file>` | The same coverage as Cobertura XML (ReportGenerator, Azure Pipelines, GitLab); a comment at the top names the coverage settings used per project. |
 | `--order random` | Run the tests one at a time in a random order, to find tests that depend on each other (fixtures run again for each test). Random-order runs do not collect coverage, so `--order random` together with `--coverage`, `--min-coverage`, `--min-diff-coverage` or an lcov / cobertura `--export` is an error (exit code 2). The seed is printed first and written to the JUnit (`labcoat.randomSeed`) and HTML reports. |
@@ -197,9 +197,9 @@ to the workspace's history like any run (`LABCOAT_HISTORY_DIR`), so a run on a d
 run list (trigger "CLI").
 
 The same files can be downloaded from a running Labcoat: the **Export** items of the run menu in the header, the command
-palette ("Export run as JUnit XML / HTML report / Markdown / TRX / SARIF", "Export coverage as lcov") and the **Export** button of the Coverage
-page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html|markdown|trx|sarif`, `GET /api/coverage/export?format=lcov|cobertura`,
-see [contract.md](contract.md#export-added)).
+palette ("Export run as JUnit XML / HTML report / Markdown / TRX / SARIF", "Export coverage as lcov") and the **Export**
+button of the Coverage page, or the REST API (`GET /api/runs/{runId}/export?format=junit|html|markdown|trx|sarif`,
+`GET /api/coverage/export?format=lcov|cobertura`, see [contract.md](contract.md#export-added)).
 
 ### Sharding
 
@@ -261,9 +261,11 @@ failing. Labcoat does this itself, with ordinary runs of just those tests (they 
   flagged: the console says `Flaky: Name failed 1 time and passed on attempt 2` and the summary line counts it, the JUnit
   file has a `flakyFailure` (or `flakyError`) per failed attempt on the passed `testcase` plus a `labcoat.flaky`
   property per project, and the HTML report shows a **Flaky** card, a warning banner when nothing else failed and a
-  note on the test's row.
+  note on the test's row. The Markdown report and the step summary count it in a **Flaky** column and list it under
+  "Flaky tests", TRX keeps it Passed with its failed attempts as text messages, SARIF reports it as a `warning` and the
+  GitHub Actions annotations as a `::warning` at its first failure.
 - A test that never passes stays failed (exit code `1`). Its first failure is the `failure` element, the failures of the
-  retries are `rerunFailure` / `rerunError`.
+  retries are `rerunFailure` / `rerunError`; the other reports say "Failed all n attempts".
 - Quarantined tests are not retried. Nothing is retried when the run was cancelled, aborted or a project did not build.
 - The retries start the test hosts again; coverage comes from the first run only, so `--min-coverage` and
   `--min-diff-coverage` judge the first run. `--max-test-duration` judges the attempt that counts: a flaky test by the
@@ -331,12 +333,16 @@ out/results.xml`) and the coverage with `PublishCodeCoverageResults@2` (`summary
 Under GitHub Actions `--run` reports to the workflow by itself; there is nothing to enable:
 
 - When `$GITHUB_STEP_SUMMARY` is set, it appends the Markdown report (totals, the failed tests first with message and
-  stack trace, the slowest tests, and the coverage when it was collected) to the job summary. The text is cut to fit
-  GitHub's 1 MiB limit, with a note counting the failed tests left out.
+  stack trace, the flaky tests, the slowest tests, and the coverage when it was collected) to the job summary. The text
+  is cut to fit GitHub's 1 MiB limit, with a note counting the failed tests left out.
 - When `GITHUB_ACTIONS=true`, every failed test becomes an `::error file=…,line=…,title=…::message` annotation at the
-  line of its assertion, so it shows in the pull request's **Files changed**. At most 50 are written (GitHub shows no
-  more per step), followed by a `::notice` that counts the rest. Characters the workflow-command syntax reserves
-  (`%`, line breaks, and `:` / `,` in the file and title) are escaped. Quarantined failures are not annotated.
+  line of its assertion, so it shows in the pull request's **Files changed**; a test that passed on a `--retry-failed`
+  retry becomes a `::warning` at its first failure. At most 50 are written (errors first), followed by a `::notice`
+  that counts the rest. Characters the workflow-command syntax reserves (`%`, line breaks, and `:` / `,` in the file
+  and title) are escaped. Quarantined failures (also those of `--quarantine-file`) are not annotated.
+- Both describe the run with its `--retry-failed` retries applied, like the `--export` files. They report the test
+  results only: a run that fails because of `--min-coverage`, `--min-diff-coverage` or `--max-test-duration` says why
+  in the log, and its exit code is `1` even when the summary has no failed tests.
 
 ![The Markdown report as GitHub renders it: totals, the failed tests with their messages, the slowest tests](images/markdown-report.png)
 

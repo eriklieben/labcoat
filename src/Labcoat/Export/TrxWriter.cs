@@ -163,7 +163,7 @@ public static class TrxWriter
             if (failed || skipReason is not null)
             {
                 w.WriteStartElement("ErrorInfo");
-                var message = failed ? ExportText.Cap(ExportText.Clean(t.ErrorMessage), JUnitWriter.MaxMessageChars) : skipReason!;
+                var message = skipReason ?? ExportText.Cap(ExportText.Clean(t.ErrorMessage), JUnitWriter.MaxMessageChars);
                 w.WriteElementString("Message", message.Length > 0 ? message : t.Outcome == Labcoat.Outcome.TimedOut ? "Timed out" : "Failed");
                 if (failed && !string.IsNullOrWhiteSpace(t.StackTrace))
                     w.WriteElementString("StackTrace", ExportText.Cap(ExportText.Clean(t.StackTrace), JUnitWriter.MaxStackChars));
@@ -198,8 +198,8 @@ public static class TrxWriter
     {
         var kinds = export.Tests.Select(t => t.Kind).ToList();
         var passed = kinds.Count(k => k == ExportKind.Passed);
-        var failed = kinds.Count(ExportKinds.IsFailed) - export.Tests.Count(t => t.Outcome == Labcoat.Outcome.TimedOut && ExportKinds.IsFailed(t.Kind));
         var timeout = export.Tests.Count(t => t.Outcome == Labcoat.Outcome.TimedOut && ExportKinds.IsFailed(t.Kind));
+        var failed = kinds.Count(ExportKinds.IsFailed) - timeout;
         var notExecuted = kinds.Count - passed - failed - timeout;
         var bad = failed + timeout > 0 || export.Run.Aborted == true;
 

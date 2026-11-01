@@ -27,13 +27,13 @@ public static class MarkdownReport
     /// <summary>How many flaky tests are listed; the rest are counted.</summary>
     public const int FlakyCount = 20;
 
-    /// <summary>Writes the report as UTF-8 to <paramref name="stream"/> (left open), sized for a PR comment.</summary>
-    public static void Write(RunExport export, Stream stream) => Write(export, null, MaxCommentBytes, stream);
+    /// <summary>Room kept for the note that counts the failed tests left out.</summary>
+    private const int NoteBytes = 400;
 
-    /// <summary>Writes the report with an optional coverage section, at most about <paramref name="maxBytes"/> bytes.</summary>
-    public static void Write(RunExport export, CoverageReport? coverage, int maxBytes, Stream stream)
+    /// <summary>Writes the report as UTF-8 to <paramref name="stream"/> (left open), sized for a PR comment.</summary>
+    public static void Write(RunExport export, Stream stream)
     {
-        var bytes = new UTF8Encoding(false).GetBytes(ToMarkdown(export, coverage, maxBytes));
+        var bytes = new UTF8Encoding(false).GetBytes(ToMarkdown(export));
         stream.Write(bytes, 0, bytes.Length);
     }
 
@@ -51,7 +51,7 @@ public static class MarkdownReport
         Footer(tail, export);
 
         // The failed tests get what the fixed parts leave, one by one; the rest is counted in a note.
-        var budget = maxBytes - Bytes(sb.ToString()) - Bytes(tail.ToString()) - 400;
+        var budget = maxBytes - Bytes(sb.ToString()) - Bytes(tail.ToString()) - NoteBytes;
         var shown = 0;
         if (failed.Count > 0)
         {
@@ -67,7 +67,7 @@ public static class MarkdownReport
             }
             var left = failed.Count - shown;
             if (left > 0)
-                sb.Append($"_{left.ToString("N0", CultureInfo.InvariantCulture)} more failed test{(left == 1 ? "" : "s")} not shown here (report size limit); the HTML report lists them all._\n\n");
+                sb.Append($"_{Count(left)} more failed test{Words.Plural(left)} not shown here (report size limit); the HTML report lists them all._\n\n");
         }
         return sb.Append(tail).ToString();
     }
@@ -77,9 +77,9 @@ public static class MarkdownReport
         var run = export.Run;
         var verdict = run.Aborted == true ? "Run aborted"
             : run.Cancelled == true ? "Run cancelled"
-            : failedCount > 0 ? $"{failedCount.ToString("N0", CultureInfo.InvariantCulture)} failed"
+            : failedCount > 0 ? $"{Count(failedCount)} failed"
             : export.Tests.Count == 0 ? "No tests ran"
-            : export.Flaky > 0 ? $"No failures, {export.Flaky.ToString("N0", CultureInfo.InvariantCulture)} flaky"
+            : export.Flaky > 0 ? $"No failures, {Count(export.Flaky)} flaky"
             : "All tests passed";
         sb.Append($"## Test results: {verdict}\n\n");
         if (run.Aborted == true && !string.IsNullOrWhiteSpace(run.AbortReason))
@@ -159,13 +159,16 @@ public static class MarkdownReport
             return;
         }
         sb.Append("| Lines | Branches | Files |\n| ---: | ---: | ---: |\n");
-        var lines = $"{Percent(c.LineRate)} ({c.LinesCovered:N0} of {c.LinesValid:N0})";
-        var branches = c.BranchesValid > 0 ? $"{Percent(c.BranchRate)} ({c.BranchesCovered:N0} of {c.BranchesValid:N0})" : "n/a";
-        sb.Append($"| {lines} | {branches} | {c.Files.Count:N0} |\n\n");
+        var lines = $"{Percent(c.LineRate)} ({Count(c.LinesCovered)} of {Count(c.LinesValid)})";
+        var branches = c.BranchesValid > 0 ? $"{Percent(c.BranchRate)} ({Count(c.BranchesCovered)} of {Count(c.BranchesValid)})" : "n/a";
+        sb.Append($"| {lines} | {branches} | {Count(c.Files.Count)} |\n\n");
     }
 
     private static void Footer(StringBuilder sb, RunExport export) =>
         sb.Append($"<sub>Labcoat {Inline(export.Version)} · run {Inline(export.Run.RunId)} · {Inline(export.WorkspaceName)}</sub>\n");
+
+    /// <summary>"1,234": the same in every culture.</summary>
+    private static string Count(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
 
     private static string Percent(double rate) => (rate * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
@@ -182,7 +185,7 @@ public static class MarkdownReport
         foreach (var c in clean)
         {
             if (c is '\\' or '`' or '*' or '_' or '[' or ']' or '<' or '>' or '|' or '~' or '&' or '#') sb.Append('\\').Append(c);
-            else if (c == '@') sb.Append("@​");
+            else if (c == '@') sb.Append("@\u200B"); // a zero-width space: no mention
             else sb.Append(c);
         }
         return sb.ToString();

@@ -364,11 +364,13 @@ Results are kept between sessions (see [configuration.md](configuration.md#where
 - **Past runs:** the **Live** menu in the header lists recent runs. Pick one to see the tree as it was after that run.
   Escape goes back to the live results.
 - **Compare runs:** pick two runs to see which tests started failing, were fixed, or changed duration.
-- **Export:** the run menu's **Export as HTML report / JUnit XML / Markdown / TRX / SARIF** downloads the shown run (a past run you are
-  viewing, else the latest) as a self-contained HTML report, JUnit XML, Markdown, TRX or SARIF; the Coverage page's **Export** button gives
-  the coverage report as lcov or Cobertura. The command palette has the same entries. For CI, `labcoat --run --export …`
-  writes these files without the UI and can fail the run below `--min-coverage` or `--min-diff-coverage` (see [Labcoat in CI](standalone.md#labcoat-in-ci)),
-  and `labcoat merge` combines the files of a split run into one ([Merging shard reports](standalone.md#merging-shard-reports)).
+- **Export:** the run menu's **Export as HTML report / JUnit XML / Markdown / TRX / SARIF** downloads the shown run (a
+  past run you are viewing, else the latest) as a self-contained HTML report, JUnit XML, Markdown, TRX or SARIF; the
+  Coverage page's **Export** button gives the coverage report as lcov or Cobertura. The command palette has the same
+  entries. For CI, `labcoat --run --export …` writes these files without the UI (on GitHub Actions also a job summary
+  and annotations) and can fail the run below `--min-coverage` or `--min-diff-coverage` (see
+  [Labcoat in CI](standalone.md#labcoat-in-ci)), and `labcoat merge` combines the JUnit and coverage files of a split
+  run into one ([Merging shard reports](standalone.md#merging-shard-reports)).
 
   ![The run menu with the HTML, JUnit, Markdown, TRX and SARIF export entries](images/export-menu.png)
 

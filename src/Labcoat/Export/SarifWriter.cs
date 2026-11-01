@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -140,7 +141,7 @@ public static class SarifWriter
 
         // GitHub code scanning uses this to recognise the same failure across runs.
         w.WriteStartObject("partialFingerprints");
-        w.WriteString("labcoatTestId/v1", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{t.ProjectId}\n{t.Id}")))[..32].ToLowerInvariant());
+        w.WriteString("labcoatTestId/v1", Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{t.ProjectId}\n{t.Id}")))[..32]);
         w.WriteEndObject();
 
         w.WriteStartObject("properties");
@@ -174,7 +175,7 @@ public static class SarifWriter
     }
 
     private static string Utc(string iso) =>
-        DateTimeOffset.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var at)
-            ? at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", System.Globalization.CultureInfo.InvariantCulture)
+        DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)
+            ? at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture)
             : iso;
 }

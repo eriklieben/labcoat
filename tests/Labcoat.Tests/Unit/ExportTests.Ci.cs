@@ -5,10 +5,8 @@ using Labcoat.Export;
 
 namespace Labcoat.Tests.Unit;
 
-/// <summary>
-/// The Markdown, TRX and SARIF exports, the GitHub Actions annotations and step summary of --run, and the source
-/// locations they use. Shares the helpers of <see cref="ExportTests"/> (the partial class).
-/// </summary>
+// The Markdown, TRX and SARIF exports, the GitHub Actions annotations and step summary of --run, and the source
+// locations they use.
 public partial class ExportTests
 {
     private static ExportTest At(ExportTest t, string file, int line) => t with { SourceFile = file, SourceLine = line };

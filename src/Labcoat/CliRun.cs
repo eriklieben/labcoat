@@ -98,11 +98,11 @@ public sealed partial class StartOptions
 
     private string? AddExport(string? value)
     {
-        const string Usage = "--export needs format=file, e.g. junit=out/results.xml (formats: junit, html, markdown, trx, sarif, lcov, cobertura).";
+        var usage = $"--export needs format=file, e.g. junit=out/results.xml (formats: {string.Join(", ", AllExportFormats)}).";
         var eq = value?.IndexOf('=') ?? -1;
-        if (value is null || eq <= 0 || eq == value.Length - 1) return Usage;
+        if (value is null || eq <= 0 || eq == value.Length - 1) return usage;
         var format = value[..eq].Trim().ToLowerInvariant();
-        if (!AllExportFormats.Contains(format)) return $"--export: unknown format '{value[..eq]}'. {Usage}";
+        if (!AllExportFormats.Contains(format)) return $"--export: unknown format '{value[..eq]}'. {usage}";
         Exports.Add(new ExportTarget(format, value[(eq + 1)..].Trim()));
         return null;
     }
@@ -185,7 +185,7 @@ public static partial class CliRun
         {
             await Console.Error.WriteLineAsync($"{ErrorLabel} Nothing to run: {request.Error}");
             WriteExports(explorer, options, null);
-            ReportToCi(explorer, null, null, Environment.GetEnvironmentVariable);
+            ReportToCi(explorer, null, null);
             return ExitBuildError;
         }
         await request.Completion!;
@@ -202,7 +202,7 @@ public static partial class CliRun
         }
         PrintResult(run, status, broken, sw.Elapsed, retried);
         var exportsOk = WriteExports(explorer, options, run?.RunId, retried);
-        ReportToCi(explorer, run?.RunId, retried, Environment.GetEnvironmentVariable);
+        ReportToCi(explorer, run?.RunId, retried);
         // The retries run without coverage and keep the first run's id: the gates read the first run's coverage.
         var gatesOk = run is null || broken.Count > 0 || await CoverageGate.CheckAsync(explorer, options, run.RunId, ct);
         var overBudget = run is null || budget <= TimeSpan.Zero ? [] : ReportOverBudget(explorer, run.RunId, budget, retried);
@@ -232,7 +232,7 @@ public static partial class CliRun
         if (plan.TestIds.Count > 0) return (plan.TestIds, null);
         Console.WriteLine("  This shard has no tests: nothing to run.");
         WriteExports(explorer, options, null);
-        ReportToCi(explorer, null, null, Environment.GetEnvironmentVariable);
+        ReportToCi(explorer, null, null);
         return (null, BrokenProjects(explorer).Count > 0 ? ExitBuildError : ExitPassed);
     }
 
@@ -315,10 +315,10 @@ public static partial class CliRun
     /// (when <c>GITHUB_ACTIONS=true</c>), of the run with its --retry-failed retries applied like the exports. Nothing
     /// here fails the run.
     /// </summary>
-    internal static void ReportToCi(Explorer explorer, string? runId, RunExport? retried, Func<string, string?> env)
+    private static void ReportToCi(Explorer explorer, string? runId, RunExport? retried)
     {
-        var summaryPath = GitHubActions.StepSummaryPath(env);
-        var annotate = GitHubActions.IsActive(env);
+        var summaryPath = GitHubActions.StepSummaryPath(Environment.GetEnvironmentVariable);
+        var annotate = GitHubActions.IsActive(Environment.GetEnvironmentVariable);
         if (summaryPath is null && !annotate) return;
         var export = retried ?? (runId is null ? null : explorer.Exports.Run(runId)) ?? EmptyExport(explorer);
         if (annotate)

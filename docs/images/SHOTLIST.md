@@ -6,7 +6,7 @@ package READMEs (through `https://raw.githubusercontent.com/eriklieben/labcoat/m
 
 ## Taking them
 
-All images except `aspire-trace-dashboard.png` and `markdown-report.png` come from one script, `ui/scripts/docs-screenshots.mjs`:
+All images except `aspire-trace-dashboard.png`, `flaky-report.png` and `markdown-report.png` come from one script, `ui/scripts/docs-screenshots.mjs`:
 
 ```sh
 cd ui

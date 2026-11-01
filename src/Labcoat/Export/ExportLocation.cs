@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Labcoat.Export;
@@ -22,7 +23,7 @@ internal static partial class ExportLocation
                 foreach (Match m in FrameRe().Matches(stackTrace))
                 {
                     var file = m.Groups["file"].Value.Trim();
-                    if (!int.TryParse(m.Groups["line"].Value, out var line) || line <= 0) continue;
+                    if (!int.TryParse(m.Groups["line"].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var line) || line <= 0) continue;
                     if (root is not null ? Under(file, root) : Path.IsPathRooted(file)) return (Normalize(file, root), line);
                 }
             }
@@ -35,7 +36,7 @@ internal static partial class ExportLocation
     private static bool Under(string file, string root)
     {
         try { return Path.IsPathRooted(file) && PathUtil.IsUnder(Path.GetFullPath(file), Path.GetFullPath(root)); }
-        catch (ArgumentException) { return false; }
+        catch (ArgumentException) { /* a frame path with characters no path can have: not a workspace file */ return false; }
     }
 
     private static string Normalize(string file, string? root)

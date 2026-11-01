@@ -2,7 +2,8 @@ using Labcoat.Export;
 
 namespace Labcoat;
 
-// Export endpoints (docs/contract.md "Export"): a run as JUnit XML / HTML / Markdown / TRX / SARIF, a coverage report as lcov / Cobertura.
+// Export endpoints (docs/contract.md "Export"): a run as JUnit XML / HTML report / Markdown / TRX / SARIF, a coverage
+// report as lcov / Cobertura.
 // Plain GETs like the rest of the read API: the Host check applies (Security.cs); downloads are attachments that a
 // cross-site page can trigger but never read (no CORS).
 public static partial class LabcoatApp
