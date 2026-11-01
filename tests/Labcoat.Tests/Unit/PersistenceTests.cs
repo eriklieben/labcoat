@@ -42,7 +42,7 @@ public class PersistenceTests
 
             var log = new List<string>();
             using var reloaded = Store(ws, log);
-            Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 2 tests and 1 runs")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 2 tests and 1 runs", StringComparison.Ordinal)), string.Join("\n", log));
             CollectionAssert.AreEqual(new[] { "r1" }, reloaded.Runs().Select(r => r.RunId).ToArray());
 
             var restored = Node("b", Outcome.NotRun) with { DurationMs = null, LastRunAt = null };
@@ -119,7 +119,7 @@ public class PersistenceTests
             File.WriteAllText(file, "{ not json");
             var log = new List<string>();
             using var store = Store(ws, log);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history", StringComparison.Ordinal)), string.Join("\n", log));
             Assert.IsEmpty(store.Runs());
 
             store.Save(); // nothing changed: nothing written
@@ -128,7 +128,7 @@ public class PersistenceTests
             Directory.CreateDirectory(file + ".tmp"); // the temp file can't be written
             store.Record(Run("r1"), [Node("a", Outcome.Passed)]);
             store.Save();
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save test history")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save test history", StringComparison.Ordinal)), string.Join("\n", log));
         }
         finally { Directory.Delete(ws, recursive: true); }
     }
@@ -218,7 +218,7 @@ public class PersistenceTests
             var log = new List<string>();
             using (var store = Store(ws, log))
             {
-                Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 1 tests and 1 runs")), string.Join("\n", log));
+                Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 1 tests and 1 runs", StringComparison.Ordinal)), string.Join("\n", log));
                 var n = Node("a|b", Outcome.NotRun);
                 store.Restore(n);
                 Assert.AreEqual(Outcome.Failed, n.Outcome);
@@ -240,9 +240,15 @@ public class PersistenceTests
     }
 
     [TestMethod]
-    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"z"}]}""", DisplayName = "unknown outcome code")]
+    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"z","at":["t"]}]}""", DisplayName = "unknown outcome code")]
     [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":3,"id":"a","outcomes":""}]}""", DisplayName = "project index out of range")]
     [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[0],"outcomes":"pp"}]}""", DisplayName = "columns of different lengths")]
+    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"pp","durations":[1]}]}""", DisplayName = "history columns of different lengths")]
+    [DataRow("""{"version":2,"projectIds":["P"],"runIds":["r"],"history":[{"project":0,"id":"a","outcomes":"p","at":["t"],"runIds":[5]}]}""", DisplayName = "run index out of range")]
+    [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[4],"outcomes":"p"}]}""", DisplayName = "test key out of range")]
+    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":null,"durations":[1]}]}""", DisplayName = "history outcomes null")]
+    [DataRow("""{"version":2,"projectIds":["P"],"pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":[0],"outcomes":null}]}""", DisplayName = "run outcomes null")]
+    [DataRow("""{"version":2,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":"p"}]}""", DisplayName = "history entry without a time")]
     public void A_damaged_version_2_file_is_a_warning(string json)
     {
         var ws = Directory.CreateTempSubdirectory("labcoat-hist-").FullName;
@@ -254,8 +260,29 @@ public class PersistenceTests
             File.WriteAllText(file, json);
             var log = new List<string>();
             using var store = Store(ws, log);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not read test history", StringComparison.Ordinal)), string.Join("\n", log));
             Assert.IsEmpty(store.Runs());
+        }
+        finally { Directory.Delete(ws, recursive: true); }
+    }
+
+    [TestMethod]
+    public void A_null_column_reads_like_a_missing_one()
+    {
+        var ws = Directory.CreateTempSubdirectory("labcoat-hist-").FullName;
+        try
+        {
+            string file;
+            using (var probe = Store(ws)) file = probe.FilePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, """
+                {"version":2,"projects":null,"projectIds":["P"],"history":[{"project":0,"id":"a","outcomes":null}],
+                 "pastRuns":[{"run":{"runId":"r","startedAt":"s"},"tests":null,"outcomes":null}]}
+                """);
+            var log = new List<string>();
+            using var store = Store(ws, log);
+            Assert.IsTrue(log.Any(l => l.StartsWith("info: Loaded test history for 1 tests and 1 runs", StringComparison.Ordinal)), string.Join("\n", log));
+            Assert.IsEmpty(store.GetRun("r")!.Results);
         }
         finally { Directory.Delete(ws, recursive: true); }
     }
@@ -370,7 +397,7 @@ public class PersistenceTests
             var failing = new WorkspaceSettings(Path.Combine(blocked, "sub"), (level, msg) => log.Add($"{level}: {msg}"));
             failing.SetTracingEnabled(false);
             Assert.IsFalse(failing.TracingEnabled);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save workspace settings")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Could not save workspace settings", StringComparison.Ordinal)), string.Join("\n", log));
         }
         finally { Directory.Delete(root, recursive: true); }
     }

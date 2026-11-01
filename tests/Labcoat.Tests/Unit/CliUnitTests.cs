@@ -98,7 +98,7 @@ public class CliUnitTests
         foreach (var f in new Func<string, string>[] { Cli.Bold, Cli.Dim, Cli.Gray, Cli.Cyan, Cli.Yellow, Cli.Red, Cli.Badge })
         {
             var s = f("text");
-            Assert.IsTrue(Cli.UseColor ? s.StartsWith("\x1b[") && s.EndsWith("text\x1b[0m") : s == "text", s);
+            Assert.IsTrue(Cli.UseColor ? s.StartsWith("\x1b[", StringComparison.Ordinal) && s.EndsWith("text\x1b[0m", StringComparison.Ordinal) : s == "text", s);
         }
         var savedErr = Console.Error;
         var err = new StringWriter();

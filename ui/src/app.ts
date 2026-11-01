@@ -985,6 +985,9 @@ export class LabcoatApp extends LabcoatElement {
         const acts = selectionActions(sel);
         return {
           runAll,
+          runRandom: (seed) => {
+            if (!runDisabled.peek() && $.tests.peek().size) send({ type: "run", order: "random", seed });
+          },
           runFailed: () => runTests(failedNow()),
           runSelected: multi ? () => runTests(selectionTests(shownRoots.peek(), multiSelection.peek())) : acts.runSelected,
           selectedLabel: multi ? `${multiSelection().size} selected` : nodeLabel(sel),

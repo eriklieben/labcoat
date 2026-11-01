@@ -30,7 +30,7 @@ public class ShardingTests
             Assert.IsNull(StartOptions.Parse(["--run", "--shard", bad], out error), bad);
             Assert.Contains("--shard needs", error!);
         }
-        Assert.IsNull(StartOptions.Parse(["--run", "--shard", "1/2", "--shard-by", "x"], out error));
+        Assert.IsNull(StartOptions.Parse(["--run", "--shard", "1/2", "--shard-by", "x"], out _));
         Assert.Contains("need --run", StartOptions.Parse(["--shard", "1/2"], out error) is null ? error! : "");
         Assert.IsNull(StartOptions.Parse(["--run", "--shard-timings", "a.xml"], out error));
         Assert.Contains("needs --shard", error!);
@@ -68,7 +68,7 @@ public class ShardingTests
         Assert.IsEmpty(Sharding.Plan([], Name, new ShardSpec(1, 2), ShardBy.Class, null).TestIds);
     }
 
-    private ShardTimings Timings(params (string Class, double Seconds)[] classes)
+    private static ShardTimings Timings(params (string Class, double Seconds)[] classes)
     {
         var xml = "<testsuites><testsuite name=\"P\">" +
                   string.Concat(classes.Select(c => $"<testcase classname=\"Shop.{c.Class}\" name=\"x\" time=\"{c.Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}\"/>")) +

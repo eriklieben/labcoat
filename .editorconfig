@@ -97,3 +97,20 @@ dotnet_naming_style.pascal_case.capitalization = pascal_case
 dotnet_naming_rule.constants_pascal_case.symbols = constants
 dotnet_naming_rule.constants_pascal_case.style = pascal_case
 dotnet_naming_rule.constants_pascal_case.severity = suggestion
+
+# ----------------------------------------------------------------------------- Analyzers
+# Unlike the style above, these run in the build: the warnings fail CI (-warnaserror). The rule set is
+# AnalysisLevel in src/Directory.Build.props and tests/Directory.Build.props.
+
+# Class coupling (CA1506, the limit is in src/CodeMetricsConfig.txt): src/ only.
+[src/**.cs]
+dotnet_diagnostic.CA1506.severity = warning
+
+[tests/**.cs]
+# Test method names use underscores (Host_lines_go_to_the_single_running_test_...).
+dotnet_diagnostic.CA1707.severity = none
+# Fixtures create their disposables in a set-up method and release them in its tear-down, which CA1001 doesn't see.
+dotnet_diagnostic.CA1001.severity = none
+# Logging performance (LoggerMessage delegates): tests call the logging API to test what it records.
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none

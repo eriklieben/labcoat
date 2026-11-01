@@ -69,6 +69,11 @@ jobs:
         working-directory: .
         run: node --test eng/release-commit.test.mjs
 
+      - name: Vitest runner tests
+        # src/Labcoat.Vitest/runner against a real Vitest: scratch projects linked to this job's ui/node_modules
+        working-directory: .
+        run: node --test "tests/Labcoat.Vitest.Tests/*.test.mjs"
+
       - name: Typecheck
         run: pnpm run typecheck
 
@@ -105,6 +110,15 @@ jobs:
           path: src/Labcoat/wwwroot
           if-no-files-found: error
           retention-days: 7
+
+  # ------------------------------------------------------------------------------------------------ devcontainer
+  devcontainer:
+    name: Devcontainer files in sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: .devcontainer/check-rider-sync.sh
 
   # ------------------------------------------------------------------------------------------------ .NET
   build:
@@ -144,6 +158,18 @@ jobs:
         if: matrix.os == 'ubuntu-24.04'
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          cache: true
+          cache_dependency_path: ui/pnpm-lock.yaml
+
+      - name: Install Vitest for the Vitest runner test
+        # VitestEndToEndTests links a scratch Vitest project to ui/node_modules (inconclusive without it: the other OSes)
+        if: matrix.os == 'ubuntu-24.04'
+        working-directory: ui
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Test with code coverage
         # Runs every test project with coverage (tests/CodeCoverage.xml), merges the Cobertura reports, writes the job
@@ -387,7 +413,7 @@ jobs:
     # Not `uses: ./.github/workflows/release.yml`: NuGet trusted publishing fails inside a reusable workflow
     # (https://github.com/NuGet/login/issues/6), and a top-level run of release.yml matches the nuget.org policy. A
     # GITHUB_TOKEN may start workflow_dispatch runs (unlike pushes and most other events it causes).
-    needs: [ui, build, smoke, aot-smoke]
+    needs: [ui, devcontainer, build, smoke, aot-smoke]
     if: >-
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/next' || github.ref == 'refs/heads/beta')

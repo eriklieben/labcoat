@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Labcoat;
@@ -72,7 +73,7 @@ public static class EditorLauncher
         {
             return Launch(exe, Arguments(editor, file, line, column));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {
             return (false, $"Could not start {Path.GetFileName(exe)}: {ex.Message}");
         }
@@ -179,11 +180,13 @@ public static class EditorLauncher
         return null;
     }
 
+    private static readonly string[] VsCodeMacApps = ["Visual Studio Code.app", "Visual Studio Code - Insiders.app"];
+
     private static string? FindVsCodeOnMac()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var clis = from app in new[] { "/Applications", Path.Combine(home, "Applications") }
-                   from name in new[] { "Visual Studio Code.app", "Visual Studio Code - Insiders.app" }
+                   from name in VsCodeMacApps
                    select Path.Combine(app, name, "Contents", "Resources", "app", "bin", name.Contains("Insiders") ? "code-insiders" : "code");
         return clis.FirstOrDefault(File.Exists);
     }
@@ -243,7 +246,7 @@ public static class EditorLauncher
             var path = output.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.EndsWith("devenv.exe", StringComparison.OrdinalIgnoreCase));
             return path is not null && File.Exists(path) ? path : null;
         }
-        catch { return null; }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException) { return null; }
     }
 
     private static List<string> FindUnder(string root, string fileName)

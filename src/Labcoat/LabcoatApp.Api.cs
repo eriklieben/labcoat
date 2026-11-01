@@ -72,12 +72,12 @@ public static partial class LabcoatApp
         app.MapPost("/api/target-framework", (HttpRequest req) => SetTargetFrameworkAsync(req, explorer));
     }
 
-    /// <summary>Run affected (git, GitAffected.cs): branch / dirty state, the plan (preview, never runs), plan + run.</summary>
+    /// <summary>Run affected (git, AffectedPlanner.cs): branch / dirty state, the plan (preview, never runs), plan + run.</summary>
     private static void MapAffectedEndpoints(WebApplication app, Explorer explorer)
     {
-        app.MapGet("/api/git", async (CancellationToken ct) => Results.Json(await explorer.GitInfoAsync(ct), Json.Options));
+        app.MapGet("/api/git", async (CancellationToken ct) => Results.Json(await explorer.Affected.GitInfoAsync(ct), Json.Options));
         app.MapGet("/api/affected", (string? @base, string? @ref, CancellationToken ct) => PlanAffectedAsync(explorer, @base, @ref, ct));
-        app.MapGet("/api/changed-tests", async (CancellationToken ct) => Results.Json(await explorer.ChangedTestsAsync(ct), Json.Options));
+        app.MapGet("/api/changed-tests", async (CancellationToken ct) => Results.Json(await explorer.Affected.ChangedTestsAsync(ct), Json.Options));
         app.MapPost("/api/run-affected", (HttpRequest req, CancellationToken ct) => RunAffectedAsync(req, explorer, ct));
     }
 
@@ -87,6 +87,7 @@ public static partial class LabcoatApp
         // The full node, its history, its full console output.
         app.MapGet("/api/tests/details", (string? projectId, string? id) => TestDetails(explorer, projectId, id));
         app.MapGet("/api/tests/history", (string? projectId, string? id) => TestHistory(explorer, projectId, id));
+        app.MapGet("/api/tests/slowest", (string? projectId, int? limit) => TestsSlowest(explorer, projectId, limit));
         app.MapGet("/api/tests/output", (string? projectId, string? id) => TestOutput(explorer, projectId, id));
 
         // Live console output of a running test (LiveOutput.cs): what was streamed so far, for clients that join mid-test.
@@ -137,7 +138,8 @@ public static partial class LabcoatApp
     {
         var (body, error) = await ReadBody(req);
         if (error is not null) return error;
-        return RunResult(explorer.RequestRun(new() { ProjectId = body?.ProjectId, TestIds = body?.TestIds, Coverage = body?.Coverage, Trigger = "api", Repeat = body?.Repeat }));
+        return RunResult(explorer.RequestRun(new() { ProjectId = body?.ProjectId, TestIds = body?.TestIds, Coverage = body?.Coverage, Trigger = "api", Repeat = body?.Repeat,
+            Order = body?.Order, Seed = body?.Seed }));
     }
 
     private static async Task<IResult> DebugTestsAsync(HttpRequest req, Explorer explorer)
@@ -162,7 +164,7 @@ public static partial class LabcoatApp
         var (body, error) = await ReadBody(req);
         if (error is not null) return error;
         if (body?.ProjectId is null || body.Id is null) return Results.BadRequest(new { error = "projectId and id are required" });
-        explorer.SetQuarantine(body.ProjectId, body.Id, body.Quarantined ?? true);
+        if (explorer.SetQuarantine(body.ProjectId, body.Id, body.Quarantined ?? true) is { } conflict) return Results.Conflict(new { error = conflict });
         return Results.Ok(new { quarantined = explorer.Snapshot().Quarantined });
     }
 
@@ -177,7 +179,7 @@ public static partial class LabcoatApp
 
     private static async Task<IResult> PlanAffectedAsync(Explorer explorer, string? baseKind, string? reference, CancellationToken ct)
     {
-        try { return Results.Json(await explorer.PlanAffectedAsync(baseKind, reference, ct), Json.Options); }
+        try { return Results.Json(await explorer.Affected.PlanAsync(baseKind, reference, ct), Json.Options); }
         catch (AffectedException ex) { return AffectedError(ex); }
     }
 
@@ -185,15 +187,15 @@ public static partial class LabcoatApp
     {
         var (body, error) = await ReadBody(req);
         if (error is not null) return error;
-        Explorer.RunAffectedResult r;
-        try { r = await explorer.RunAffectedAsync(body?.Base, body?.Ref, body?.Coverage, body?.BuildImpactMap ?? false, "api", ct); }
+        RunAffectedResult r;
+        try { r = await explorer.Affected.RunAsync(body?.Base, body?.Ref, body?.Coverage, body?.BuildImpactMap ?? false, "api", ct); }
         catch (AffectedException ex) { return AffectedError(ex); }
         var counts = r.Plan!.Counts;
         if (r.ImpactMapFirst)
             return Results.Json(new { accepted = true, impactMapFirst = true, tests = counts.Tests, files = counts.Files, projects = counts.Projects },
                 Json.Options, statusCode: StatusCodes.Status202Accepted);
         if (r.Run is null)
-            return Results.Json(new { accepted = false, reason = $"No tests are affected by the {counts.Files} changed file{(counts.Files == 1 ? "" : "s")}.", files = counts.Files }, Json.Options);
+            return Results.Json(new { accepted = false, reason = $"No tests are affected by the {counts.Files} changed file{Words.Plural(counts.Files)}.", files = counts.Files }, Json.Options);
         if (r.Run.Status != 202) return RunResult(r.Run);
         return Results.Json(new { accepted = true, runId = r.Run.RunId, queued = r.Run.Queued, merged = r.Run.Merged, tests = counts.Tests, files = counts.Files, projects = counts.Projects },
             Json.Options, statusCode: StatusCodes.Status202Accepted);
@@ -212,6 +214,13 @@ public static partial class LabcoatApp
         if (projectId is not null && !explorer.HasProject(projectId)) return UnknownProject(projectId);
         var list = explorer.GetHistory(projectId, id);
         return id is not null && list.Count == 0 ? Results.NotFound(new { error = UnknownTest }) : Results.Json(new { tests = list }, Json.Options);
+    }
+
+    private static IResult TestsSlowest(Explorer explorer, string? projectId, int? limit)
+    {
+        if (projectId is not null && !explorer.HasProject(projectId)) return UnknownProject(projectId);
+        if (limit is < 1) return Results.BadRequest(new { error = "limit must be a positive number" });
+        return Results.Json(explorer.Slowest.Get(projectId, limit ?? SlowestTests.DefaultLimit), Json.Options);
     }
 
     private static IResult TestOutput(Explorer explorer, string? projectId, string? id)
@@ -312,4 +321,35 @@ public static partial class LabcoatApp
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted, stopping);
         await hub.HandleAsync(socket, explorer.Sync, () => new StateEvent(explorer.Snapshot(includeLogs: true, lean: lean)), explorer.HandleCommandAsync, cts.Token, lean);
     }
+
+    /// <summary>JSON body of a command endpoint: (null, null) for an empty body, (null, 400 result) for malformed JSON / wrong types.</summary>
+    private static async Task<(ClientCommand? Body, IResult? Error)> ReadBody(HttpRequest req)
+    {
+        if (req.ContentLength is 0) return (null, null);
+        try
+        {
+            using var reader = new StreamReader(req.Body);
+            var text = await reader.ReadToEndAsync();
+            if (string.IsNullOrWhiteSpace(text)) return (null, null);
+            return (JsonSerializer.Deserialize<ClientCommand>(text, Json.Options), null);
+        }
+        catch (JsonException ex)
+        {
+            return (null, Results.BadRequest(new { error = "Malformed JSON: " + ex.Message }));
+        }
+    }
+
+    private static IResult AffectedError(AffectedException ex) =>
+        Results.Json(new { error = ex.Message, code = ex.Code }, Json.Options, statusCode: ex.Status);
+
+    private static IResult UnknownProject(string projectId) =>
+        Results.NotFound(new { error = $"Unknown project '{projectId}'", projectId });
+
+    private static IResult RunResult(Explorer.RunRequestResult r) => r.Status == 202
+        ? Results.Json(new { accepted = true, runId = r.RunId, queued = r.Queued, merged = r.Merged, unknownTestIds = r.UnknownTestIds },
+            Json.Options, statusCode: StatusCodes.Status202Accepted)
+        : Results.Json(new { error = r.Error, unknownTestIds = r.UnknownTestIds, projects = r.KnownProjects }, Json.Options, statusCode: r.Status);
 }
+
+/// <summary>POST /api/open-in-editor body.</summary>
+public sealed record OpenInEditorRequest(string? Editor, string? Path, int? Line, int? Column);

@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Xml;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>
 /// Writes a run as JUnit XML, the de-facto CI test report format (Azure
@@ -11,10 +11,12 @@ namespace Labcoat;
 /// <code>
 /// testsuites name tests failures errors time
 ///   testsuite (one per test project) name tests failures errors skipped time timestamp id package
-///     properties/property  labcoat.version, labcoat.runId, labcoat.trigger, labcoat.scope, targetFramework, …
+///     properties/property  labcoat.version, labcoat.runId, labcoat.trigger, labcoat.scope, labcoat.randomSeed (random-order runs), targetFramework, …
 ///     testcase classname="Namespace.Class" name="display name (data row)" time="seconds"
 ///       failure | error  message type, text = stack trace      (assertion failures vs unexpected exceptions / timeouts)
 ///       skipped message                                        (skipped, not run, cancelled, quarantined failures)
+///       flakyFailure | flakyError message type, stackTrace     (a test that passed on a --retry-failed retry: one per failed attempt)
+///       rerunFailure | rerunError message type, stackTrace     (a test that still failed on a retry: one per rerun)
 ///       system-out / system-err                                (capped; per test case, as Azure reads them)
 /// </code>
 /// Text is cleaned of ANSI sequences and characters XML 1.0 cannot carry; console output is cut to
@@ -106,12 +108,14 @@ public static class JUnitWriter
         yield return ("labcoat.runId", run.RunId);
         yield return ("labcoat.trigger", run.Trigger ?? "user");
         yield return ("labcoat.scope", run.Scope ?? "all");
+        if (run.Seed is { } seed) yield return ("labcoat.randomSeed", seed.ToString(System.Globalization.CultureInfo.InvariantCulture));
         yield return ("labcoat.startedAt", run.StartedAt);
         if (run.FinishedAt is { } finished) yield return ("labcoat.finishedAt", finished);
         yield return ("labcoat.workspace", export.WorkspaceName);
         yield return ("labcoat.projectId", project.Id);
         if (project.Path is { } path) yield return ("labcoat.project", path);
         if (project.TargetFramework is { } tfm) yield return ("targetFramework", tfm);
+        if (export.Tests.Count(t => t.ProjectId == project.Id && t.IsFlaky) is > 0 and var flaky) yield return ("labcoat.flaky", Int(flaky));
         if (run.Aborted == true) yield return ("labcoat.aborted", run.AbortReason ?? "true");
         if (run.Cancelled == true) yield return ("labcoat.cancelled", "true");
     }
@@ -137,6 +141,7 @@ public static class JUnitWriter
                 w.WriteEndElement();
                 break;
         }
+        WriteRetries(w, t);
         if (output)
         {
             WriteOutput(w, "system-out", t.StdOut);
@@ -145,15 +150,35 @@ public static class JUnitWriter
         w.WriteEndElement();
     }
 
+    /// <summary>
+    /// The failed attempts of a retried test, as Surefire writes them: flakyFailure / flakyError before a pass,
+    /// rerunFailure / rerunError after a failure that stayed.
+    /// </summary>
+    private static void WriteRetries(XmlWriter w, ExportTest t)
+    {
+        if (t.FailedAttempts is not { Count: > 0 } attempts) return;
+        var prefix = t.IsFlaky ? "flaky" : "rerun";
+        foreach (var a in attempts)
+        {
+            w.WriteStartElement(prefix + (a.IsAssertion ? "Failure" : "Error"));
+            var message = Text(ExportText.Cap(ExportText.Clean(a.ErrorMessage), MaxMessageChars));
+            w.WriteAttributeString(MessageAttr, message.Length > 0 ? message : "Failed");
+            w.WriteAttributeString(TypeAttr, Text(a.ErrorType ?? (a.IsAssertion ? "AssertionFailure" : a.Outcome == Outcome.TimedOut ? "Timeout" : "Error")));
+            var trace = string.IsNullOrWhiteSpace(a.StackTrace) ? a.ErrorMessage : a.StackTrace;
+            w.WriteElementString("stackTrace", ExportText.Cap(ExportText.Clean(trace), MaxStackChars));
+            w.WriteEndElement();
+        }
+    }
+
     /// <summary>&lt;failure&gt; / &lt;error&gt;: the message as attribute (what reporters show as the title), the stack trace as text.</summary>
     private static void WriteProblem(XmlWriter w, string element, ExportTest t, string type)
     {
         w.WriteStartElement(element);
-        var message = Text(ExportText.Cap(ExportText.Clean(t.ErrorMessage), MaxMessageChars));
+        var message = Text(Export.ExportText.Cap(Export.ExportText.Clean(t.ErrorMessage), MaxMessageChars));
         w.WriteAttributeString(MessageAttr, message.Length > 0 ? message : DefaultMessage(t));
         w.WriteAttributeString(TypeAttr, Text(type));
         var body = string.IsNullOrWhiteSpace(t.StackTrace) ? t.ErrorMessage : t.StackTrace;
-        w.WriteString(ExportText.Cap(ExportText.Clean(body), MaxStackChars));
+        w.WriteString(Export.ExportText.Cap(Export.ExportText.Clean(body), MaxStackChars));
         w.WriteEndElement();
     }
 
@@ -164,7 +189,7 @@ public static class JUnitWriter
     private static void WriteOutput(XmlWriter w, string element, string? text)
     {
         if (string.IsNullOrEmpty(text)) return;
-        w.WriteElementString(element, ExportText.Cap(ExportText.Clean(text), MaxOutputChars));
+        w.WriteElementString(element, Export.ExportText.Cap(Export.ExportText.Clean(text), MaxOutputChars));
     }
 
     /// <summary>The tests whose console output fits into <see cref="MaxTotalOutputChars"/>: failed ones first, then in order.</summary>
@@ -182,7 +207,7 @@ public static class JUnitWriter
         return chosen;
     }
 
-    private static string Text(string? s) => ExportText.Clean(s);
+    private static string Text(string? s) => Export.ExportText.Clean(s);
 
     private static string Int(int n) => n.ToString(CultureInfo.InvariantCulture);
 

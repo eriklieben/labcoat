@@ -1,3 +1,4 @@
+using System.Globalization;
 using Labcoat;
 
 namespace Labcoat.Tests.ExplorerTests;
@@ -14,9 +15,6 @@ namespace Labcoat.Tests.ExplorerTests;
 [TestCategory("e2e")]
 public class CoverageEndToEndTests
 {
-    private static string Id(Labcoat.Explorer e, string projectId, string displayName) =>
-        e.Snapshot().Tests.Single(t => t.ProjectId == projectId && t.DisplayName == displayName).Id;
-
     private static async Task<Labcoat.Explorer> DiscoveredAsync(DeskWorkspace ws, string project, CoverageOptions? options = null)
     {
         var explorer = new Labcoat.Explorer(new EventHub(), [project], null, [ws.Root])
@@ -31,7 +29,7 @@ public class CoverageEndToEndTests
 
     private static List<int> HostPids(Labcoat.Explorer e, string dll) =>
         System.Text.RegularExpressions.Regex.Matches(ScratchWorkspace.Logs(e), $@"Started test host \(pid (\d+)\): dotnet {System.Text.RegularExpressions.Regex.Escape(dll)} --server --client-port \d+$",
-            System.Text.RegularExpressions.RegexOptions.Multiline).Select(m => int.Parse(m.Groups[1].Value)).ToList();
+            System.Text.RegularExpressions.RegexOptions.Multiline).Select(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
 
     /// <summary>(module, path, line) → covered, from a report.</summary>
     private static Dictionary<(string, string, int), bool> Lines(CoverageReport r) =>

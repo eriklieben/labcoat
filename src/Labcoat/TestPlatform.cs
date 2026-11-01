@@ -3,7 +3,7 @@ using System.Xml.Linq;
 
 namespace Labcoat;
 
-/// <summary>The test platform a project runs on (<see cref="TestPlatform.Classify"/>).</summary>
+/// <summary>The test platform a project runs on (<see cref="TestPlatform.Classify(ProjectFacts)"/>).</summary>
 public enum TestRunner
 {
     /// <summary>No test framework or test platform setting: not a test project.</summary>
@@ -14,7 +14,7 @@ public enum TestRunner
     VsTest,
 }
 
-/// <summary>What <see cref="TestPlatform.Classify"/> found.</summary>
+/// <summary>What <see cref="TestPlatform.Classify(ProjectFacts)"/> found.</summary>
 /// <param name="Framework">MSTest | NUnit | xUnit v2 | xUnit v3 | TUnit, or null when it isn't known.</param>
 /// <param name="Evidence">The packages and settings that decided it, e.g. ["Microsoft.NET.Test.Sdk", "MSTest.TestAdapter"].</param>
 public sealed record TestPlatformInfo(TestRunner Runner, string? Framework, IReadOnlyList<string> Evidence)
@@ -22,7 +22,7 @@ public sealed record TestPlatformInfo(TestRunner Runner, string? Framework, IRea
     public bool IsTestProject => Runner != TestRunner.None;
 }
 
-/// <summary>The settings <see cref="TestPlatform.Classify"/> looks at: properties, PackageReference ids and SDK names.</summary>
+/// <summary>The settings <see cref="TestPlatform.Classify(ProjectFacts)"/> looks at: properties, PackageReference ids and SDK names.</summary>
 public sealed record ProjectFacts(IReadOnlyDictionary<string, string> Properties, IReadOnlyList<string> Packages, IReadOnlyList<string> Sdks)
 {
     public static readonly ProjectFacts Empty = new(new Dictionary<string, string>(), [], []);
@@ -56,7 +56,7 @@ public static class TestPlatform
         Justification = "The link to Labcoat's own troubleshooting docs: one fixed public page, the same in every environment.")]
     public const string DocsUrl = "https://github.com/eriklieben/labcoat/blob/main/docs/troubleshooting.md#my-project-uses-vstest";
 
-    /// <summary>The MSBuild properties <see cref="Classify"/> reads (evaluations ask for these).</summary>
+    /// <summary>The MSBuild properties <see cref="Classify(ProjectFacts)"/> reads (evaluations ask for these).</summary>
     public static readonly string[] Properties =
         [IsTestingPlatformApplication, "TestingPlatformDotnetTestSupport", "UseMicrosoftTestingPlatformRunner", EnableMSTestRunner,
          EnableNUnitRunner, "IsTestProject", "UsingMSTestSdk", "UseVSTest"];

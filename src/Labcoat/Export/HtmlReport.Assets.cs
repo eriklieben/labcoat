@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 // The HTML report's inline assets: the default theme's tokens, the report CSS and the filter script. The page's CSP
 // allows exactly these two inline blocks (by hash) and nothing else: no external requests, no other script.
@@ -19,7 +19,7 @@ public static partial class HtmlReport
 
     private static string? ReadThemeResource()
     {
-        using var stream = typeof(HtmlReport).Assembly.GetManifestResourceStream(ThemeResource);
+        using var stream = typeof(Export.HtmlReport).Assembly.GetManifestResourceStream(ThemeResource);
         if (stream is null) return null;
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd();
@@ -159,6 +159,7 @@ public static partial class HtmlReport
         .r .n { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
         .r .d, .fail .d, .cls .d { margin-left: auto; color: var(--lc-fg-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .r .why { color: var(--lc-fg-muted); font-size: 12px; overflow-wrap: anywhere; }
+        .r.flaky .why { color: var(--lc-status-skipped-text); }
         .r::before, .fail > summary .n::before { display: inline-block; width: 1.1em; font-weight: 700; }
         .r.f::before, .fail > summary .n::before { content: "\2715"; color: var(--lc-status-failed); }
         .r.p::before { content: "\2713"; color: var(--lc-status-passed); }

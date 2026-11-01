@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -85,20 +86,26 @@ public sealed class MtpHost : IAsyncDisposable
     /// <param name="tracingEnabled">Pass the Aspire dashboard's OTLP endpoint as LABCOAT_OTLP_* (see <see cref="Telemetry"/>).</param>
     /// <param name="traceFilter">With tracing on: only the tests matching it are traced (LABCOAT_OTLP_FILTER).</param>
     public static MtpHost Start(string targetPath, IEnumerable<string> extraArgs, Action<string, JsonNode?> onNotification, Action<string, string> log,
+        IReadOnlyDictionary<string, string>? environment = null, bool tracingEnabled = false, string? traceFilter = null) =>
+        Start(new HostCommand(DotnetCli.Executable, [targetPath], Path.GetDirectoryName(targetPath)!), extraArgs, onNotification, log, environment,
+            tracingEnabled, traceFilter);
+
+    /// <summary>Starts <paramref name="command"/> (a .NET test app, or a runner package's test host) in server mode.</summary>
+    public static MtpHost Start(HostCommand command, IEnumerable<string> extraArgs, Action<string, JsonNode?> onNotification, Action<string, string> log,
         IReadOnlyDictionary<string, string>? environment = null, bool tracingEnabled = false, string? traceFilter = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var psi = new ProcessStartInfo(Explorer.DotnetPath)
+        var psi = new ProcessStartInfo(command.FileName)
         {
-            WorkingDirectory = Path.GetDirectoryName(targetPath)!,
+            WorkingDirectory = command.WorkingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        psi.ArgumentList.Add(targetPath);
+        foreach (var a in command.Arguments) psi.ArgumentList.Add(a);
         psi.ArgumentList.Add("--server");
         psi.ArgumentList.Add("--client-host");
         psi.ArgumentList.Add("localhost");
@@ -106,7 +113,7 @@ public sealed class MtpHost : IAsyncDisposable
         psi.ArgumentList.Add(port.ToString());
         foreach (var a in extraArgs) psi.ArgumentList.Add(a);
         var removed = ConfigureTestHostEnvironment(psi.Environment, environment, tracingEnabled, traceFilter);
-        if (TestHostEnvironment.DescribeOnce(removed) is { } removedInfo) log("info", removedInfo);
+        if (TestHostEnvironment.DescribeOnce(removed) is { } removedInfo) log(LogLevels.Info, removedInfo);
 
         var output = new StringBuilder();
         var stderr = new Queue<string>();
@@ -143,7 +150,9 @@ public sealed class MtpHost : IAsyncDisposable
             process.Dispose();
             throw;
         }
-        log("info", $"Started test host (pid {process.Id}): dotnet {Path.GetFileName(targetPath)} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
+        var program = command.FileName == DotnetCli.Executable ? "dotnet" : Path.GetFileNameWithoutExtension(command.FileName);
+        var shown = string.Join(' ', command.Arguments.Select(a => File.Exists(a) ? Path.GetFileName(a) : a));
+        log(LogLevels.Info, $"Started test host (pid {process.Id}): {program} {shown} --server --client-port {port} {string.Join(' ', extraArgs)}".TrimEnd());
         return new MtpHost(process, listener, output, stderr, onNotification, log, sink);
     }
 
@@ -215,7 +224,7 @@ public sealed class MtpHost : IAsyncDisposable
                 var tcp = await _listener.AcceptTcpClientAsync(token);
                 connectTimeoutCts.CancelAfter(Timeout.Infinite); // connected: stop the connect timeout (a no-op after the first)
                 tcp.NoDelay = true;
-                var conn = new MtpConnection(tcp, _onNotification, _log, () => TryKill(_process));
+                var conn = new MtpConnection(tcp, _onNotification, _log, () => ProcessUtil.TryKill(_process));
                 lock (_connections) _connections.Add(conn);
                 _ = Task.Run(() => op.RunAsync(conn), CancellationToken.None); // the operation itself takes the request's ct
             }
@@ -253,7 +262,7 @@ public sealed class MtpHost : IAsyncDisposable
         if (conns.Count == 0)
         {
             // Never connected (e.g. still waiting for a debugger, or hung in startup): nobody to send `exit` to.
-            TryKill(_process);
+            ProcessUtil.TryKill(_process);
             return;
         }
         // Child test hosts first (later connections), then the controller.
@@ -266,27 +275,35 @@ public sealed class MtpHost : IAsyncDisposable
             catch (OperationCanceledException)
             {
                 _log(LogLevels.Warning, $"Test host did not exit within {timeout.TotalSeconds:0}s; killing it.");
-                TryKill(_process);
+                ProcessUtil.TryKill(_process);
             }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        try { await ShutdownAsync(TimeSpan.FromSeconds(10)); } catch { TryKill(_process); }
+        try { await ShutdownAsync(TimeSpan.FromSeconds(10)); }
+        catch { ProcessUtil.TryKill(_process); /* a dispose doesn't throw: whatever broke the shutdown, the process goes */ }
         _listener.Stop();
         List<MtpConnection> conns;
         lock (_connections) conns = [.. _connections];
         foreach (var c in conns) await c.DisposeAsync();
-        TryKill(_process);
+        ProcessUtil.TryKill(_process);
         _process.Dispose();
     }
 
-    public void Kill() => TryKill(_process);
+    public void Kill() => ProcessUtil.TryKill(_process);
 
     public bool HasExited => _process.HasExited;
     public int ProcessId => _process.Id;
-    public int? ExitCode { get { try { return _process.HasExited ? _process.ExitCode : null; } catch { return null; } } }
+    public int? ExitCode
+    {
+        get
+        {
+            try { return _process.HasExited ? _process.ExitCode : null; }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception) { return null; /* never started, or not ours to ask */ }
+        }
+    }
     public Task WaitForExitAsync(CancellationToken ct = default) => _process.WaitForExitAsync(ct);
 
     public string OutputTail(int max)
@@ -334,15 +351,10 @@ public sealed class MtpHost : IAsyncDisposable
         }
         var tcp = await accept;
         tcp.NoDelay = true;
-        var conn = new MtpConnection(tcp, _onNotification, _log, () => TryKill(_process));
+        var conn = new MtpConnection(tcp, _onNotification, _log, () => ProcessUtil.TryKill(_process));
         lock (_connections) _connections.Add(conn);
         await conn.InitializeAsync(ct);
         return conn;
-    }
-
-    internal static void TryKill(Process p)
-    {
-        try { if (!p.HasExited) p.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
     }
 
     internal static string Tail(string s, int max) => s.Length <= max ? s : "…" + s[^max..];
@@ -492,7 +504,10 @@ public sealed class MtpConnection : IAsyncDisposable
                 {
                     // parsed straight from the UTF-8 bytes: a discovery / results batch can be MBs, no string copy of it
                     try { Dispatch(JsonNode.Parse(data.GetBuffer().AsSpan(consumed + bodyStart, bodyLength))); }
-                    catch (Exception ex) { _log(LogLevels.Error, "Failed to handle message from test host: " + ex.Message); }
+                    catch (Exception ex) // one bad message (or a failing handler) must not end the read loop
+                    {
+                        _log(LogLevels.Error, "Failed to handle message from test host: " + ex.Message);
+                    }
                     consumed += bodyStart + bodyLength;
                 }
                 data = Consume(data, consumed);
@@ -563,7 +578,7 @@ public sealed class MtpConnection : IAsyncDisposable
         if (method is not null && idNode is not null)
         {
             // Request from the test host to us (e.g. client/attachDebugger). We support none of them.
-            _log("info", $"Test host sent request '{method}', which is not supported; replying with an error.");
+            _log(LogLevels.Info, $"Test host sent request '{method}', which is not supported; replying with an error.");
             _ = SendAsync(new JsonObject
             {
                 [JsonRpc] = JsonRpcVersion,

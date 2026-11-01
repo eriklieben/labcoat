@@ -50,12 +50,13 @@ interface TestNode {
 }
 
 interface TestProject {
-  id: string;              // stable id, e.g. project file name without extension
+  id: string;              // stable id, e.g. project file name without extension (a runner package's project: its folder name)
   name: string;            // "SampleTests"
-  path: string;            // absolute .csproj path
+  path: string;            // absolute .csproj path (a runner package's project: its package.json or config file)
   status: "idle" | "building" | "discovering" | "running" | "error";
   lastError?: string;
   buildOutput?: string;    // tail of last build output when it failed
+  runner?: string;         // the runner package that runs the project, e.g. "vitest" (runners.md); absent = a .NET test project
 }
 
 interface RunSummary {
@@ -142,10 +143,10 @@ interface CoverageReport {
 interface CoverageMergedRun { runId: string; generatedAt: string; projectId: string; testCount: number; filesChanged: number }
 interface CoverageSettingsInfo {
   projectId: string;
-  source: "file" | "testconfig" | "defaults";
-  path?: string;                                  // the settings file (absent for "defaults")
-  origin?: "option" | "msbuild" | "convention";   // Coverage.Settings / TestingPlatformCommandLineArguments / found by name
-  instrumentation: "dynamic" | "static";          // static = assemblies of the output folder instrumented in place
+  source: "file" | "testconfig" | "defaults" | "runner"; // runner: a runner package's project, the runner's own settings
+  path?: string;                                  // the settings file (absent for "defaults"; "runner": its config file)
+  origin?: "option" | "msbuild" | "convention" | string; // Coverage.Settings / TestingPlatformCommandLineArguments / found by name; "runner": its name ("Vitest")
+  instrumentation: "dynamic" | "static" | "runner"; // static = assemblies of the output folder instrumented in place; runner = the runner's own
   modules?: string[];                             // "defaults": the assemblies counted (referenced projects)
   include?: string[]; exclude?: string[];         // Coverage.Include / Coverage.Exclude in effect
 }
@@ -400,7 +401,8 @@ interface ExplorerState {
   sourceRoots?: string[];       // canonical absolute directories GET /api/source serves (CLI root(s), --root dirs, project dirs and
                                 // their ProjectReference closure; nested roots folded). A stack frame whose file is under one of
                                 // these is "my code". Paths outside (e.g. "/_/src/…" from NuGet packages) are not served.
-  quarantined?: string[];       // quarantined tests as "projectId|id" keys (persisted per workspace)
+  quarantined?: string[];       // quarantined tests as "projectId|id" keys (persisted per workspace), plus the tests the
+                                // quarantine file lists (--quarantine-file / "quarantineFile"; read only)
   editors?: EditorInfo[];       // exactly 3 entries, in this order: vscode, rider, visualstudio
 }
 interface EditorInfo { id: "vscode" | "rider" | "visualstudio"; name: string; available: boolean }
@@ -446,6 +448,8 @@ interface RunSummary {
   // … as above, plus:
   watch?: WatchContext;     // watch-triggered runs only (alongside `affected`, which stays)
   repeat?: RepeatSummary;   // runs started with repeat ≥ 2
+  order?: "random";         // runs started with order "random": the tests ran one at a time in a seeded random order
+  seed?: number;            // the seed of such a run (the one given, else a generated positive number); run again with it to get the same order
   quarantined?: number;     // results of quarantined tests in this run (NOT included in passed/failed/skipped; total still counts them)
 }
 interface WatchContext {
@@ -466,9 +470,9 @@ interface RepeatSummary {
 // ---- ClientCommand gains
 type ClientCommand =
   /* … */
-  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number }   // repeat: 2–50 (values > 50 are clamped)
+  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number; order?: "random"; seed?: number }   // repeat: 2–50 (values > 50 are clamped); order/seed: see "Random order" below
   | { type: "setTracing"; enabled: boolean }
-  | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };
+  | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };   // commandRejected 409: releasing a test the quarantine file lists
 
 // ---- GET /api/coverage/line response
 interface CoveringTests {
@@ -519,7 +523,7 @@ interface TelemetryLog {
 | --- | --- | --- |
 | `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat? }` | `202 { accepted: true }` |
 | `POST /api/tracing` | `{ enabled: boolean }` | `200 { tracingEnabled: boolean }` |
-| `POST /api/quarantine` | `{ projectId, id, quarantined?: boolean }` (default `true`) | `200 { quarantined: string[] }`, `400` without projectId/id |
+| `POST /api/quarantine` | `{ projectId, id, quarantined?: boolean }` (default `true`) | `200 { quarantined: string[] }`, `400` without projectId/id, `409 { error }` when releasing a test the quarantine file lists |
 | `GET /api/coverage/line` | `?path=<abs>&line=<n>` | `200 CoveringTests`, `400` without path / line ≥ 1. Never starts a run. |
 | `GET /api/tests/telemetry` | `?projectId=<id>&id=<testId>` (or `?traceId=<hex>`) | `200 TestTelemetry`; `409` tracing off; `503` not hosted by Aspire; `404` unknown test / test without trace id; `502` dashboard error (body `{ error }`) |
 | `POST /api/open-in-editor` | `{ editor: "vscode" \| "rider" \| "visualstudio", path, line?, column? }` | `200 { ok: boolean, message? }`; `400` unknown editor; `403` path outside the served roots (same rule as `/api/source`); `404` missing file |
@@ -545,9 +549,19 @@ interface TelemetryLog {
   last failing repetition) if any repetition failed, else the last outcome; `durationMs` = mean. `RunSummary` counts
   use the aggregated outcomes; `repeat.perTest` has the per-test tallies. History gets ONE entry per test (aggregated
   outcome) with `flaky: true` when it both passed and failed, which makes the test `flaky`.
+- **Random order:** `order: "random"` runs the selected tests one at a time in a seeded random order, to find tests that
+  depend on each other. `seed` (a positive number) reproduces an earlier order; without it a new one is generated. The
+  seed is in `RunSummary.seed` (and `PendingRunInfo.seed`), in the log ("Random order, seed N: M tests, one at a time"),
+  in the JUnit report (`labcoat.randomSeed` property) and in the HTML report header. The same seed gives the same order
+  for the same set of tests on any machine. Why one request per test, and what that costs (fixtures run again, no
+  parallelism): [protocol.md](protocol.md#test-order-research-2026-10). The run does not collect coverage (a coverage
+  request is ignored with a log line). `400` for an `order` other than `"random"`, a `seed` without `order` or `<= 0`,
+  and `order` together with `debug` or `repeat`.
 - **Quarantine (F5):** quarantined tests still run and keep their outcomes, but their results count in
   `RunSummary.quarantined` instead of passed/failed/skipped. Persisted per workspace (`settings.json`); changes broadcast
-  `state`. Keys of tests that no longer exist are kept.
+  `state`. Keys of tests that no longer exist are kept. The tests a quarantine file lists (`--quarantine-file`,
+  `"quarantineFile"`, docs/standalone.md) are added to `quarantined` and are read only: releasing one is rejected with
+  `409` (`setQuarantine`: `commandRejected`), quarantining one again is a no-op.
 - **Coalesced test updates (P2-13):** `testsUpdated` is buffered and flushed at most every ~50 ms, merged per
   (projectId, id) with the last write winning, in order of first appearance. Any other ordered event (`runStarted`,
   `runFinished`, `runsUpdated`, `projectStatus`, `coverageUpdated`) flushes pending updates first; a `state` snapshot
@@ -560,7 +574,7 @@ interface TelemetryLog {
   (MSTest.Sdk / EnableMSTestRunner / EnableNUnitRunner / xunit.v3 / TUnit / Microsoft.Testing.Platform), no tests found.
 - **VSTest projects:** test projects on VSTest (Microsoft.NET.Test.Sdk with MSTest.TestAdapter / NUnit3TestAdapter /
   xunit.runner.visualstudio and no MTP switch, MSTest.Sdk with UseVSTest) are listed but never built or started
-  (TestPlatform.cs, Explorer.Platform.cs): before a build from the project and Directory.* files (confirmed by an MSBuild
+  (TestPlatform.cs, PlatformCheck.cs): before a build from the project and Directory.* files (confirmed by an MSBuild
   evaluation, no restore needed), after a build from the restored evaluation. The project gets `testPlatform`, one
   `warning` log line (the first for the project) and `diagnostics` with the switch for its framework.
 - **Open in editor (F8):** launched without a shell (argument list), via `setsid` on Linux so Ctrl+C on Labcoat does not
@@ -647,6 +661,7 @@ interface PendingRunInfo {
   projectIds?: string[];
   testCount?: number;           // subset only: number of selected tests (after merging)
   coverage?: boolean; repeat?: number;
+  order?: "random"; seed?: number;
   trigger?: "user" | "watch" | "api" | "debug";
   requests: number;             // how many requests were merged into it
 }
@@ -684,13 +699,14 @@ type ClientCommand = /* … */
 | `GET /api/health` | | `200 { status: "ok", version, running }` — cheap liveness (Aspire health check) |
 | `GET /api/summary` | | `200 { version, workspaceName?, tests: { total, passed, failed, skipped, notRun, running, queued, cancelled }, currentRun?, lastRun?, pendingRun?, activeOperation?, watch, coverageEnabled, projects: [{ id, name, status, hostState?, lastError?, tests, targetFramework? }], cancelling? }` (`failed` includes timedOut; `cancelling: true` between a cancel and the end of the operation it stops) |
 | `GET /api/state?lean=1` | | lean snapshot (see "Lean mode"); without `lean` unchanged |
-| `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat? }` | `202 { accepted: true, runId, queued, merged, unknownTestIds? }`; `400` malformed JSON / wrong types; `404 { error, projects }` unknown projectId; `404 { error, unknownTestIds }` when none of the testIds is known (some unknown → they are ignored and listed in the 202) |
+| `POST /api/run` | `{ projectId?, testIds?, coverage?, repeat?, order?, seed? }` | `202 { accepted: true, runId, queued, merged, unknownTestIds? }`; `400` malformed JSON / wrong types; `404 { error, projects }` unknown projectId; `404 { error, unknownTestIds }` when none of the testIds is known (some unknown → they are ignored and listed in the 202) |
 | `GET /api/runs/{runId}/status` | | `200 { runId, state, reason?, run?, supersededBy? }`; state: `queued` → `building` → `running` → `finished` \| `cancelled` \| `aborted` \| `skipped` (nothing could run, e.g. build failed) \| `superseded` (replaced while queued, see `supersededBy`); `404` unknown / older than the last 200 requests |
 | `POST /api/cancel` | (no body) | `202 { accepted: true, cancelledRunning, activeOperation?, clearedQueuedRunId?, clearedQueuedRequests }` |
-| `POST /api/debug` | `{ projectId?, testIds }` | like `/api/run`; `400` without testIds or with tests of several projects |
+| `POST /api/debug` | `{ projectId?, testIds }` | like `/api/run`; `400` without testIds, with tests of several projects or with tests of a runner package's project (`TestProject.runner`, e.g. Vitest) |
 | `POST /api/target-framework` | `{ projectId, targetFramework? }` | `202` (rebuild + rediscover start); `400` not one of `availableFrameworks`; `404` unknown project; `409` project not evaluated yet |
 | `GET /api/tests/details` | `?projectId=&id=` | `200 TestNode` (full: capped output, history); `404`; `400` without id |
 | `GET /api/tests/history` | `?projectId=&id=` (both optional) | `200 { tests: [{ projectId, id, history, flaky? }] }` — without `id`: every test that has history; `404` unknown project / test |
+| `GET /api/tests/slowest` | `?projectId=&limit=` (both optional) | `200 { projectId?, total, tests: SlowTest[] }` — the slowest tests of the project (or of all), slowest first, see "Slowest tests"; `400` limit below 1; `404` unknown project |
 | `GET /api/tests/output` | `?projectId=&id=` | `200 { projectId, id, stdOut?, stdErr?, truncated }` — full output when retained (`truncated: false`), else the capped text with `truncated: true` |
 | `POST /api/discover`, `/api/restart-host`, `/api/impact-map` | `{ projectId? }` | `404 { error, projectId }` for an unknown project (was 202) |
 | `POST /api/watch`, `/api/coverage`, `/api/tracing` | `{ enabled: boolean }` | `400` when `enabled` is missing or not a boolean (was: treated as false) |
@@ -700,7 +716,7 @@ type ClientCommand = /* … */
 
 - **Run queue (coalescing).** At most one run request waits while another operation (run, discovery, host restart,
   impact-map pass, watch rebuild) holds the lock. A new request while one is waiting is **merged** into it when coverage,
-  repeat and debug match: the selections are united per project ("all tests of a project" absorbs subsets), identical
+  repeat, debug and order + seed match: the selections are united per project ("all tests of a project" absorbs subsets), identical
   requests simply dedupe; the merged run keeps the first `runId` (`merged: true` in the 202), a user/API trigger wins over
   `watch`. A request with different options **replaces** the waiting one (`superseded`, `supersededBy` = the new id);
   log lines say which. `pendingRun` events / `ExplorerState.pendingRun` / `GET /api/summary` show the queue. Requests
@@ -870,7 +886,7 @@ accept "true"/"false" strings.
 ## Run affected tests (git)
 "Run the tests affected by my changes": the host asks `git` which files changed against a base, maps them to tests
 with the smart-watch strategy and either returns the plan (preview) or runs it. Additive (new endpoints, a new command,
-optional fields). Implementation: `src/Labcoat/GitAffected.cs`; UI: `ui/src/components/run-affected.ts`.
+optional fields). Implementation: `src/Labcoat/AffectedPlanner.cs` (git facts in `GitAffected.cs`); UI: `ui/src/components/run-affected.ts`.
 
 ### Bases
 
@@ -987,6 +1003,10 @@ interface AffectedProject { projectId: string; name: string; tests: number; all?
   queued request) with an exact per-project selection (`all` projects run whole). `trigger` is `"user"` (WS) or `"api"`
   (REST); `RunSummary.affected = { strategy: "git", base, ref, changedFiles, tests }`. Log: `Run affected (uncommitted
   changes): 3 files → 12 tests in 2 projects`. Nothing affected → log `info` and no run. Errors → `commandRejected`.
+- `labcoat --run --affected` (no server; [standalone.md](standalone.md#running-only-the-affected-tests-in-ci)) queues
+  the same run with trigger `"cli"`, narrowed by `--filter` / `--shard`, so its history entry has the same
+  `RunSummary.affected` (`tests` = the tests it ran). With an `--impact-map-file` the plan's `reasons` and `warnings`
+  can also say that a test is newer than the map or that a file changed after the map was built.
 - `buildImpactMap: true` runs the impact-map pass first for the projects whose product files had no impact data
   (`needsImpactMap`), then (impactMap `"auto"`) refines the classes the plan selected through class-level data per test,
   then recomputes the plan and runs it. Without it, a run uses the plan as it is (class-level selections are a safe
@@ -1070,7 +1090,7 @@ Behaviour:
 ## Live console output (added)
 Console output of tests **while they run**. Additive: old clients ignore the new event; nothing else changes. Research
 and per-framework limits: `docs/protocol.md` "Live console output". Implementation: `src/Labcoat/LiveOutput.cs`,
-`Explorer.Live.cs`; UI `ui/src/live-output.ts`, `ui/src/components/live-console.ts`.
+`LiveOutputService.cs`; UI `ui/src/live-output.ts`, `ui/src/components/live-console.ts`.
 
 ```ts
 // ---- ServerEvent gains (legacy and lean clients alike; only for tests that are currently running)
@@ -1284,7 +1304,7 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
 
 | Endpoint | Query | Response |
 | --- | --- | --- |
-| `GET /api/runs/{runId}/export` | `format=junit\|html`; `runId` = a persisted run (`GET /api/runs`) or `latest` (the newest) | `200` `application/xml` (JUnit) or `text/html` (report), file `labcoat-<workspace>-<runId>.junit.xml` / `.html`; `400 { error }` other format; `404 { error, runId }` unknown run / no runs yet |
+| `GET /api/runs/{runId}/export` | `format=junit\|html\|markdown\|trx\|sarif`; `runId` = a persisted run (`GET /api/runs`) or `latest` (the newest) | `200` `application/xml` (JUnit, TRX), `text/html` (report), `text/markdown` or `application/sarif+json`, file `labcoat-<workspace>-<runId>.junit.xml` / `.html` / `.md` / `.trx` / `.sarif`; `400 { error }` other format; `404 { error, runId }` unknown run / no runs yet |
 | `GET /api/coverage/export` | `format=lcov\|cobertura`, `scope=full` (default: `fullCoverage`) `\|last` (`coverage`), `paths=relative` (default) `\|absolute` | `200` `text/plain` (lcov) or `application/xml` (Cobertura), file `labcoat-<workspace>-<report runId>.info` / `.cobertura.xml`; `400 { error }`; `404 { error }` no such report yet |
 
 - **Run data:** a persisted run keeps outcome, duration, error message (≤ 2 KB) and stack (≤ 4 KB) per test; names,
@@ -1297,15 +1317,67 @@ filename=…; filename*=UTF-8''…`) with `Cache-Control: no-store`.
   (`name` = display name, `classname` = `Namespace.Class` (else the project name), `time` in seconds). `failure` = an
   assertion (no `errorType`, or an assertion library's type), `error` = any other exception, a timeout or a crashed test
   host; `message` attribute = the error message, text = the stack trace. `skipped` = skipped, not run, cancelled, and
-  failures of quarantined tests (`message` says which). `system-out` / `system-err` per test case, 16 K chars each,
+  failures of quarantined tests (`message` says which). With `--retry-failed`, a test that passed on a retry has one
+  `flakyFailure` / `flakyError` per failed attempt and a test that never passed one `rerunFailure` / `rerunError` per
+  retry (`message`, `type`, `stackTrace`), and a project with flaky tests gets the property `labcoat.flaky`. `system-out` / `system-err` per test case, 16 K chars each,
   8 M chars per report (failed tests first). Text without ANSI sequences; characters XML 1.0 can't carry become U+FFFD.
   Valid against the Jenkins xunit plugin's `junit-10.xsd` (tests/Labcoat.Tests/Fixtures/JUnit).
+- **Markdown:** `## Test results: <verdict>`, a totals table (`Flaky` and `Quarantined` columns when there are any),
+  `### Failed tests` (name, class, `file:line`, "Failed all n attempts" after retries, message in a code fence, stack
+  trace in `<details>`), `### Flaky tests` (20: test, the attempt that passed, the first failure), `### Slowest tests`
+  (10), coverage when given. At most 60,000 bytes as a download; the remaining failed tests are counted in a note. Test
+  text is escaped (markup, `@`). Numbers are formatted the same in every culture.
+- **TRX:** `TestRun` (namespace `http://microsoft.com/schemas/VisualStudio/TeamTest/2010`) `> Times, TestSettings, Results
+  > UnitTestResult` (`outcome` Passed / Failed / Timeout / NotExecuted, `duration` `hh:mm:ss.fffffff`, `Output > StdOut,
+  StdErr, ErrorInfo, TextMessages`), `TestDefinitions > UnitTest`, `TestEntries`, `TestLists`, `ResultSummary >
+  Counters`. Ids are derived from the run and test ids. A retried test's `TextMessages` say "Flaky: passed on attempt n"
+  (outcome Passed) or "Failed all n attempts", then one `Attempt k failed: <message>` per failed attempt.
+- **SARIF:** 2.1.0, one `run` (`tool.driver` Labcoat, rules `labcoat/assertion-failure` and `labcoat/test-error`), one
+  `result` per failed test (`level` `error`; `note` for a quarantined failure; `warning` for a test that passed on a
+  retry, with its first failure) with the assertion's `physicalLocation` (relative to `%SRCROOT%`; else the test's, else
+  the project file), a `partialFingerprints` entry per test and `properties` (`project`, `testId`, `errorType`,
+  `quarantined`, `flaky`, `attempts`).
+- **Source location:** the first stack frame with a file and line under the workspace root, else the test's own file and
+  line (`ExportTest.sourceFile` / `sourceLine`).
 - **HTML:** one static file; its CSP (`<meta http-equiv>`) is `default-src 'none'` plus the hashes of its one inline
   style and script. All test data HTML-escaped. Passed / skipped tests one line each; details for the first 500
-  failures (message 8 K, stack 16 K, output 8 K chars each).
+  failures (message 8 K, stack 16 K, output 8 K chars each). Flaky tests (`--retry-failed`) get a "Flaky" card and a note
+  on their row.
 - **lcov:** per file `TN:`, `SF:`, `BRDA:<line>,0,<i>,<taken>` (the report has per-line branch counts: branches
   `0..n-1` of one block, the first `branchesCovered` taken, `-` when the line never ran), `BRF`, `BRH`, `DA`, `LF`, `LH`,
   `end_of_record`. **Cobertura:** `coverage > sources > packages > package (module) > classes > class (file) > lines`, a
   leading comment with the run, scope, path root and the coverage settings per project. Paths relative to the workspace
   root (the git repository root, else the common root of the inputs and source roots) with `/`, absolute outside it.
-- `RunSummary.trigger` gains `"cli"`: a run of `labcoat --run` (docs/standalone.md "Labcoat in CI").
+- `RunSummary.trigger` gains `"cli"`: a run of `labcoat --run` (docs/standalone.md "Labcoat in CI"), and `"cli-retry"`:
+  a `--retry-failed` rerun of its failed tests.
+
+## Slowest tests (added)
+
+`GET /api/tests/slowest?projectId=&limit=` ranks the tests that have a duration by their latest duration and returns the
+trend of each over its recent history. `limit` defaults to 20 (at most 200). Skipped, not run, queued, running and
+cancelled tests are left out. It reads the host's current results and history: no run is started. See
+[features.md](features.md#slowest-tests).
+
+```ts
+interface SlowTest {
+  projectId: string;
+  id: string;
+  name: string;
+  className?: string;
+  namespace?: string;
+  durationMs: number;        // the latest duration
+  medianMs?: number;         // median of the earlier results; absent without any
+  factor?: number;           // durationMs / medianMs (2 decimals); absent without a median
+  quarantined?: true;
+  trend: { at: string; durationMs: number; outcome: Outcome }[];  // the history with a duration (max 20), oldest first,
+                                                                  // the latest result last
+}
+interface SlowestTestsResponse {
+  projectId?: string;        // the requested project
+  total: number;             // tests with a duration (tests holds the slowest of them)
+  tests: SlowTest[];
+}
+```
+
+The `maxTestDuration` budget of `labcoat --run` ([configuration.md](configuration.md#duration-budget)) is not part of the
+protocol: it only decides the exit code of the command.

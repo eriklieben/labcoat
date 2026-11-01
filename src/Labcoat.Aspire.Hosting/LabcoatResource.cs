@@ -54,6 +54,13 @@ public class LabcoatResource(string name, string command, string workingDirector
     /// <summary>Base git ref of "Run affected: branch vs …" (passed as <c>LABCOAT_AFFECTED_BASE</c>); null = Labcoat's default.</summary>
     public string? AffectedBase { get; internal set; }
 
+    /// <summary>
+    /// The test runners to use (passed as <c>LABCOAT_RUNNERS</c>): <c>"dotnet"</c> (MSTest, NUnit, xUnit v3 and TUnit on
+    /// Microsoft.Testing.Platform) and runner packages such as <c>"vitest"</c> (Labcoat.Vitest). Empty = Labcoat's
+    /// default: dotnet plus every runner package the AppHost references.
+    /// </summary>
+    public IList<string> Runners { get; } = new List<string>();
+
     /// <summary>Granularity of the test impact map, "class" | "test" | "auto" (passed as <c>LABCOAT_IMPACT_MAP</c>); null = Labcoat's default.</summary>
     public string? ImpactMap { get; internal set; }
 
@@ -65,6 +72,9 @@ public class LabcoatResource(string name, string command, string workingDirector
 
     /// <summary>Per-test timeout (<c>LABCOAT_TEST_TIMEOUT</c>): a test running longer times out and its project's run is cancelled. Null / zero = off.</summary>
     public TimeSpan? TestTimeout { get; internal set; }
+
+    /// <summary>Duration budget of <c>labcoat --run</c> (<c>LABCOAT_MAX_TEST_DURATION</c>): a test that took longer fails the run. Null / zero = no budget.</summary>
+    public TimeSpan? MaxTestDuration { get; internal set; }
 
     /// <summary>
     /// Per-AppHost-process secret passed to the explorer as <c>LABCOAT_TOKEN</c>; the dashboard commands send it as

@@ -52,7 +52,7 @@ public class CoverageTests
         Assert.AreEqual(4, acc.FileCount); // Calc, Format, Constants, Dead (Shop.Tests and the class without a file are left out)
         CollectionAssert.AreEqual(new[] { "Constants.cs", "Dead.cs", Path.Combine("Math", "Calc.cs"), Path.Combine("Text", "Format.cs") },
             report.Files.Select(f => f.RelativePath).ToArray());
-        var calc = report.Files.Single(f => f.RelativePath.EndsWith("Calc.cs"));
+        var calc = report.Files.Single(f => f.RelativePath.EndsWith("Calc.cs", StringComparison.Ordinal));
         Assert.AreEqual(ws.Path("src/Math/Calc.cs"), calc.Path);
         Assert.AreEqual("Shop.Core", calc.Module);
         CollectionAssert.AreEqual(new[] { 10, 11, 12, 20, 21, 22, 30, 31 }, calc.Lines.Select(l => l.Line).ToArray());
@@ -63,7 +63,7 @@ public class CoverageTests
         Assert.AreEqual(0.75, calc.LineRate);
         Assert.AreEqual(1.0, calc.BranchRate);
 
-        var format = report.Files.Single(f => f.RelativePath.EndsWith("Format.cs"));
+        var format = report.Files.Single(f => f.RelativePath.EndsWith("Format.cs", StringComparison.Ordinal));
         Assert.AreEqual(int.MaxValue, format.Lines[0].Hits); // method-line fallback; hits capped at int.MaxValue
         Assert.AreEqual(1.0, format.BranchRate);           // nothing to cover: 100% (Cobertura convention)
 
@@ -213,7 +213,7 @@ public class CoverageTests
         CollectionAssert.AreEquivalent(new[] { new LineSpan(10, 12), new LineSpan(20, 22), new LineSpan(21, 21) }, calc);
         CollectionAssert.AreEqual(new[] { new LineSpan(3, 3) }, spans[PathUtil.CanonicalizeOrSelf(ws.Path("src/Constants.cs"))]);
         Assert.IsTrue(spans.ContainsKey(PathUtil.CanonicalizeOrSelf(ws.Path("src/Text/Format.cs"))));
-        Assert.IsFalse(spans.Keys.Any(k => k.EndsWith("Dead.cs") || k.EndsWith("CalcTests.cs")));
+        Assert.IsFalse(spans.Keys.Any(k => k.EndsWith("Dead.cs", StringComparison.Ordinal) || k.EndsWith("CalcTests.cs", StringComparison.Ordinal)));
     }
 
     [TestMethod]

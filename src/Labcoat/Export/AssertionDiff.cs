@@ -1,4 +1,4 @@
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>
 /// Expected / actual values from an assertion message and a line diff of them, for the HTML report (a smaller cousin
@@ -8,7 +8,7 @@ namespace Labcoat;
 internal static class AssertionDiff
 {
     /// <summary>Values longer than this many lines are not diffed (the message is shown as it is).</summary>
-    public const int MaxLines = 400;
+    private const int MaxLines = 400;
 
     public sealed record Values(string Expected, string Actual);
 
@@ -33,8 +33,7 @@ internal static class AssertionDiff
         if (sep < 0) return null;
         var aStart = sep + ObjectActual.Length;
         var aEnd = msg.IndexOf(">.", aStart, StringComparison.Ordinal);
-        if (aEnd < 0) return null;
-        return new Values(msg[(e + ObjectExpected.Length)..sep], msg[aStart..aEnd]);
+        return aEnd < 0 ? null : new Values(msg[(e + ObjectExpected.Length)..sep], msg[aStart..aEnd]);
     }
 
     private static Values? ParseLineForm(string msg)

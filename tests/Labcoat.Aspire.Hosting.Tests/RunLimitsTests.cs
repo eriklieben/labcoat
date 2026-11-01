@@ -26,6 +26,9 @@ public class RunLimitsTests
             Assert.AreEqual("2", env["LABCOAT_MAX_PARALLEL"]);
             Assert.AreEqual("90", env["LABCOAT_HANG_THRESHOLD"]);
             Assert.AreEqual("30.5", env["LABCOAT_TEST_TIMEOUT"]);
+            Assert.IsFalse(env.ContainsKey(LabcoatRunLimitsExtensions.MaxTestDurationEnvironmentVariable));
+            rb.WithMaxTestDuration(TimeSpan.FromMilliseconds(1500));
+            Assert.AreEqual("1.5", (await Hosting.EnvironmentAsync(rb.Resource))["LABCOAT_MAX_TEST_DURATION"]);
 
             var fromOptions = Hosting.Builder(appHost).AddLabcoat("tests", o =>
             {
@@ -40,8 +43,11 @@ public class RunLimitsTests
             builder.Configuration["Labcoat:MaxParallelProjects"] = "3";
             builder.Configuration["Labcoat:TestTimeout"] = "00:01:30";
             builder.Configuration["Labcoat:HangThreshold"] = "45s";
+            builder.Configuration["Labcoat:MaxTestDuration"] = "2s";
             var configured = builder.AddLabcoat("tests").Resource;
             Assert.AreEqual((3, TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(90)), (configured.MaxParallelProjects, configured.HangThreshold, configured.TestTimeout));
+            Assert.AreEqual(TimeSpan.FromSeconds(2), configured.MaxTestDuration);
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => rb.WithMaxTestDuration(TimeSpan.FromSeconds(-1)));
 
             Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => rb.WithMaxParallelProjects(0));
             Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => rb.WithMaxParallelProjects(65));

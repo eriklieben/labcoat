@@ -1,4 +1,4 @@
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>One test result of an exported run (<see cref="RunExport"/>).</summary>
 public sealed record ExportTest
@@ -18,6 +18,22 @@ public sealed record ExportTest
     public string? StdErr { get; init; }
     /// <summary>The test is quarantined: a failure does not fail the run (RunSummary.quarantined).</summary>
     public bool Quarantined { get; init; }
+    /// <summary>How often the test ran in the run: more than 1 when <c>--retry-failed</c> reran it.</summary>
+    public int Attempts { get; init; } = 1;
+    /// <summary>
+    /// The failed attempts of a retried test: all of them for a test that passed on a retry (<see cref="IsFlaky"/>), the
+    /// reruns after the first failure (which stays in the error fields) for one that never passed.
+    /// </summary>
+    public List<ExportAttempt>? FailedAttempts { get; init; }
+
+    /// <summary>The test failed and passed on a retry (<c>--retry-failed</c>): it passed, but not at the first attempt.</summary>
+    public bool IsFlaky => Outcome == Outcome.Passed && Attempts > 1;
+    /// <summary>
+    /// Where a failure points to: the file ('/' separators, relative to the workspace root when under it) and line of the
+    /// first stack frame in the workspace, else of the test's declaration. Null when unknown.
+    /// </summary>
+    public string? SourceFile { get; init; }
+    public int? SourceLine { get; init; }
 
     /// <summary>"Namespace.Class", the class alone, or "" when the framework reported neither.</summary>
     public string ClassFullName
@@ -33,12 +49,24 @@ public sealed record ExportTest
     public ExportKind Kind => ExportKinds.Of(this);
 }
 
+/// <summary>One failed attempt of a retried test (<see cref="ExportTest.FailedAttempts"/>).</summary>
+public sealed record ExportAttempt(Outcome Outcome, string? ErrorMessage, string? ErrorType, string? StackTrace)
+{
+    public static ExportAttempt Of(ExportTest t) => new(t.Outcome, t.ErrorMessage, t.ErrorType, t.StackTrace);
+
+    /// <summary>An assertion failure rather than an unexpected exception or a timeout (JUnit failure vs error).</summary>
+    public bool IsAssertion => Outcome != Outcome.TimedOut && ExportKinds.IsAssertion(ErrorType);
+}
+
 /// <summary>A test project of an exported run.</summary>
 /// <param name="Path">The project file relative to the workspace root ('/' separators), or its file name.</param>
-public sealed record ExportProject(string Id, string Name, string? TargetFramework, string? Path);
+/// <param name="SourcePath">The project file relative to <see cref="ExportService.Root"/>, like the tests' source
+/// locations (absolute outside it): where SARIF points a failure without a source location, since code scanning reads
+/// its paths from the repository root.</param>
+public sealed record ExportProject(string Id, string Name, string? TargetFramework, string? Path, string? SourcePath = null);
 
 /// <summary>
-/// A run as the exports see it (Explorer.ExportRun): the summary, the projects that reported results and every result
+/// A run as the exports see it (ExportService.Run): the summary, the projects that reported results and every result
 /// with the test's names, error and (when the live result is still this run's) console output, in tree order.
 /// </summary>
 public sealed record RunExport
@@ -49,6 +77,9 @@ public sealed record RunExport
     public required List<ExportProject> Projects { get; init; }
     public required List<ExportTest> Tests { get; init; }
     public required string GeneratedAt { get; init; }
+
+    /// <summary>Tests that failed and passed on a retry (<c>--retry-failed</c>); they count as passed.</summary>
+    public int Flaky => Tests.Count(t => t.IsFlaky);
 }
 
 /// <summary>How a result counts in a report.</summary>
@@ -107,9 +138,9 @@ internal static class ExportKinds
     /// <summary>The reason shown for a result that did not pass or fail.</summary>
     public static string SkipReason(ExportTest t) => t.Kind switch
     {
-        ExportKind.QuarantinedFailure => "Quarantined; failed: " + ExportText.FirstLine(t.ErrorMessage, 500),
+        ExportKind.QuarantinedFailure => "Quarantined; failed: " + Export.ExportText.FirstLine(t.ErrorMessage, 500),
         ExportKind.NotRun => t.Outcome == Outcome.Cancelled ? "Cancelled" : "Not run",
-        _ => string.IsNullOrWhiteSpace(t.ErrorMessage) ? "Skipped" : ExportText.FirstLine(t.ErrorMessage, 500),
+        _ => string.IsNullOrWhiteSpace(t.ErrorMessage) ? "Skipped" : Export.ExportText.FirstLine(t.ErrorMessage, 500),
     };
 }
 
@@ -118,29 +149,37 @@ public static class ExportFormats
 {
     public const string JUnit = "junit";
     public const string Html = "html";
+    public const string Markdown = "markdown";
+    public const string Trx = "trx";
+    public const string Sarif = "sarif";
     public const string Lcov = "lcov";
     public const string Cobertura = "cobertura";
 
-    public static readonly string[] RunFormats = [JUnit, Html];
+    public static readonly string[] RunFormats = [JUnit, Html, Markdown, Trx, Sarif];
     public static readonly string[] CoverageFormats = [Lcov, Cobertura];
 
     public static string ContentType(string format) => format switch
     {
-        JUnit or Cobertura => "application/xml; charset=utf-8",
+        JUnit or Cobertura or Trx => "application/xml; charset=utf-8",
+        Sarif => "application/sarif+json; charset=utf-8",
+        Markdown => "text/markdown; charset=utf-8",
         Html => "text/html; charset=utf-8",
         _ => "text/plain; charset=utf-8",
     };
 
-    /// <summary>"junit.xml", "html", "info" (lcov) or "cobertura.xml".</summary>
+    /// <summary>"junit.xml", "html", "md", "trx", "sarif", "info" (lcov) or "cobertura.xml".</summary>
     public static string Extension(string format) => format switch
     {
         JUnit => "junit.xml",
         Html => "html",
+        Markdown => "md",
+        Trx => "trx",
+        Sarif => "sarif",
         Lcov => "info",
         _ => "cobertura.xml",
     };
 
     /// <summary>labcoat-&lt;workspace&gt;-&lt;run id&gt;.&lt;extension&gt;, e.g. labcoat-shop-3f2a….junit.xml.</summary>
     public static string FileName(string? workspaceName, string runId, string format) =>
-        $"labcoat-{ExportText.Slug(workspaceName)}-{ExportText.Slug(runId, "run")}.{Extension(format)}";
+        $"labcoat-{Export.ExportText.Slug(workspaceName)}-{Export.ExportText.Slug(runId, "run")}.{Extension(format)}";
 }

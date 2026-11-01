@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>
 /// Text helpers shared by the export writers (JUnit XML, HTML report, lcov, Cobertura): test names, messages and console

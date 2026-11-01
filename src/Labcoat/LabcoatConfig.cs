@@ -281,7 +281,7 @@ public sealed class LabcoatConfig
     private const string TraceFilterKey = "traceFilter";
 
     private static readonly string[] FileKeys = ["$schema", "ui", "watch", CoverageKey, "traces", TraceFilterKey, "port", "affectedBase", "impactMap",
-        "maxParallelProjects", "hangThreshold", "testTimeout"];
+        "maxParallelProjects", "hangThreshold", "testTimeout", "maxTestDuration", "quarantineFile", "runners"];
 
     /// <summary>Everything <see cref="Load"/> reads; tests pass their own home / env so they never see the real ones.</summary>
     public sealed record Inputs
@@ -338,10 +338,16 @@ public sealed class LabcoatConfig
     public string? ImpactMap { get; private set; }
     /// <summary>"maxParallelProjects" of the files (the workspace file wins): projects discovered / run at once.</summary>
     public int? MaxParallelProjects { get; private set; }
+    /// <summary>"quarantineFile" of the files (the workspace file wins), as a full path: the shared quarantine list (QuarantineFile.cs).</summary>
+    public string? QuarantineFile { get; private set; }
     /// <summary>"hangThreshold" of the files: a running test is shown as possibly hanging after this long (zero = never).</summary>
     public TimeSpan? HangThreshold { get; private set; }
+    /// <summary>"runners": the test runners to use (["dotnet", "vitest"] or "dotnet,vitest"); null = the default (Runners.cs).</summary>
+    public List<string>? Runners { get; private set; }
     /// <summary>"testTimeout" of the files: per-test timeout (zero = off).</summary>
     public TimeSpan? TestTimeout { get; private set; }
+    /// <summary>"maxTestDuration" of the files: with --run, a test that took longer fails the run (zero = no budget).</summary>
+    public TimeSpan? MaxTestDuration { get; private set; }
     public List<UiLayer> UiLayers { get; } = [];
     /// <summary>Problems found while reading (unknown keys, invalid values, malformed env JSON): logged at startup.</summary>
     public List<string> Warnings { get; } = [];
@@ -429,11 +435,17 @@ public sealed class LabcoatConfig
             case "maxParallelProjects":
                 MaxParallelProjects = ReadMaxParallel(value, display) ?? MaxParallelProjects;
                 break;
-            case "hangThreshold" or "testTimeout":
+            case "quarantineFile":
+                QuarantineFile = ReadQuarantineFile(value, path, display) ?? QuarantineFile;
+                break;
+            case "hangThreshold" or "testTimeout" or "maxTestDuration":
                 ReadDuration(key, value, display);
                 break;
             case "impactMap":
                 ImpactMap = ReadImpactMap(value, display) ?? ImpactMap;
+                break;
+            case "runners":
+                Runners = ReadRunners(value, display) ?? Runners;
                 break;
             case "port":
                 Port = ReadPort(value, display) ?? Port;
@@ -465,6 +477,15 @@ public sealed class LabcoatConfig
         return string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
     }
 
+    /// <summary>"quarantineFile": a path relative to the settings file that names it; returned as a full path.</summary>
+    private string? ReadQuarantineFile(JsonNode? value, string path, string display)
+    {
+        if (value is JsonValue fv && fv.TryGetValue<string>(out var file) && file.Trim().Length > 0)
+            return Path.GetFullPath(file.Trim(), Path.GetDirectoryName(Path.GetFullPath(path))!);
+        Warnings.Add($"{display}: 'quarantineFile' must be a file path; ignored.");
+        return null;
+    }
+
     private int? ReadMaxParallel(JsonNode? value, string display)
     {
         if (RunLimits.ParseMaxParallel(ScalarText(value)) is { } max) return max;
@@ -472,7 +493,7 @@ public sealed class LabcoatConfig
         return null;
     }
 
-    /// <summary>"hangThreshold" / "testTimeout": seconds, or a duration such as "90s", "5m"; 0 or "off" turns it off.</summary>
+    /// <summary>"hangThreshold" / "testTimeout" / "maxTestDuration": seconds, or a duration such as "90s", "5m"; 0 or "off" turns it off.</summary>
     private void ReadDuration(string key, JsonNode? value, string display)
     {
         if (RunLimits.ParseDuration(ScalarText(value)) is not { } d)
@@ -481,7 +502,8 @@ public sealed class LabcoatConfig
             return;
         }
         if (key == "hangThreshold") HangThreshold = d;
-        else TestTimeout = d;
+        else if (key == "testTimeout") TestTimeout = d;
+        else MaxTestDuration = d;
     }
 
     /// <summary>A JSON number or string as text (invariant culture); null for anything else.</summary>
@@ -490,6 +512,18 @@ public sealed class LabcoatConfig
         if (value is not JsonValue v) return null;
         if (v.TryGetValue<string>(out var text)) return text;
         return v.TryGetValue<double>(out var number) ? number.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+    }
+
+    private List<string>? ReadRunners(JsonNode? value, string display)
+    {
+        var text = value switch
+        {
+            JsonArray a => string.Join(',', a.Select(ScalarText)),
+            _ => ScalarText(value),
+        };
+        if (TestRunners.ParseList(text) is { } runners) return runners;
+        Warnings.Add($"{display}: 'runners' must name test runners, e.g. [\"dotnet\", \"vitest\"]; ignored.");
+        return null;
     }
 
     private string? ReadImpactMap(JsonNode? value, string display)
@@ -644,7 +678,7 @@ public sealed partial class IndexPage(string webRoot, JsonObject? uiDefaults)
 {
     private readonly string? _attribute = uiDefaults is null ? null
         : $" data-labcoat-defaults=\"{System.Net.WebUtility.HtmlEncode(uiDefaults.ToJsonString())}\"";
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private DateTime _stamp;
     private string? _html;
 
@@ -659,12 +693,12 @@ public sealed partial class IndexPage(string webRoot, JsonObject? uiDefaults)
             if (!File.Exists(Path)) return null;
             stamp = File.GetLastWriteTimeUtc(Path);
         }
-        catch { return null; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
         lock (_gate)
         {
             if (_html is not null && stamp == _stamp) return _html;
             string raw;
-            try { raw = File.ReadAllText(Path); } catch { return null; }
+            try { raw = File.ReadAllText(Path); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
             _html = Inject(raw, _attribute);
             _stamp = stamp;
             return _html;

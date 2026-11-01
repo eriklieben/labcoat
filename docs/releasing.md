@@ -16,6 +16,8 @@ releases: [CONTRIBUTING.md, "Commit messages and releases"](../CONTRIBUTING.md#c
 ## How a release works
 
 1. A pull request is squash-merged into `main`; its title (checked by CI) is the commit message semantic-release reads.
+   A pull request that brings in several features (a branch that merged other PRs) is merged with a merge commit
+   instead, so semantic-release reads each of its commits (merge commits themselves have no type and are ignored).
 2. When every CI job passed, CI's last job, `release`, starts the **Release** workflow (`release.yml`) for that commit.
    If the branch has moved on by then, it releases nothing: the CI run of the newer commit releases both.
 3. semantic-release looks at the commits since the last tag `v*`. If one of them releases (see
@@ -53,9 +55,10 @@ prereleases: `1.3.0-beta.1`, `1.3.0-beta.2`, ... as NuGet prerelease versions an
 
 ## What a release contains
 
-- **Eight NuGet packages:** `Labcoat` (the .NET tool), `Labcoat.Aspire.Hosting`, `Labcoat.Testing`,
-  `Labcoat.Testing.MSTest`, `Labcoat.Testing.NUnit`, `Labcoat.Testing.XUnit`, `Labcoat.Testing.TUnit` and
-  `Labcoat.TestingPlatform`, each with a symbol package (`.snupkg`, on the NuGet symbol server) and SourceLink.
+- **Nine NuGet packages:** `Labcoat` (the .NET tool), `Labcoat.Aspire.Hosting`, `Labcoat.Testing`,
+  `Labcoat.Testing.MSTest`, `Labcoat.Testing.NUnit`, `Labcoat.Testing.XUnit`, `Labcoat.Testing.TUnit`,
+  `Labcoat.TestingPlatform` and `Labcoat.Vitest`, each with a symbol package (`.snupkg`, on the NuGet symbol server)
+  and SourceLink, except `Labcoat.Vitest`, which has no assembly (a Node.js runner only).
 - **SBOMs** (see [SBOM](#sbom)): an SPDX 2.2 SBOM inside each `.nupkg`, and a CycloneDX SBOM of the web UI's npm
   dependencies in the three packages that bundle the UI.
 - **The GitHub release** `v<version>`: the release notes, the `.nupkg` and `.snupkg` files, each package's SBOM as
@@ -66,7 +69,7 @@ prereleases: `1.3.0-beta.1`, `1.3.0-beta.2`, ... as NuGet prerelease versions an
 | What | Where | Made by |
 | --- | --- | --- |
 | SPDX 2.2 SBOM of each package: every file in the `.nupkg` with its SHA-256 (also the bundled runner and UI), and the NuGet packages it depends on, transitively, as `pkg:nuget` purls | in the `.nupkg` at `_manifest/spdx_2.2/manifest.spdx.json`; release asset `<id>.<version>.spdx.json` | [`Microsoft.Sbom.Targets`](https://github.com/microsoft/sbom-tool), on every `dotnet pack` |
-| CycloneDX SBOM of the web UI's npm production dependencies | in `Labcoat`, `Labcoat.Aspire.Hosting` and `Labcoat.TestingPlatform` at `sbom/ui.cdx.json` next to `wwwroot`; release asset `labcoat-ui.<version>.cdx.json` | `npm sbom --omit dev` in `eng/release.mjs prepare` |
+| CycloneDX SBOM of the web UI's npm production dependencies | in `Labcoat`, `Labcoat.Aspire.Hosting` and `Labcoat.TestingPlatform` at `sbom/ui.cdx.json` next to `wwwroot`; release asset `labcoat-ui.<version>.cdx.json` | `pnpm sbom --prod` in `eng/release.mjs prepare` |
 
 sbom-tool only sees a cleaned copy of `project.assets.json` (`src/Directory.Build.targets`): build-only references and
 downloads removed, project references that flow to the package turned into package references, so the SBOM matches the
@@ -105,7 +108,8 @@ so a package downloaded from nuget.org doesn't match its attestation (check that
 ## Package validation
 
 `dotnet pack` runs [package validation](https://learn.microsoft.com/dotnet/fundamentals/apicompat/package-validation/overview)
-for the library packages (all but the `Labcoat` tool, whose contract is the command line). Each package is compared with
+for the library packages (all but the `Labcoat` tool, whose contract is the command line, and `Labcoat.Vitest`, which has
+no assembly to compare). Each package is compared with
 the same package at `<PackageValidationBaselineVersion>` in `src/Directory.Build.props`, downloaded from nuget.org: a
 public type or member that was removed or changed fails the pack (`CP0002`, `CP0006`, ...). That happens in CI on every
 PR and in the release, so a break can't be released by accident. The baseline moves by itself: each release is
@@ -145,6 +149,10 @@ the config: `pnpm dlx --package renovate@44.115.1 -- renovate-config-validator -
 
 ## Code analysis
 
+- **The .NET analyzers** run in every build: the recommended rules (`AnalysisLevel=latest-recommended`) and, for
+  `src/`, class coupling (CA1506, limit in `src/CodeMetricsConfig.txt`); the build job's `-warnaserror` gates them.
+  `Explorer`, `LabcoatApp`, `Diagnostics` and `LabcoatResourceBuilderExtensions` were over the coupling limit when it
+  was turned on and suppress it, each with its reason.
 - **CodeQL** (GitHub code scanning) analyses the C#, the JavaScript/TypeScript and the GitHub Actions workflows on
   every push and pull request.
 - **SonarQube Cloud** analyses `main` and pull requests from branches of this repository in CI's `sonar` job:

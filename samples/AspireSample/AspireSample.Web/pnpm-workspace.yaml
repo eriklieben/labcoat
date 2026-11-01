@@ -1,0 +1,2 @@
+# Its own pnpm workspace root (like ui/), so `pnpm install` here installs this sample only.
+packages: []

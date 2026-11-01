@@ -435,7 +435,7 @@ public class WorkspaceDataTests
         var log = new List<string>();
         using (var store = new HistoryStore([a, b], (level, msg) => log.Add($"{level}: {msg}")))
         {
-            Assert.IsTrue(log.Any(l => l.StartsWith("info: Merged the test history of 2 earlier folder(s)")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("info: Merged the test history of 2 earlier folder(s)", StringComparison.Ordinal)), string.Join("\n", log));
             var t = Node("A", "t", Outcome.NotRun);
             store.Restore(t);
             Assert.AreEqual(Outcome.Passed, t.Outcome, "the newer result wins");
@@ -464,7 +464,7 @@ public class WorkspaceDataTests
         // once only: a later start doesn't merge again
         var again = new List<string>();
         using (new HistoryStore([a, b], (level, msg) => again.Add(msg)))
-            Assert.IsFalse(again.Any(l => l.StartsWith("Merged")), string.Join("\n", again));
+            Assert.IsFalse(again.Any(l => l.StartsWith("Merged", StringComparison.Ordinal)), string.Join("\n", again));
         foreach (var d in new[] { older, newer, foreign }) Directory.Delete(d, recursive: true);
     }
 
@@ -506,7 +506,7 @@ public class WorkspaceDataTests
             var log = new List<string>();
             using var mine = new HistoryStore([a], (level, msg) => log.Add($"{level}: {msg}"));
             Assert.IsTrue(mine.ReadOnly);
-            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Another Labcoat is using this workspace's history: pid 4242")), string.Join("\n", log));
+            Assert.IsTrue(log.Any(l => l.StartsWith("warning: Another Labcoat is using this workspace's history: pid 4242", StringComparison.Ordinal)), string.Join("\n", log));
             Assert.IsFalse(WorkspaceLock.CanWrite(dataDir));
             var theirs = Node("A", "theirs", Outcome.NotRun);
             mine.Restore(theirs);

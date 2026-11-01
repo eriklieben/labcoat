@@ -1,7 +1,7 @@
 {
   "name": "labcoat",
   "initializeCommand": "sh .devcontainer/init-host.sh",
-  "dockerComposeFile": "compose.yaml",
+  "dockerComposeFile": ["compose.yaml", "compose.workspace.yaml"],
   "service": "dev",
   "workspaceFolder": "/workspace",
   "shutdownAction": "stopCompose",

@@ -231,12 +231,12 @@ public static partial class VerifySnapshots
     {
         if (!File.Exists(receivedPath)) return null;
         string received;
-        try { received = PathUtil.Canonicalize(receivedPath); } catch { return null; }
+        try { received = PathUtil.Canonicalize(receivedPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
         var dir = Path.GetDirectoryName(received);
         var verifiedName = VerifiedNameFor(Path.GetFileName(received));
         if (dir is null || verifiedName is null || !PathUtil.IsUnder(received, root)) return null;
         string verified;
-        try { verified = PathUtil.Canonicalize(Path.Combine(dir, verifiedName)); } catch { return null; }
+        try { verified = PathUtil.Canonicalize(Path.Combine(dir, verifiedName)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return null; }
         if (!PathUtil.IsUnder(verified, root) || !string.Equals(Path.GetDirectoryName(verified), dir, PathUtil.Comparison)) return null;
         var exists = File.Exists(verified);
         return new SnapshotFile(verifiedName, received, verified, KindOf(received, exists ? verified : null), !exists || new FileInfo(verified).Length == 0);
@@ -253,7 +253,7 @@ public static partial class VerifySnapshots
         if (new FileInfo(f.ReceivedPath).LinkTarget is not null) return "The received file is a link.";
         string received, verified;
         try { (received, verified) = (PathUtil.Canonicalize(f.ReceivedPath), PathUtil.Canonicalize(f.VerifiedPath)); }
-        catch { return "The path could not be resolved."; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { return "The path could not be resolved."; }
         if (!PathUtil.IsUnder(received, root) || !PathUtil.IsUnder(verified, root)) return "The snapshot is outside the test project.";
         if (!string.Equals(Path.GetDirectoryName(received), Path.GetDirectoryName(verified), PathUtil.Comparison)
             || VerifiedNameFor(Path.GetFileName(received)) != Path.GetFileName(verified))
@@ -285,7 +285,7 @@ public static class SnapshotEndpoints
     private static IResult TestSnapshots(Explorer explorer, string? projectId, string? id)
     {
         if (string.IsNullOrEmpty(id)) return Results.BadRequest(new { error = "id is required" });
-        return explorer.GetSnapshots(projectId, id) is { } s ? Results.Json(s, Json.Options) : Results.NotFound(new { error = "Unknown test" });
+        return explorer.Snapshots.Get(projectId, id) is { } s ? Results.Json(s, Json.Options) : Results.NotFound(new { error = "Unknown test" });
     }
 
     private static async Task<IResult> SnapshotFileAsync(Explorer explorer, string? path, HttpContext ctx)
@@ -316,7 +316,7 @@ public static class SnapshotEndpoints
             body = string.IsNullOrWhiteSpace(text) ? new SnapshotRequest(null, null, null, null) : JsonSerializer.Deserialize<SnapshotRequest>(text, Json.Options);
         }
         catch (JsonException ex) { return Results.BadRequest(new { error = "Malformed JSON: " + ex.Message }); }
-        var (status, result, error) = explorer.ResolveSnapshots(body ?? new SnapshotRequest(null, null, null, null), accept);
+        var (status, result, error) = explorer.Snapshots.Resolve(body ?? new SnapshotRequest(null, null, null, null), accept);
         return result is not null ? Results.Json(result, Json.Options, statusCode: status) : Results.Json(new { error }, Json.Options, statusCode: status);
     }
 }

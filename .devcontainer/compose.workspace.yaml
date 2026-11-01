@@ -1,0 +1,8 @@
+# Adds the repo bind mount for tools that do not mount the sources themselves (dc, VS Code, the
+# devcontainer CLI): listed after compose.yaml in devcontainer.json. rider/devcontainer.json leaves it
+# out, because Rider mounts /workspace itself and a second mount fails with "duplicate mount destination".
+# Relative paths resolve against the first compose file's directory, so `..` is the repo root.
+services:
+  dev:
+    volumes:
+      - ..:/workspace:z

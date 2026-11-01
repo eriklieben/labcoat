@@ -377,7 +377,7 @@ describe("<lc-run-switcher> export", () => {
     await setState({ runs: [] });
     click(pill);
     const disabled = [...(menu()?.querySelectorAll<HTMLButtonElement>(".run-menu-action") ?? [])].filter((b) => text(b).startsWith("Export as"));
-    expect(disabled).toHaveLength(2);
+    expect(disabled).toHaveLength(5);
     expect(disabled.every((b) => b.disabled)).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Xml;
+using Labcoat.Export;
 
 namespace Labcoat;
 
@@ -26,12 +27,14 @@ public static class CliMerge
 
     private static string ErrorLabel => Cli.Red("error");
 
+    private const string Command = "merge";
+
     /// <summary>
     /// Whether the command line is <c>merge ...</c>: its first argument is "merge" and no file or directory of that name
     /// is next to it (<c>./merge</c> still selects one, as a start path).
     /// </summary>
     public static bool IsMerge(IReadOnlyList<string> args) =>
-        args.Count > 0 && args[0] == "merge" && !File.Exists("merge") && !Directory.Exists("merge");
+        args.Count > 0 && args[0] == Command && !File.Exists(Command) && !Directory.Exists(Command);
 
     /// <summary>The parsed <c>merge</c> arguments.</summary>
     public sealed record MergeOptions(IReadOnlyList<ExportTarget> Exports, IReadOnlyList<string> Inputs, bool Help = false);
@@ -42,24 +45,20 @@ public static class CliMerge
         error = null;
         var exports = new List<ExportTarget>();
         var inputs = new List<string>();
-        var onlyInputs = false;
-        for (var i = 0; i < args.Count; i++)
+        var rest = new Queue<string>(args);
+        while (rest.TryDequeue(out var a))
         {
-            var a = args[i];
-            if (onlyInputs || !a.StartsWith('-') || a == "-") inputs.Add(a);
-            else if (a == "--") onlyInputs = true;
+            if (!a.StartsWith('-') || a == "-") inputs.Add(a);
+            else if (a == "--")
+            {
+                inputs.AddRange(rest); // everything after "--" is an input, also "-x.xml"
+                break;
+            }
             else if (a is "--help" or "-h" or "-?") return new MergeOptions([], [], Help: true);
-            else if (a == "--export" || a.StartsWith("--export=", StringComparison.Ordinal))
-            {
-                var value = a == "--export" ? (i + 1 < args.Count ? args[++i] : null) : a["--export=".Length..];
-                error = AddExport(exports, value);
-                if (error is not null) return null;
-            }
-            else
-            {
-                error = $"merge: unknown option '{a}'.";
-                return null;
-            }
+            else if (a == "--export") error = AddExport(exports, rest.TryDequeue(out var value) ? value : null);
+            else if (a.StartsWith("--export=", StringComparison.Ordinal)) error = AddExport(exports, a["--export=".Length..]);
+            else error = $"merge: unknown option '{a}'.";
+            if (error is not null) return null;
         }
         if (exports.Count == 0) error = "merge needs at least one --export, e.g. --export junit=out/results.xml.";
         else if (inputs.Count == 0) error = "merge needs the report files to merge, e.g. shard-1/results.xml shard-2/results.xml.";
@@ -90,9 +89,34 @@ public static class CliMerge
         var files = ExpandInputs(options.Inputs, options.Exports, out error);
         if (files is null) return Fail(error!);
 
-        Console.WriteLine($"{Cli.Bold("Labcoat " + Cli.Version)} {Cli.Dim("merge")}: {files.Count} file{(files.Count == 1 ? "" : "s")}");
+        Console.WriteLine($"{Cli.Bold("Labcoat " + Cli.Version)} {Cli.Dim(Command)}: {files.Count} file{Words.Plural(files.Count)}");
         var junit = new JUnitMerge();
-        var coverage = new CoverageMerge();
+        var coverage = new Export.CoverageMerge();
+        var counts = ReadAll(files, junit, coverage, out var readError);
+        if (counts is null) return Fail(readError!);
+        foreach (var w in junit.Warnings.Take(MaxWarnings)) Cli.Warn(w);
+        if (junit.Warnings.Count > MaxWarnings) Cli.Warn($"... and {junit.Warnings.Count - MaxWarnings} more duplicate tests.");
+        Console.WriteLine($"  Read {string.Join(", ", counts.OrderBy(c => c.Key).Select(c => $"{c.Value} {Name(c.Key)}"))}");
+
+        foreach (var format in options.Exports.Select(target => target.Format))
+        {
+            var junitFormat = format == ExportFormats.JUnit;
+            if ((junitFormat ? junit.Inputs : coverage.Inputs) == 0)
+                return Fail($"--export {format}: none of the inputs is {(junitFormat ? "a JUnit" : "an lcov or Cobertura")} file.");
+        }
+
+        var junitTotals = junit.Inputs > 0 ? junit.Totals() : null;
+        var coverageTotals = coverage.Inputs > 0 ? coverage.Totals() : null;
+        var written = WriteExports(options.Exports, junit, coverage, junitTotals, coverageTotals);
+        if (junitTotals is not null) PrintTests(junitTotals);
+        if (coverageTotals is not null) PrintCoverage(coverageTotals);
+        return ExitCode(junitTotals, written);
+    }
+
+    /// <summary>Reads every input into the merges: the number of files per kind; null + <paramref name="error"/> at the first unreadable one.</summary>
+    private static Dictionary<ReportKind, int>? ReadAll(List<string> files, JUnitMerge junit, Export.CoverageMerge coverage, out string? error)
+    {
+        error = null;
         var counts = new Dictionary<ReportKind, int>();
         foreach (var file in files)
         {
@@ -104,28 +128,11 @@ public static class CliMerge
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException or FormatException)
             {
-                return Fail($"Could not read {file}: {ex.Message}");
+                error = $"Could not read {file}: {ex.Message}";
+                return null;
             }
         }
-        foreach (var w in junit.Warnings.Take(MaxWarnings)) Cli.Warn(w);
-        if (junit.Warnings.Count > MaxWarnings) Cli.Warn($"... and {junit.Warnings.Count - MaxWarnings} more duplicate tests.");
-        Console.WriteLine($"  Read {string.Join(", ", counts.OrderBy(c => c.Key).Select(c => $"{c.Value} {Name(c.Key)}"))}");
-
-        foreach (var target in options.Exports)
-        {
-            var hasInput = target.Format == ExportFormats.JUnit ? junit.Inputs > 0 : coverage.Inputs > 0;
-            if (!hasInput) return Fail($"--export {target.Format}: none of the inputs is {(target.Format == ExportFormats.JUnit ? "a JUnit" : "an lcov or Cobertura")} file.");
-        }
-
-        var junitTotals = junit.Inputs > 0 ? junit.Totals() : null;
-        var coverageTotals = coverage.Inputs > 0 ? coverage.Totals() : null;
-        var written = WriteExports(options.Exports, junit, coverage, junitTotals, coverageTotals);
-        if (junitTotals is not null) PrintTests(junitTotals);
-        if (coverageTotals is not null)
-            Console.WriteLine($"  Coverage: {Percent(coverageTotals.LineRate)} of lines ({coverageTotals.LinesCovered}/{coverageTotals.LinesValid})" +
-                              (coverageTotals.BranchesValid > 0 ? $", {Percent(coverageTotals.BranchRate)} of branches ({coverageTotals.BranchesCovered}/{coverageTotals.BranchesValid})" : "") +
-                              $" in {coverageTotals.Files} file{(coverageTotals.Files == 1 ? "" : "s")}");
-        return ExitCode(junitTotals, written);
+        return counts;
     }
 
     private const int MaxWarnings = 20;
@@ -139,7 +146,13 @@ public static class CliMerge
     private static void PrintTests(JUnitTotals t)
     {
         var verdict = t.Failed > 0 ? Cli.Red($"{t.Failed} failed") : Cli.Bold("no failures");
-        Console.WriteLine($"  Tests: {verdict}, {t.Passed} passed, {t.Skipped} skipped ({t.Tests} total) in {t.Suites} suite{(t.Suites == 1 ? "" : "s")}");
+        Console.WriteLine($"  Tests: {verdict}, {t.Passed} passed, {t.Skipped} skipped ({t.Tests} total) in {t.Suites} suite{Words.Plural(t.Suites)}");
+    }
+
+    private static void PrintCoverage(CoverageTotals t)
+    {
+        var branches = t.BranchesValid > 0 ? $", {Percent(t.BranchRate)} of branches ({t.BranchesCovered}/{t.BranchesValid})" : "";
+        Console.WriteLine($"  Coverage: {Percent(t.LineRate)} of lines ({t.LinesCovered}/{t.LinesValid}){branches} in {t.Files} file{Words.Plural(t.Files)}");
     }
 
     private static string Name(ReportKind kind) => kind switch
@@ -149,7 +162,7 @@ public static class CliMerge
         _ => "cobertura",
     };
 
-    private static void Read(ReportKind kind, string file, JUnitMerge junit, CoverageMerge coverage)
+    private static void Read(ReportKind kind, string file, JUnitMerge junit, Export.CoverageMerge coverage)
     {
         using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 64 * 1024);
         switch (kind)
@@ -203,36 +216,37 @@ public static class CliMerge
         var seen = new HashSet<string>(StringComparer.FromComparison(comparison));
         foreach (var input in inputs)
         {
-            var pattern = Path.GetFileName(input);
-            var dir = Path.GetDirectoryName(input);
-            if (dir is not null && dir.AsSpan().IndexOfAny('*', '?') >= 0)
-            {
-                error = $"{input}: wildcards are only supported in the file name, not in the folders.";
-                return null;
-            }
-            if (pattern.AsSpan().IndexOfAny('*', '?') < 0)
-            {
-                if (!File.Exists(input))
-                {
-                    error = Directory.Exists(input) ? $"{input} is a directory: name the report files in it (e.g. {Path.Combine(input, "*.xml")})." : $"Input not found: {input}";
-                    return null;
-                }
-                if (seen.Add(Path.GetFullPath(input))) files.Add(input);
-                continue;
-            }
-            var folder = string.IsNullOrEmpty(dir) ? "." : dir;
-            var matches = Directory.Exists(folder)
-                ? Directory.EnumerateFiles(folder).Where(f => GlobMatch(Path.GetFileName(f), pattern, comparison) && !outputs.Contains(Path.GetFullPath(f)))
-                    .OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).ToList()
-                : [];
-            if (matches.Count == 0)
-            {
-                error = $"No file matches {input}.";
-                return null;
-            }
-            foreach (var m in matches) if (seen.Add(Path.GetFullPath(m))) files.Add(m);
+            var found = FilesOf(input, outputs, comparison, out error);
+            if (found is null) return null;
+            files.AddRange(found.Where(f => seen.Add(Path.GetFullPath(f))));
         }
         return files;
+    }
+
+    /// <summary>The files of one input: the path itself, or a pattern's matches by name; null + <paramref name="error"/> for none.</summary>
+    private static List<string>? FilesOf(string input, HashSet<string> outputs, StringComparison comparison, out string? error)
+    {
+        error = null;
+        var pattern = Path.GetFileName(input);
+        var dir = Path.GetDirectoryName(input);
+        if (dir is not null && dir.AsSpan().IndexOfAny('*', '?') >= 0)
+        {
+            error = $"{input}: wildcards are only supported in the file name, not in the folders.";
+            return null;
+        }
+        if (pattern.AsSpan().IndexOfAny('*', '?') < 0)
+        {
+            if (File.Exists(input)) return [input];
+            error = Directory.Exists(input) ? $"{input} is a directory: name the report files in it (e.g. {Path.Combine(input, "*.xml")})." : $"Input not found: {input}";
+            return null;
+        }
+        var folder = string.IsNullOrEmpty(dir) ? "." : dir;
+        List<string> matches = Directory.Exists(folder)
+            ? Directory.EnumerateFiles(folder).Where(f => GlobMatch(Path.GetFileName(f), pattern, comparison) && !outputs.Contains(Path.GetFullPath(f)))
+                .OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).ToList()
+            : [];
+        if (matches.Count == 0) error = $"No file matches {input}.";
+        return matches.Count > 0 ? matches : null;
     }
 
     /// <summary>'*' (any run of characters) and '?' (one character) over the whole <paramref name="name"/>.</summary>
@@ -253,7 +267,7 @@ public static class CliMerge
     // ------------------------------------------------------------------ outputs
 
     /// <summary>Writes every --export target; false when one could not be written.</summary>
-    private static bool WriteExports(IReadOnlyList<ExportTarget> exports, JUnitMerge junit, CoverageMerge coverage, JUnitTotals? tests, CoverageTotals? totals)
+    private static bool WriteExports(IReadOnlyList<ExportTarget> exports, JUnitMerge junit, Export.CoverageMerge coverage, JUnitTotals? tests, CoverageTotals? totals)
     {
         var ok = true;
         foreach (var target in exports)
@@ -271,9 +285,10 @@ public static class CliMerge
                         default: coverage.WriteCobertura(stream); break;
                     }
                 }
-                Console.WriteLine(target.Format == ExportFormats.JUnit
-                    ? $"  Wrote {target.Format}: {target.Path} ({tests!.Tests} tests in {tests.Suites} suite{(tests.Suites == 1 ? "" : "s")})"
-                    : $"  Wrote {target.Format}: {target.Path} ({totals!.Files} files, {Percent(totals.LineRate)} of lines)");
+                var what = target.Format == ExportFormats.JUnit
+                    ? $"{tests!.Tests} tests in {tests.Suites} suite{Words.Plural(tests.Suites)}"
+                    : $"{totals!.Files} files, {Percent(totals.LineRate)} of lines";
+                Console.WriteLine($"  Wrote {target.Format}: {target.Path} ({what})");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {

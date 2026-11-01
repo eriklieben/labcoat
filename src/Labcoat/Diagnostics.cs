@@ -55,6 +55,10 @@ public sealed class DiagnosticsSettings
 /// redacted (never LABCOAT_TOKEN or OTLP headers) and the last log lines. Paths under the home directory are shown as
 /// <c>~</c>. It is what .github/ISSUE_TEMPLATE/bug_report.yml asks for.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling",
+    Justification = "The report reads every part of the setup: SDK, git, projects, packages, settings, environment. "
+        + "Over the limit since before CA1506 was on: don't add to it, and remove this once a split brings it "
+        + "under (src/CodeMetricsConfig.txt).")]
 public static class Diagnostics
 {
     public const int LogLines = 100;
@@ -172,7 +176,7 @@ public static class Diagnostics
     {
         try
         {
-            var psi = new ProcessStartInfo(Explorer.DotnetPath)
+            var psi = new ProcessStartInfo(DotnetCli.Executable)
             {
                 WorkingDirectory = Directory.Exists(directory) ? directory : System.Environment.CurrentDirectory,
                 RedirectStandardOutput = true,
@@ -190,7 +194,7 @@ public static class Diagnostics
             try { await proc.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
-                try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { /* exited already */ }
+                ProcessUtil.TryKill(proc);
                 return null;
             }
             var version = (await stdout).Trim();

@@ -32,9 +32,10 @@ release news to Announcements.
 | `src/Labcoat.Testing` | Test-side core, framework neutral: per-test OpenTelemetry traces for Aspire integration tests (design: [ARCHITECTURE.md](src/Labcoat.Testing/ARCHITECTURE.md)). |
 | `src/Labcoat.Testing.MSTest`, `.TUnit`, `.NUnit`, `.XUnit` | The framework adapters of `Labcoat.Testing` (hooks, live output). |
 | `src/Labcoat.TestingPlatform` | Preview MTP extension: `dotnet run -- --labcoat`; bundles a publish of `src/Labcoat`. |
+| `src/Labcoat.Vitest` | The Vitest runner package ([docs/runners.md](docs/runners.md)): `runner/` is a Node.js test host that speaks MTP server mode and drives the project's own Vitest; no .NET code. Its tests: `tests/Labcoat.Vitest.Tests` (`node --test`). |
 | `tests/Labcoat.Tests` | Tests of the host (MSTest on MTP): unit tests, the HTTP / WebSocket API in-process, end-to-end runs of small scratch test projects. |
 | `tests/Labcoat.*.Tests` | Tests of the other packages (`Aspire.Hosting`, `Testing`, `Testing.MSTest`, `TestingPlatform`; `Testing.TUnit`, `Testing.NUnit` and `Testing.XUnit` run on their own framework). |
-| `ui/` | The web UI: TypeScript + native custom elements, built with Vite into `src/Labcoat/wwwroot`. npm workspace root. |
+| `ui/` | The web UI: TypeScript + native custom elements, built with Vite into `src/Labcoat/wwwroot`. pnpm workspace root. |
 | `ui/design-system` | `@eriklieben/labcoat-design-system`: reactive core, `h()` DOM builder, tokens, theme families, `lc-*` components, gallery. |
 | `samples/Samples.slnx` | One small test project per framework (MSTest, NUnit, xUnit v3, TUnit) testing `SampleTests.Lib`. |
 | `samples/AspireSample` | Aspire app + integration tests with two Labcoat resources (own solution). |
@@ -46,7 +47,8 @@ release news to Announcements.
 ## Prerequisites
 
 - **.NET 10 SDK** (`global.json` pins 10.0.100 or a later feature band).
-- **Node.js 22** or later (npm comes with it).
+- **Node.js 22** or later, and **pnpm**: the version `packageManager` in `package.json` pins (e.g.
+  `npm install -g pnpm@12.4.2`).
 - For the UI checks and screenshots: Playwright's Chromium, once: `cd ui && pnpm exec playwright install chromium`.
 - `samples/AspireSample` needs nothing extra: it has no container resources.
 
@@ -87,6 +89,9 @@ one project or a subset, start the test app directly, e.g.
 - Tests that change environment variables, the current directory, `Console` or static test hooks are
   `[DoNotParallelize]` and restore what they changed; everything else runs in parallel.
 - Real servers in tests use ports 4520-4549 only.
+- The Vitest runner (`src/Labcoat.Vitest/runner`) has its own tests: `node --test "tests/Labcoat.Vitest.Tests/*.test.mjs"`
+  from the repository root. They and `VitestEndToEndTests` run a real Vitest from `ui/node_modules`
+  (`pnpm install --frozen-lockfile` in `ui/`, or `LABCOAT_VITEST_NODE_MODULES`); without it they are skipped.
 
 Code coverage of the shipped assemblies (`Labcoat`, `Labcoat.Aspire.Hosting`, `Labcoat.Testing`,
 `Labcoat.Testing.MSTest`, `Labcoat.Testing.TUnit`, `Labcoat.Testing.NUnit`, `Labcoat.Testing.XUnit`, `Labcoat.TestingPlatform`) must stay at **85% of lines or more** per assembly; CI fails below that and uploads the merged
@@ -312,6 +317,9 @@ to satisfy a tool. Match the code around you.
 
 - **C#:** file-scoped namespaces, nullable enabled, `var`, `_camelCase` private fields, `s_camelCase` private static
   fields, `PascalCase` constants, 4-space indent, ~120 columns. CI builds with `-warnaserror`.
+- **Analyzers** run in the build, unlike the style: the recommended .NET analyzer rules (`AnalysisLevel` in
+  `src/Directory.Build.props` and `tests/Directory.Build.props`) and, for `src/`, class coupling (CA1506, at most 95
+  types per class, `src/CodeMetricsConfig.txt`). Fix a finding; suppress one only with a `Justification`.
 - **TypeScript:** strict mode, no UI framework: custom elements from the design system, `h()` for DOM, signals for
   state (never import `alien-signals` directly). 2-space indent, double quotes, semicolons.
 - **CSS:** component CSS uses semantic `--lc-*` tokens only, never raw colors (see the design-system README).
@@ -367,7 +375,10 @@ For that to work, commit messages follow the [Angular commit format](https://git
 ```
 
 PRs are squash merged with the **PR title** as the commit message, so in practice the PR title is what has to follow the
-format (CI checks it; the commits inside a PR are only checked as a warning).
+format (CI checks it; the commits inside a PR are only checked as a warning). A PR that brings in several features at
+once, such as a branch that merged other PRs, is merged with a **merge commit** instead: then every commit in it reaches
+`main`, each `feat` / `fix` gets its own line in the release notes and the merged PRs show as merged, so each commit has
+to follow the format.
 
 | Type | Use for | Release |
 | --- | --- | --- |
@@ -430,7 +441,7 @@ check a message by hand: `echo "feat(ui): add a duration filter" | pnpm exec com
    semantic-release
    - computes the version, e.g. 1.3.0, and writes its release notes to the top of `CHANGELOG.md`;
    - sets `<VersionPrefix>` and the package validation baseline (the previous release) in `src/Directory.Build.props`,
-     builds the UI and runs `dotnet pack` with `-p:Version=1.3.0` for the eight packages, which also checks the public
+     builds the UI and runs `dotnet pack` with `-p:Version=1.3.0` for the nine packages, which also checks the public
      API against the previous release (`node eng/release.mjs prepare 1.3.0 --baseline=1.2.1`);
    - commits `CHANGELOG.md` and `Directory.Build.props` as `chore(release): 1.3.0 [skip ci]` and tags it `v1.3.0`;
    - creates the GitHub release with the notes, the `.nupkg` / `.snupkg` files and their SBOMs, then pushes the

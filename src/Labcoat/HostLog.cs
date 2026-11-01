@@ -18,7 +18,7 @@ public sealed class HostLog : ILoggerProvider
     public const string LevelVariable = "LABCOAT_LOG_LEVEL";
     public const string FileVariable = "LABCOAT_LOG_FILE";
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Queue<string> _recent = new();
     private readonly long _maxFileBytes;
     private StreamWriter? _writer;

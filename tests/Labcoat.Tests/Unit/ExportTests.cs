@@ -3,6 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Schema;
 using Labcoat;
+using Labcoat.Export;
 
 namespace Labcoat.Tests.Unit;
 
@@ -50,52 +51,52 @@ public partial class ExportTests
     [TestMethod]
     public void Clean_strips_ansi_and_replaces_what_xml_cannot_carry()
     {
-        var clean = ExportText.Clean(Controls);
+        var clean = Labcoat.Export.ExportText.Clean(Controls);
         Assert.AreEqual("bell\uFFFD escred nul\uFFFD vt\uFFFD ff\uFFFD lone\uFFFD pair\U0001F600 ffff\uFFFD end", clean);
-        Assert.AreEqual("", ExportText.Clean(null));
-        Assert.AreEqual("tab\tlf\ncr\r", ExportText.Clean("tab\tlf\ncr\r"));
-        Assert.AreEqual("link", ExportText.StripAnsi("\u001b]8;;http://x\u0007link\u001b]8;;\u0007"));
-        Assert.AreSame("plain", ExportText.StripAnsi("plain"));
+        Assert.AreEqual("", Labcoat.Export.ExportText.Clean(null));
+        Assert.AreEqual("tab\tlf\ncr\r", Labcoat.Export.ExportText.Clean("tab\tlf\ncr\r"));
+        Assert.AreEqual("link", Labcoat.Export.ExportText.StripAnsi("\u001b]8;;http://x\u0007link\u001b]8;;\u0007"));
+        Assert.AreSame("plain", Labcoat.Export.ExportText.StripAnsi("plain"));
     }
 
     [TestMethod]
     public void Cap_keeps_head_and_tail_and_never_splits_a_surrogate_pair()
     {
-        Assert.AreEqual("short", ExportText.Cap("short", 100));
+        Assert.AreEqual("short", Labcoat.Export.ExportText.Cap("short", 100));
         var s = new string('a', 1000) + new string('b', 1000);
-        var capped = ExportText.Cap(s, 400);
+        var capped = Labcoat.Export.ExportText.Cap(s, 400);
         Assert.StartsWith(new string('a', 100), capped);
         Assert.EndsWith(new string('b', 300), capped);
         Assert.Contains("1,600 characters omitted by Labcoat", capped);
         var emoji = string.Concat(Enumerable.Repeat("\U0001F600", 100));
-        var cut = ExportText.Cap(emoji, 41);
-        Assert.AreEqual(cut, ExportText.Clean(cut), "no lone surrogate at either cut");
+        var cut = Labcoat.Export.ExportText.Cap(emoji, 41);
+        Assert.AreEqual(cut, Labcoat.Export.ExportText.Clean(cut), "no lone surrogate at either cut");
     }
 
     [TestMethod]
     public void Html_escapes_markup_and_quotes()
     {
-        Assert.AreEqual("&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;img src=x onerror=alert(2)&gt;", ExportText.Html(Xss));
-        Assert.AreEqual("a &amp; &quot;b&quot; &#39;c&#39;", ExportText.Html("a & \"b\" 'c'"));
-        Assert.AreEqual("plain", ExportText.Html("plain"));
+        Assert.AreEqual("&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;img src=x onerror=alert(2)&gt;", Labcoat.Export.ExportText.Html(Xss));
+        Assert.AreEqual("a &amp; &quot;b&quot; &#39;c&#39;", Labcoat.Export.ExportText.Html("a & \"b\" 'c'"));
+        Assert.AreEqual("plain", Labcoat.Export.ExportText.Html("plain"));
     }
 
     [TestMethod]
     public void Slugs_and_file_names()
     {
-        Assert.AreEqual("my-shop-tests", ExportText.Slug(" My Shop/Tests! "));
-        Assert.AreEqual("workspace", ExportText.Slug("  "));
-        Assert.AreEqual("run", ExportText.Slug("../..", "run"));
-        Assert.HasCount(60, ExportText.Slug(new string('x', 100)).ToCharArray());
+        Assert.AreEqual("my-shop-tests", Labcoat.Export.ExportText.Slug(" My Shop/Tests! "));
+        Assert.AreEqual("workspace", Labcoat.Export.ExportText.Slug("  "));
+        Assert.AreEqual("run", Labcoat.Export.ExportText.Slug("../..", "run"));
+        Assert.HasCount(60, Labcoat.Export.ExportText.Slug(new string('x', 100)).ToCharArray());
         Assert.AreEqual("labcoat-shop-r1.junit.xml", ExportFormats.FileName("Shop", "r1", ExportFormats.JUnit));
         Assert.AreEqual("labcoat-shop-r1.html", ExportFormats.FileName("Shop", "r1", ExportFormats.Html));
         Assert.AreEqual("labcoat-shop-r1.info", ExportFormats.FileName("Shop", "r1", ExportFormats.Lcov));
         Assert.AreEqual("labcoat-shop-r1.cobertura.xml", ExportFormats.FileName("Shop", "r1", ExportFormats.Cobertura));
         Assert.AreEqual("text/html; charset=utf-8", ExportFormats.ContentType(ExportFormats.Html));
         Assert.AreEqual("text/plain; charset=utf-8", ExportFormats.ContentType(ExportFormats.Lcov));
-        Assert.AreEqual("", ExportText.FirstLine(null));
-        Assert.AreEqual("first", ExportText.FirstLine("first\nsecond"));
-        Assert.AreEqual("ab…", ExportText.FirstLine("abc", 2));
+        Assert.AreEqual("", Labcoat.Export.ExportText.FirstLine(null));
+        Assert.AreEqual("first", Labcoat.Export.ExportText.FirstLine("first\nsecond"));
+        Assert.AreEqual("ab…", Labcoat.Export.ExportText.FirstLine("abc", 2));
     }
 
     [TestMethod]
@@ -184,7 +185,7 @@ public partial class ExportTests
         var c = doc.Descendants("testcase").Single();
         Assert.AreEqual(Xss + "]]>", (string)c.Attribute("name")!);
         Assert.AreEqual("Shop.C<&>\"", (string)c.Attribute("classname")!);
-        Assert.AreEqual(Xss + ExportText.Clean(Controls), c.Element("system-out")!.Value);
+        Assert.AreEqual(Xss + Labcoat.Export.ExportText.Clean(Controls), c.Element("system-out")!.Value);
         Assert.AreEqual("err\uFFFD", c.Element("system-err")!.Value);
         Assert.DoesNotContain("<script>", x);
         Assert.DoesNotContain("\u001b", x);
@@ -249,14 +250,14 @@ public partial class ExportTests
     [TestMethod]
     public void Html_report_is_self_contained_and_escapes_everything()
     {
-        var html = HtmlReport.ToHtml(Export(
+        var html = Labcoat.Export.HtmlReport.ToHtml(Export(
             T("x", Outcome.Failed, name: Xss, cls: Xss, message: Xss + Controls, stack: Xss, stdout: Xss, stderr: Xss),
             T("y", Outcome.Skipped, name: "skip " + Xss, message: Xss),
             T("z", Outcome.Passed, name: "ok", project: Xss)));
         // exactly one script and one style: the report's own (test data never adds markup)
         var scripts = ScriptRe().Matches(html);
         Assert.HasCount(1, scripts);
-        Assert.AreEqual(HtmlReport.ReportJs, scripts[0].Groups[1].Value);
+        Assert.AreEqual(Labcoat.Export.HtmlReport.ReportJs, scripts[0].Groups[1].Value);
         Assert.HasCount(1, StyleRe().Matches(html));
         Assert.DoesNotContain("<img", html);
         Assert.DoesNotContain("alert(1)</script>", html);
@@ -265,7 +266,7 @@ public partial class ExportTests
         Assert.DoesNotContain("\0", html);
         // the CSP allows exactly that script and style, nothing external
         var style = StyleRe().Match(html).Groups[1].Value;
-        Assert.Contains($"script-src 'sha256-{SecurityHeaders.ScriptHash(HtmlReport.ReportJs)}'", html);
+        Assert.Contains($"script-src 'sha256-{SecurityHeaders.ScriptHash(Labcoat.Export.HtmlReport.ReportJs)}'", html);
         Assert.Contains($"style-src 'sha256-{SecurityHeaders.ScriptHash(style)}'", html);
         Assert.Contains("default-src 'none'", html);
         Assert.DoesNotContain("http://", html.Replace("http-equiv", ""));
@@ -277,7 +278,7 @@ public partial class ExportTests
     [TestMethod]
     public void Html_report_lists_failures_first_with_diff_stack_and_output()
     {
-        var html = HtmlReport.ToHtml(Sample());
+        var html = Labcoat.Export.HtmlReport.ToHtml(Sample());
         var failed = html.IndexOf("id=\"h-failed\"", StringComparison.Ordinal);
         var all = html.IndexOf("id=\"h-all\"", StringComparison.Ordinal);
         Assert.IsTrue(failed > 0 && all > failed);
@@ -304,18 +305,18 @@ public partial class ExportTests
     [TestMethod]
     public void Html_report_banners_for_passed_empty_aborted_and_cancelled_runs()
     {
-        Assert.Contains("All 1 tests passed", HtmlReport.ToHtml(Export(T("a", Outcome.Passed))));
-        Assert.Contains("No failures (1 passed)", HtmlReport.ToHtml(Export(T("a", Outcome.Passed), T("b", Outcome.Skipped))));
-        var empty = HtmlReport.ToHtml(Export());
+        Assert.Contains("All 1 tests passed", Labcoat.Export.HtmlReport.ToHtml(Export(T("a", Outcome.Passed))));
+        Assert.Contains("No failures (1 passed)", Labcoat.Export.HtmlReport.ToHtml(Export(T("a", Outcome.Passed), T("b", Outcome.Skipped))));
+        var empty = Labcoat.Export.HtmlReport.ToHtml(Export());
         Assert.Contains("No test results in this run", empty);
         Assert.Contains("This run has no test results.", empty);
         Assert.DoesNotContain("id=\"proj\"", empty);
         var aborted = Export(T("a", Outcome.Passed)) with { Run = new RunSummary { RunId = "r", StartedAt = "bad date", Aborted = true, AbortReason = "<host> crashed" } };
-        var html = HtmlReport.ToHtml(aborted);
+        var html = Labcoat.Export.HtmlReport.ToHtml(aborted);
         Assert.Contains("The run was aborted <span class=\"muted\">&lt;host&gt; crashed</span>", html);
         Assert.Contains("Started bad date", html);
         var cancelled = Export(T("a", Outcome.Passed)) with { Run = new RunSummary { RunId = "r", StartedAt = "2026-01-01T00:00:00Z", Cancelled = true, Scope = "subset", Total = 1 } };
-        var c = HtmlReport.ToHtml(cancelled);
+        var c = Labcoat.Export.HtmlReport.ToHtml(cancelled);
         Assert.Contains("The run was cancelled", c);
         Assert.Contains("partial run (1 selected)", c);
     }
@@ -328,9 +329,9 @@ public partial class ExportTests
             tests.Add(i % 20 == 0
                 ? T($"f{i}", Outcome.Failed, $"Fails_{i}", cls: $"C{i / 200}", message: $"first line {i}\nmore", stack: new string('s', 50_000), stdout: new string('o', 50_000))
                 : T($"p{i}", Outcome.Passed, $"Passes_{i}", cls: $"C{i / 200}", stdout: new string('o', 1000)));
-        var html = HtmlReport.ToHtml(Export([.. tests]));
+        var html = Labcoat.Export.HtmlReport.ToHtml(Export([.. tests]));
         Assert.IsLessThan(25 * 1024 * 1024, html.Length, $"{html.Length / 1024 / 1024} MB");
-        Assert.HasCount(HtmlReport.MaxDetailedFailures, Regex.Matches(html, "<details class=\"fail\""));
+        Assert.HasCount(Labcoat.Export.HtmlReport.MaxDetailedFailures, Regex.Matches(html, "<details class=\"fail\""));
         Assert.Contains("500 more failed tests are listed below", html);
         Assert.Contains("<span class=\"why\">first line 19980</span>", html, "failures beyond the cap show their first message line");
         Assert.Contains("20000 tests", html);
@@ -339,20 +340,20 @@ public partial class ExportTests
     [TestMethod]
     public void Html_durations_and_theme()
     {
-        Assert.AreEqual("12 ms", HtmlReport.Duration(12.4));
-        Assert.AreEqual("1.5 s", HtmlReport.Duration(1500));
-        Assert.AreEqual("2 min 05 s", HtmlReport.Duration(125_000));
+        Assert.AreEqual("12 ms", Labcoat.Export.HtmlReport.Duration(12.4));
+        Assert.AreEqual("1.5 s", Labcoat.Export.HtmlReport.Duration(1500));
+        Assert.AreEqual("2 min 05 s", Labcoat.Export.HtmlReport.Duration(125_000));
         // the embedded default theme: light on :root, dark under prefers-color-scheme
-        var theme = HtmlReport.Theme;
+        var theme = Labcoat.Export.HtmlReport.Theme;
         Assert.Contains("@media (prefers-color-scheme: dark)", theme);
         Assert.DoesNotContain("data-theme", theme);
         Assert.Contains("--lc-status-failed", theme);
         Assert.AreEqual(theme.Count(c => c == '{'), theme.Count(c => c == '}'));
         Assert.DoesNotContain("https://", theme, "comments are stripped");
-        Assert.AreEqual("a  b c", HtmlReport.StripComments("a /* x */ b/**/ c/* open"));
-        Assert.AreEqual(HtmlReport.FallbackTokens, HtmlReport.ThemeTokens(null));
-        Assert.AreEqual(HtmlReport.FallbackTokens, HtmlReport.ThemeTokens(":root { --x: 1 }"));
-        Assert.AreEqual(HtmlReport.FallbackTokens, HtmlReport.ThemeTokens(
+        Assert.AreEqual("a  b c", Labcoat.Export.HtmlReport.StripComments("a /* x */ b/**/ c/* open"));
+        Assert.AreEqual(Labcoat.Export.HtmlReport.FallbackTokens, Labcoat.Export.HtmlReport.ThemeTokens(null));
+        Assert.AreEqual(Labcoat.Export.HtmlReport.FallbackTokens, Labcoat.Export.HtmlReport.ThemeTokens(":root { --x: 1 }"));
+        Assert.AreEqual(Labcoat.Export.HtmlReport.FallbackTokens, Labcoat.Export.HtmlReport.ThemeTokens(
             ":root[data-theme-family=\"catppuccin\"] { --a: url(x) }\n:root[data-theme-family=\"catppuccin\"][data-theme=\"dark\"] { }"));
     }
 

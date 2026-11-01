@@ -218,14 +218,15 @@ export interface CoverageReport {
 /** CoverageReport.settings: how a project's coverage was collected (docs/features.md "Code coverage"). */
 export interface CoverageSettingsInfo {
   projectId: string;
-  /** "file": a coverage settings / runsettings file; "testconfig": the codeCoverage section of testconfig.json; "defaults": Labcoat's */
-  source: "file" | "testconfig" | "defaults";
+  /** "file": a coverage settings / runsettings file; "testconfig": the codeCoverage section of testconfig.json; "defaults": Labcoat's;
+   *  "runner": a runner package's project (docs/runners.md): the runner's own settings, `path` its config file, `origin` its name */
+  source: "file" | "testconfig" | "defaults" | "runner";
   /** the settings file (absolute); absent for "defaults" */
   path?: string;
   /** how the file was found: Coverage.Settings, --coverage-settings in TestingPlatformCommandLineArguments, or by name */
-  origin?: "option" | "msbuild" | "convention";
-  /** "dynamic": the CLR profiler (no file rewritten); "static": assemblies instrumented in place */
-  instrumentation: "dynamic" | "static";
+  origin?: "option" | "msbuild" | "convention" | (string & {});
+  /** "dynamic": the CLR profiler (no file rewritten); "static": assemblies instrumented in place; "runner": the runner's own */
+  instrumentation: "dynamic" | "static" | "runner";
   /** "defaults" only: the assemblies counted (referenced projects); absent = every module except tests, frameworks and Labcoat */
   modules?: string[];
   include?: string[];
@@ -255,7 +256,7 @@ export type ServerEvent =
 export type ClientCommand =
   | { type: "discover"; projectId?: string }
   /** `coverage` overrides the global coverage toggle for this run only */
-  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean }
+  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; order?: "random"; seed?: number }
   | { type: "cancel" }
   | { type: "setWatch"; enabled: boolean }
   | { type: "setCoverage"; enabled: boolean }
@@ -332,6 +333,9 @@ export interface RepeatTestResult {
 
 export interface RunSummary {
   repeat?: RepeatSummary;
+  /** "random": the tests ran one at a time in a seeded random order; `seed` reproduces it */
+  order?: "random";
+  seed?: number;
   /** results of quarantined tests (not included in passed/failed/skipped) */
   quarantined?: number;
 }
@@ -395,7 +399,7 @@ export interface TelemetryLog {
 
 /** Round 3 commands not in the ClientCommand union above (send with `store.send(cmd as ClientCommand)`). */
 export type DetailCommand =
-  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number }
+  | { type: "run"; projectId?: string; testIds?: string[]; coverage?: boolean; repeat?: number; order?: "random"; seed?: number }
   | { type: "setQuarantine"; projectId: string; id: string; quarantined: boolean };
 
 // --- RUNS additions --- (Round 3: discovery diagnostics, tracing toggle)
@@ -418,6 +422,8 @@ export interface TestProject {
   /** the project isn't on Microsoft.Testing.Platform: "vstest" (a VSTest test project) or "none" (no test framework).
    *  Labcoat doesn't build or start it; `diagnostics` says how to switch it. Absent: on MTP (or not known yet). */
   testPlatform?: "vstest" | "none";
+  /** the runner package that runs the project, e.g. "vitest" (docs/runners.md); absent: a .NET test project */
+  runner?: string;
 }
 
 /** Round 3 commands owned by the runs/settings area (send with `store.send(cmd as unknown as ClientCommand)`). */
@@ -473,6 +479,8 @@ export interface PendingRunInfo {
   testCount?: number;
   coverage?: boolean;
   repeat?: number;
+  order?: "random";
+  seed?: number;
   trigger?: "user" | "watch" | "api" | "debug";
   /** how many requests were merged into it */
   requests: number;
@@ -756,4 +764,33 @@ export interface ExplorerState {
   runningNow?: RunningNowInfo;
   /** the run limits in effect */
   limits?: { maxParallelProjects: number; hangThresholdMs?: number; testTimeoutMs?: number };
+}
+
+// --- SLOWEST TESTS --- (docs/contract.md "Slowest tests": GET /api/tests/slowest)
+
+export interface SlowTestPoint {
+  at: string;
+  durationMs: number;
+  outcome: Outcome;
+}
+export interface SlowTest {
+  projectId: string;
+  id: string;
+  name: string;
+  className?: string;
+  namespace?: string;
+  /** the latest duration */
+  durationMs: number;
+  /** median of the earlier results */
+  medianMs?: number;
+  /** durationMs / medianMs */
+  factor?: number;
+  quarantined?: boolean;
+  /** recent durations, oldest first, the latest last */
+  trend: SlowTestPoint[];
+}
+export interface SlowestTestsResponse {
+  projectId?: string;
+  total: number;
+  tests: SlowTest[];
 }

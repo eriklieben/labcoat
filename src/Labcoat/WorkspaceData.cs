@@ -157,8 +157,9 @@ public sealed class WorkspaceIdentity
     }
 
     /// <summary>
-    /// The project ids the explorer gives <paramref name="projectPaths"/> (in this order): the file name without extension,
-    /// with "-2", "-3", … for repeated names (case-insensitive).
+    /// The project ids the explorer gives <paramref name="projectPaths"/> (in this order): the file name without extension
+    /// (a runner package's project: its folder name, <see cref="ProjectDiscovery.ProjectNameOf"/>), with "-2", "-3", … for
+    /// repeated names (case-insensitive).
     /// </summary>
     public static List<string> ProjectIds(IEnumerable<string> projectPaths)
     {
@@ -166,7 +167,7 @@ public sealed class WorkspaceIdentity
         var ids = new List<string>();
         foreach (var path in projectPaths)
         {
-            var name = System.IO.Path.GetFileNameWithoutExtension(path);
+            var name = ProjectDiscovery.ProjectNameOf(path);
             var id = name;
             var suffix = 2;
             while (!used.Add(id)) id = $"{name}-{suffix++}";
@@ -216,7 +217,7 @@ public static class WorkspaceLock
         public int Refs;
     }
 
-    private static readonly object s_gate = new();
+    private static readonly Lock s_gate = new();
     private static readonly Dictionary<string, Holder> s_held = new(WorkspaceIdentity.PathComparer);
     private static readonly HashSet<string> s_denied = new(WorkspaceIdentity.PathComparer);
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -65,7 +66,7 @@ public class MtpProtocolTests
                 if (headerEnd >= 0)
                 {
                     var header = Encoding.ASCII.GetString(data, 0, headerEnd);
-                    var length = int.Parse(header.Split(':')[1].Trim());
+                    var length = int.Parse(header.Split(':')[1].Trim(), CultureInfo.InvariantCulture);
                     if (data.Length - headerEnd - 4 >= length)
                     {
                         var json = Encoding.UTF8.GetString(data, headerEnd + 4, length);
@@ -257,7 +258,7 @@ public class MtpProtocolTests
         var req = await host.ReadAsync();
         await host.ReplyAsync(req, "yes");
         Assert.AreEqual("yes", (await call.WaitAsync(Timeout, TestContext.CancellationToken))!.GetValue<string>());
-        lock (host.Logs) Assert.IsTrue(host.Logs.Any(l => l.Level == "error" && l.Message.StartsWith("Failed to handle message from test host")));
+        lock (host.Logs) Assert.IsTrue(host.Logs.Any(l => l.Level == "error" && l.Message.StartsWith("Failed to handle message from test host", StringComparison.Ordinal)));
     }
 
     [TestMethod]
@@ -274,7 +275,7 @@ public class MtpProtocolTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => call.WaitAsync(Timeout, TestContext.CancellationToken));
         Assert.AreEqual(1, host.Kills);
-        lock (host.Logs) Assert.IsTrue(host.Logs.Any(l => l.Level == "warning" && l.Message.StartsWith("Test host did not stop within")));
+        lock (host.Logs) Assert.IsTrue(host.Logs.Any(l => l.Level == "warning" && l.Message.StartsWith("Test host did not stop within", StringComparison.Ordinal)));
     }
 
     [TestMethod]

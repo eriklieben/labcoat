@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Labcoat.Vitest (NuGet): copy the Vitest runner from the package's runner/ folder into the consuming project's output
+    directory under labcoat/runners/vitest/, next to the explorer Labcoat.Aspire.Hosting bundles there. Labcoat looks for
+    runner packages in labcoat/runners/ (and AddLabcoat passes the folder on as LABCOAT_RUNNER_PATH).
+  -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../runner/**"
+          Link="labcoat/runners/vitest/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Pack="false"
+          Visible="false" />
+  </ItemGroup>
+</Project>

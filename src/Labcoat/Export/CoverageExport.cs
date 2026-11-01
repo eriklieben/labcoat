@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Xml;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>How coverage file paths are written.</summary>
 /// <param name="Root">The workspace root (the common root of the input paths); paths under it are written relative to it.</param>

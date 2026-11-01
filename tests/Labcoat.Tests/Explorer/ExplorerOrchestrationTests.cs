@@ -98,6 +98,25 @@ public class ExplorerOrchestrationTests
             Assert.AreEqual((true, "discovery", debug.RunId, 1), (cancel.Running, cancel.ActiveOperation, cancel.ClearedRunId, cancel.ClearedRequests));
             Assert.AreEqual(("cancelled", "Cancelled while queued."), (e.GetRunStatus(debug.RunId!)!.State, e.GetRunStatus(debug.RunId!)!.Reason));
             Assert.IsNull(e.Summary().PendingRun);
+
+            // random order: validated; a seed is generated when none is given; the same seed merges, another replaces
+            Assert.AreEqual(400, e.RequestRun(new() { TestIds = ["a"], Order = "alphabetical" }).Status);
+            Assert.AreEqual(400, e.RequestRun(new() { TestIds = ["a"], Seed = 5 }).Status);
+            Assert.AreEqual(400, e.RequestRun(new() { TestIds = ["a"], Order = "random", Seed = 0 }).Status);
+            Assert.AreEqual(400, e.RequestRun(new() { ProjectId = "P", TestIds = ["a"], Order = "random", Debug = true }).Status);
+            Assert.AreEqual(400, e.RequestRun(new() { TestIds = ["a"], Order = "random", Repeat = 3 }).Status);
+            Assert.IsNull(e.Summary().PendingRun);
+
+            var seeded = e.RequestRun(new() { TestIds = ["a"], Order = "random", Seed = 7 });
+            Assert.AreEqual(("random", 7), (e.Summary().PendingRun!.Order, e.Summary().PendingRun!.Seed));
+            Assert.IsTrue(e.RequestRun(new() { TestIds = ["b"], Order = "random", Seed = 7 }).Merged);
+            var other = e.RequestRun(new() { TestIds = ["a"], Order = "random", Seed = 8 });
+            Assert.IsFalse(other.Merged);
+            Assert.AreEqual("superseded", e.GetRunStatus(seeded.RunId!)!.State);
+            Assert.IsFalse(e.RequestRun(new() { TestIds = ["a"] }).Merged); // in the framework's order: not merged into a random one
+            e.RequestRun(new() { TestIds = ["a"], Order = "random" });
+            Assert.IsGreaterThan(0, e.Summary().PendingRun!.Seed!.Value);
+            e.Cancel();
         }
         finally { hold.Dispose(); }
 
@@ -151,8 +170,7 @@ public class ExplorerOrchestrationTests
             e.Cancel();
         }
 
-        static object PendingRequest(Labcoat.Explorer e) =>
-            typeof(Labcoat.Explorer).GetField("_pendingRun", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(e)!;
+        static object PendingRequest(Labcoat.Explorer e) => e.PendingRunRequest!;
         static object? Prop(object o, string name) => o.GetType().GetProperty(name)!.GetValue(o);
     }
 
@@ -370,8 +388,8 @@ public class ExplorerOrchestrationTests
         Assert.AreEqual((400, "Unknown command 'bogus'"), (unknown.Status, unknown.Error));
         Assert.Contains("bogus: Unknown command 'bogus'", w.Logs);
 
-        await ScratchWorkspace.WaitUntilAsync(() => e.Summary().ActiveOperation is null && e.Summary().PendingRun is null, "idle");
-        Assert.Contains("Impact map built in", w.Logs);
+        // the command doesn't wait for the pass, and the pass can still be queued behind the others when nothing is active
+        await ScratchWorkspace.WaitUntilAsync(() => w.Logs.Contains("Impact map built in", StringComparison.Ordinal), "the impact map pass");
     }
 
     [TestMethod]

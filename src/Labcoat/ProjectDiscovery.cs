@@ -9,7 +9,7 @@ namespace Labcoat;
 /// <summary>
 /// Finds test projects from the CLI paths.
 ///  - An explicitly passed .csproj/.fsproj/.vbproj is always used (a missing path, an unsupported file or an unreadable
-///    solution is an error: see <see cref="FindProjects"/>).
+///    solution is an error: see <see cref="FindProjectsAsync"/>).
 ///  - Projects found via a directory scan or a .sln/.slnx/.slnf are test projects (on Microsoft.Testing.Platform or on
 ///    VSTest: <see cref="TestPlatform.Classify(ProjectFacts)"/>; Labcoat lists VSTest projects with how to switch them, and
 ///    never starts them) when
@@ -18,21 +18,30 @@ namespace Labcoat;
 ///         project's Microsoft.NET.Test.Sdk / MSTest.TestAdapter / NUnit3TestAdapter / xunit.runner.visualstudio, or
 ///         EnableMSTestRunner / EnableNUnitRunner / UseMicrosoftTestingPlatformRunner / IsTestProject /
 ///         IsTestingPlatformApplication / TestingPlatformDotnetTestSupport set to true; else
-///      2. MSBuild evaluation says so (<see cref="IsMtpTestApp"/>): one <c>dotnet msbuild -getProperty</c> per remaining
+///      2. MSBuild evaluation says so (<see cref="EvaluateAsync"/>): one <c>dotnet msbuild -getProperty</c> per remaining
 ///         candidate (its name contains "test"/"spec", or a Directory.Build.props/.targets or Directory.Packages.props above
 ///         it mentions a test framework), run in parallel and cached by file timestamps. This sees settings that come from
 ///         Directory.Build.props, central package management and package props (IsTestingPlatformApplication is set by the
 ///         Microsoft.Testing.Platform.MSBuild package once the project is restored).
 /// Directory scans are recursive and skip bin, obj, node_modules and dot-folders.
+/// With runner packages (<see cref="TestRunners"/>, docs/runners.md) a scan also finds their projects: a folder with the
+/// runner's config file or a package.json that depends on it (the scan doesn't go below such a folder). A solution
+/// doesn't list them, so for a solution its folder is scanned for them. An explicitly given package.json / config file
+/// of a runner is used as is. Without the .NET runner (--runners without dotnet) no .NET projects are looked for.
 /// </summary>
 public static partial class ProjectDiscovery
 {
     private static readonly string[] ProjectExtensions = [".csproj", ".fsproj", ".vbproj"];
     private static readonly HashSet<string> SkipDirs = new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", "node_modules" };
 
-    /// <summary>Test projects for <paramref name="paths"/>. Problems with explicitly given paths go to <paramref name="errors"/>.</summary>
-    public static List<string> FindProjects(IEnumerable<string> paths, Action<string> warn, List<string>? errors = null, Action<string>? info = null)
+    /// <summary>
+    /// Test projects for <paramref name="paths"/>. Problems with explicitly given paths go to <paramref name="errors"/>.
+    /// <paramref name="runners"/>: the test runners in use (null = only the .NET runner).
+    /// </summary>
+    public static async Task<List<string>> FindProjectsAsync(IEnumerable<string> paths, Action<string> warn, List<string>? errors = null,
+        Action<string>? info = null, TestRunners? runners = null, CancellationToken ct = default)
     {
+        runners ??= TestRunners.DotnetOnly;
         var result = new List<string>();
         void Error(string message)
         {
@@ -44,8 +53,9 @@ public static partial class ProjectDiscovery
         {
             var path = Path.GetFullPath(raw);
             List<string> found;
-            if (Directory.Exists(path)) found = Classify(ScanDirectory(path).ToList(), info);
-            else if (File.Exists(path)) found = ProjectsOfFile(path, warn, Error, info);
+            if (Directory.Exists(path))
+                found = [.. runners.IncludesDotnet ? await ClassifyAsync(ScanDirectory(path).ToList(), info, ct) : [], .. ScanRunnerProjects(path, runners.Plugins)];
+            else if (File.Exists(path)) found = await ProjectsOfFileAsync(path, runners, warn, Error, info, ct);
             else
             {
                 Error($"Path not found: {path}");
@@ -56,16 +66,72 @@ public static partial class ProjectDiscovery
         return result;
     }
 
+    /// <summary>
+    /// The name (and project id) of a test project: the file name without extension, or for a runner package's project
+    /// (package.json, vitest.config.ts) the name of its folder.
+    /// </summary>
+    public static string ProjectNameOf(string path) =>
+        IsDotnetProjectFile(path) ? Path.GetFileNameWithoutExtension(path) : Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(path))) ?? Path.GetFileNameWithoutExtension(path);
+
+    /// <summary>A .csproj / .fsproj / .vbproj (a project of the .NET runner).</summary>
+    public static bool IsDotnetProjectFile(string path) => ProjectExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
+
     /// <summary>The test projects of an explicitly given file: the project itself, or the test projects of a solution.</summary>
-    private static List<string> ProjectsOfFile(string path, Action<string> warn, Action<string> error, Action<string>? info)
+    private static async Task<List<string>> ProjectsOfFileAsync(string path, TestRunners runners, Action<string> warn, Action<string> error,
+        Action<string>? info, CancellationToken ct)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ProjectExtensions.Contains(ext)) return [path];
+        if (ProjectExtensions.Contains(ext))
+        {
+            if (runners.IncludesDotnet) return [path];
+            warn($"Skipping {Path.GetFileName(path)}: the dotnet test runner isn't in use (runners: {runners.Describe()}).");
+            return [];
+        }
+        if (runners.PluginFor(path) is not null) return [path];
         if (ext is not (".sln" or ".slnx" or ".slnf"))
         {
             error($"Unsupported path (expected a project, solution or directory): {path}");
             return [];
         }
+        // A solution lists .NET projects only: the projects of runner packages are looked for in its folder.
+        var runnerProjects = ScanRunnerProjects(Path.GetDirectoryName(path)!, runners.Plugins);
+        if (!runners.IncludesDotnet) return runnerProjects;
+        return [.. await SolutionProjectsAsync(path, warn, error, info, ct), .. runnerProjects];
+    }
+
+    /// <summary>
+    /// The projects of runner packages under <paramref name="root"/>: folders with a runner's config file or a package.json
+    /// that depends on it (skipping bin, obj, node_modules and dot-folders; not below a project found).
+    /// </summary>
+    internal static List<string> ScanRunnerProjects(string root, IReadOnlyList<RunnerPlugin> plugins)
+    {
+        var found = new List<string>();
+        if (plugins.Count == 0) return found;
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            var project = plugins.Select(p => p.IsProjectDirectory(dir, out var file) ? file : null).FirstOrDefault(f => f is not null);
+            if (project is not null)
+            {
+                found.Add(project);
+                continue;
+            }
+            try
+            {
+                foreach (var d in Directory.EnumerateDirectories(dir).Where(d => !IsSkippedDir(Path.GetFileName(d))).OrderByDescending(d => d, StringComparer.Ordinal))
+                    stack.Push(d);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException) { /* unreadable folder: skip it */ }
+        }
+        return found;
+    }
+
+    /// <summary>The test projects listed in a solution.</summary>
+    private static async Task<List<string>> SolutionProjectsAsync(string path, Action<string> warn, Action<string> error, Action<string>? info,
+        CancellationToken ct)
+    {
         List<string> listed;
         try { listed = ReadSolution(path).ToList(); }
         catch (Exception ex) when (ex is System.Xml.XmlException or JsonException or IOException or UnauthorizedAccessException
@@ -80,13 +146,13 @@ public static partial class ProjectDiscovery
             if (File.Exists(proj)) existing.Add(proj);
             else warn($"Project in solution not found: {proj}");
         }
-        return Classify(existing, info);
+        return await ClassifyAsync(existing, info, ct);
     }
 
     private static string FirstLine(string s) => s.Split('\n')[0].Trim();
 
     /// <summary>Text heuristic first; MSBuild evaluation (parallel, cached) for the candidates it could not decide.</summary>
-    private static List<string> Classify(List<string> projects, Action<string>? info)
+    private static async Task<List<string>> ClassifyAsync(List<string> projects, Action<string>? info, CancellationToken ct)
     {
         var verdict = new bool[projects.Count];
         var toEvaluate = new List<int>();
@@ -100,12 +166,13 @@ public static partial class ProjectDiscovery
             var sw = Stopwatch.StartNew();
             var cache = DetectionCache.Load();
             var evaluated = 0;
-            Parallel.ForEach(toEvaluate, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8) }, i =>
+            var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8), CancellationToken = ct };
+            await Parallel.ForEachAsync(toEvaluate, options, async (i, token) =>
             {
                 var path = projects[i];
                 var stamp = DetectionCache.Stamp(path);
                 if (cache.TryGet(path, stamp, out var cached)) { verdict[i] = cached; return; }
-                var result = EvaluateAsync(path, CancellationToken.None).GetAwaiter().GetResult();
+                var result = await EvaluateAsync(path, token);
                 Interlocked.Increment(ref evaluated);
                 if (result is null) return; // evaluation failed: not a test project (as before)
                 verdict[i] = result.IsTestProject;
@@ -242,7 +309,7 @@ public static partial class ProjectDiscovery
     /// <summary>The <c>dotnet msbuild</c> evaluation of <see cref="EvaluateAsync"/>: English output (Labcoat parses it).</summary>
     internal static ProcessStartInfo EvaluationStartInfo(string projectPath)
     {
-        var psi = new ProcessStartInfo(Explorer.DotnetPath)
+        var psi = new ProcessStartInfo(DotnetCli.Executable)
         {
             WorkingDirectory = Path.GetDirectoryName(projectPath)!,
             RedirectStandardOutput = true,
@@ -276,7 +343,7 @@ public static partial class ProjectDiscovery
             try { await proc.WaitForExitAsync(timeout.Token); }
             catch (OperationCanceledException)
             {
-                try { proc.Kill(entireProcessTree: true); } catch { /* best effort: the process may have exited already */ }
+                ProcessUtil.TryKill(proc);
                 // Kill only starts the termination: wait for it, or the process may still hold its working directory
                 // (the project's folder, which can't be deleted or renamed on Windows until it has exited).
                 try { await proc.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None); } catch (TimeoutException) { /* gave it 10 s: go on */ }

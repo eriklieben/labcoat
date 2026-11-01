@@ -81,6 +81,15 @@ appears by itself (or with **Rediscover**).
   [configuration.md](configuration.md#parallel-projects-slow-tests-and-timeouts).
 - **Run 20 times:** repeat a test to find out whether it is flaky. The result shows how many repetitions passed and
   failed.
+- **Run in random order:** the command palette's "Run in random order" runs every test one at a time in a random
+  order, to find tests that only pass because of the order they normally run in. The run overview, the log, the JUnit
+  and HTML reports show the **seed**; "Run again with seed N" (palette) runs the same order again, and so does
+  `labcoat --run --order random --seed N`. Every test is a separate request to the test host, so class and assembly
+  fixtures run again for each test and tests do not run in parallel; coverage is not collected. Why it works this way,
+  and what each framework offers itself: [protocol.md](protocol.md#test-order-research-2026-10).
+
+  ![The command palette with Run in random order; the run overview shows the seed](images/random-order.png)
+
 - **Debug test:** starts the test paused until a debugger attaches, and shows the process id to attach to.
 - **Multi-targeted projects** run on their highest .NET target framework (`POST /api/target-framework` switches it,
   see [contract.md](contract.md)).
@@ -125,6 +134,17 @@ turn live output off. Details: [protocol.md](protocol.md#live-console-output-res
 ![Stack trace frames and the source of a frame in product code](images/failure-stack.png)
 
 Selecting a class, namespace or project shows a summary instead: pass rate, totals and the slowest tests.
+
+### Slowest tests
+
+Selecting a project lists its ten slowest tests. Each row has a sparkline of the test's recent durations (the same
+history as the duration sparkline of a single test), how the latest run compares to the median of the earlier ones
+("3.0× median"; red from 2×) and the latest duration. A row opens the test. The list follows the latest results and
+needs no run of its own; the host serves it as `GET /api/tests/slowest` ([contract.md](contract.md#slowest-tests-added)).
+
+![The slowest tests of a project, with a duration sparkline and how each compares to its median](images/slowest-tests.png)
+
+To fail a CI run on slow tests, set a [duration budget](configuration.md#duration-budget) for `labcoat --run`.
 
 ## Snapshot testing
 
@@ -183,6 +203,9 @@ really execute the change (and, with `impactMap: "auto"`, refines the selected c
 of changed files. The command palette has **Run affected: uncommitted changes**, **Run affected: branch vs …** and
 **Preview affected tests…**.
 
+In CI, `labcoat --run --affected` does the same without the UI, and `--impact-map-file` carries the impact map from a job
+on main to the pull request jobs: see [Running only the affected tests in CI](standalone.md#running-only-the-affected-tests-in-ci).
+
 Shallow clones (CI) may not have the merge base; Labcoat then compares with the base branch directly and says so in
 the preview. Outside a git repository the button explains why it is unavailable. Scripts can use
 `GET /api/affected?base=working|branch|range&ref=…` (the plan) and `POST /api/run-affected` (see
@@ -232,6 +255,9 @@ breakdown, so a coverage run of several tests credits all of them with everythin
 | `test` | one coverage run per test | exact (*per-test data*): only `Subtract_ReturnsDifference` |
 | `auto` (default) | per class first; when a change selects tests through class-level data, those classes are refined per test in the background and kept | class-level at first, exact once the refinement finished (a few seconds; the preview updates itself) |
 
+The map covers C#, F# and VB code. The pass skips projects of [runner packages](runners.md) such as Vitest: there a
+changed test file selects its tests, and any other change in the project all of them.
+
 Measured on a 12-core Linux machine (busy with other builds, so the numbers vary by ±50%): the 17-test sample takes
 4 s per class / 10 s per test with dynamic instrumentation (CodeCoverage ≥ 18.11, several runs at once) and 10–14 s /
 39 s with static instrumentation (one run at a time); a 200-test suite in 20 classes takes 13–21 s per class and 131 s
@@ -240,7 +266,8 @@ takes 3–6 s (dynamic) or 12–19 s (static).
 
 Reasons say which kind of data selected a test: *Calculator.cs changed (method Subtract, per-test data)* or *(…,
 class-level data)*. Single-test coverage runs (coverage on, one test) also add per-test data; a later run of several
-tests does not overwrite it. The map is kept in memory and rebuilt after a restart.
+tests does not overwrite it. The map is kept in memory and rebuilt after a restart; for CI it can be saved to a file and
+loaded again (`--impact-map-file`, [standalone.md](standalone.md#running-only-the-affected-tests-in-ci)).
 
 ![Watch mode after a file change](images/watch.png)
 
@@ -344,13 +371,23 @@ Results are kept between sessions (see [configuration.md](configuration.md#where
 - **Past runs:** the **Live** menu in the header lists recent runs. Pick one to see the tree as it was after that run.
   Escape goes back to the live results.
 - **Compare runs:** pick two runs to see which tests started failing, were fixed, or changed duration.
-- **Export:** the run menu's **Export as HTML report / JUnit XML** downloads the shown run (a past run you are
-  viewing, else the latest) as a self-contained HTML report or JUnit XML; the Coverage page's **Export** button gives
-  the coverage report as lcov or Cobertura. The command palette has the same entries. For CI, `labcoat --run --export …`
-  writes these files without the UI (see [Labcoat in CI](standalone.md#labcoat-in-ci)), and `labcoat merge` combines the
-  files of a split run into one ([Merging shard reports](standalone.md#merging-shard-reports)).
+- **Export:** the run menu's **Export as HTML report / JUnit XML / Markdown / TRX / SARIF** downloads the shown run (a
+  past run you are viewing, else the latest) as a self-contained HTML report, JUnit XML, Markdown, TRX or SARIF; the
+  Coverage page's **Export** button gives the coverage report as lcov or Cobertura. The command palette has the same
+  entries. For CI, `labcoat --run --export …` writes these files without the UI (on GitHub Actions also a job summary
+  and annotations) and can fail the run below `--min-coverage` or `--min-diff-coverage` (see
+  [Labcoat in CI](standalone.md#labcoat-in-ci)), and `labcoat merge` combines the JUnit and coverage files of a split
+  run into one ([Merging shard reports](standalone.md#merging-shard-reports)).
+
+  ![The run menu with the HTML, JUnit, Markdown, TRX and SARIF export entries](images/export-menu.png)
+
 - **Quarantine:** a known-flaky test can be quarantined. It still runs, but its result is counted separately and
-  doesn't turn the suite red.
+  doesn't turn the suite red. Quarantine set in the UI is kept per workspace on your machine. To share it with the team
+  and CI, list the tests in a file that is committed to the repository and name it with `--quarantine-file` or
+  `"quarantineFile"` in `.labcoat.json` ([format](standalone.md#flaky-tests-and-the-quarantine-file)). Tests the file
+  lists show as quarantined, in addition to your own; Labcoat never writes to that file, so to release one of them,
+  remove it from the file. For CI, `labcoat --run --retry-failed 2` reruns failed tests and reports the ones that pass
+  on a retry as flaky.
 
 ![Two runs compared](images/run-compare.png)
 

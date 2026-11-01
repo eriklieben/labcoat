@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Reflection;
 using System.Text.Json.Nodes;
 using Labcoat;
 using Labcoat.Tests.Api;
@@ -48,9 +47,7 @@ public class DiagnosticsTests
         {
             var project = Path.Combine(dir, "P.proj");
             File.WriteAllText(project, "<Project />");
-            var dotnet = typeof(Explorer).GetMethod("DotnetAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
-            var task = (Task<(int ExitCode, string Output)>)dotnet.Invoke(null, [new[] { "msbuild", project, "-getProperty:DOTNET_CLI_UI_LANGUAGE" }, dir, TestContext.CancellationToken])!;
-            var (code, output) = await task;
+            var (code, output) = await DotnetCli.RunAsync(["msbuild", project, "-getProperty:DOTNET_CLI_UI_LANGUAGE"], dir, TestContext.CancellationToken);
             Assert.AreEqual(0, code, output);
             Assert.AreEqual("en", output.Trim());
         }

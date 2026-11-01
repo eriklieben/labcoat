@@ -155,7 +155,7 @@ public sealed class FullCoverageStore : IDisposable
     public static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(2);
 
     private readonly Action<string, string>? _log;
-    private readonly object _saveGate = new();
+    private readonly Lock _saveGate = new();
     private readonly Timer _timer;
     private Func<FullCoverage.PersistedReport?>? _capture;
     private volatile bool _dirty;
@@ -252,11 +252,11 @@ public sealed class FullCoverageStore : IDisposable
             }
             var report = FromModel(model);
             var files = report.Parts.Sum(p => p.Files.Count);
-            _log?.Invoke("info", $"Restored the coverage report of {string.Join(", ", report.Parts.Select(p => p.ProjectId))} ({files} files, " +
+            _log?.Invoke(LogLevels.Info, $"Restored the coverage report of {string.Join(", ", report.Parts.Select(p => p.ProjectId))} ({files} files, " +
                                  $"full run {string.Join(", ", report.Parts.Select(p => p.GeneratedAt).Distinct())}) from {FilePath}");
             return report;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             _log?.Invoke(LogLevels.Warning, $"Could not read the coverage report ({FilePath}): {ex.Message}");
             return null;
@@ -319,7 +319,7 @@ public sealed class FullCoverageStore : IDisposable
             _dirty = false;
             FullCoverage.PersistedReport? report;
             try { report = _capture(); }
-            catch (Exception ex)
+            catch (Exception ex) // runs on the save timer: whatever went wrong, it must not end the process
             {
                 _log?.Invoke(LogLevels.Warning, $"Could not save the coverage report: {ex.Message}");
                 return;
@@ -333,10 +333,10 @@ public sealed class FullCoverageStore : IDisposable
                     Write(stream, report, ProjectPathOf, MaxBytes);
                 File.Move(tmp, FilePath, overwrite: true);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 _log?.Invoke(LogLevels.Warning, $"Could not save the coverage report ({FilePath}): {ex.Message}");
-                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* best effort: a leftover temp file is overwritten by the next save */ }
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* best effort: a leftover temp file is overwritten by the next save */ }
             }
         }
     }

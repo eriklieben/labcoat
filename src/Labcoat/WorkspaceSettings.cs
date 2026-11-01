@@ -36,7 +36,7 @@ public sealed class WorkspaceSettings
         public string Id { get; set; } = "";
     }
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly FileModel _model;
     private readonly Action<string, string>? _log;
     private readonly IProjectKeys? _keys;
@@ -60,9 +60,9 @@ public sealed class WorkspaceSettings
             if (File.Exists(FilePath))
                 return JsonSerializer.Deserialize<FileModel>(File.ReadAllText(FilePath), Json.Options) ?? new FileModel();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            _log?.Invoke("warning", $"Could not read workspace settings ({FilePath}): {ex.Message}");
+            _log?.Invoke(LogLevels.Warning, $"Could not read workspace settings ({FilePath}): {ex.Message}");
         }
         return new FileModel();
     }
@@ -176,9 +176,9 @@ public sealed class WorkspaceSettings
             File.WriteAllText(tmp, JsonSerializer.Serialize(_model, Json.Options));
             File.Move(tmp, FilePath, overwrite: true);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _log?.Invoke("warning", $"Could not save workspace settings ({FilePath}): {ex.Message}");
+            _log?.Invoke(LogLevels.Warning, $"Could not save workspace settings ({FilePath}): {ex.Message}");
         }
     }
 }

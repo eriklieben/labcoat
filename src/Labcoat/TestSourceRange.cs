@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Labcoat;
 
 /// <summary>
-/// The lines a test method spans in its C# source file, for "changed tests" (GitAffected.cs). MSTest and xUnit report one
+/// The lines a test method spans in its C# source file, for "changed tests" (AffectedPlanner.cs). MSTest and xUnit report one
 /// line per test (the attribute or the declaration), NUnit none; only TUnit reports a real range. This finds the method in
 /// the file (from the reported line, else by name), extends it up over its attribute lines and brace-matches its body
 /// (skipping strings, chars and comments). Files are cached by modification time; a method it can't delimit gives null.
@@ -73,30 +73,45 @@ internal static class TestSourceRange
     private static int? BodyEnd(string[] lines, int startLine)
     {
         var scan = new Scanner();
-        var depth = 0;
-        var opened = false;
+        var body = new Body();
         var last = Math.Min(lines.Length, startLine + MaxScanLines);
         for (var i = startLine - 1; i < last; i++)
         {
-            foreach (var c in scan.Code(lines[i] + "\n"))
-            {
-                switch (c)
-                {
-                    case '(' or '[': if (!opened) scan.Nest++; break;
-                    case ')' or ']': if (!opened) scan.Nest--; break;
-                    case '{' when opened || scan.Nest <= 0:
-                        opened = true;
-                        depth++;
-                        break;
-                    case '}' when opened:
-                        if (--depth == 0) return i + 1;
-                        break;
-                    case ';' when !opened && scan.Nest <= 0:
-                        return i + 1; // expression-bodied member
-                }
-            }
+            if (scan.Code(lines[i] + "\n").Any(body.EndsAt)) return i + 1;
         }
         return null;
+    }
+
+    /// <summary>The brackets and braces of a member's code, character by character: where its body ends.</summary>
+    private sealed class Body
+    {
+        private int _nest; // ( and [ before the body: parameter lists, attributes, default values
+        private int _depth;
+        private bool _opened;
+
+        /// <summary>True at the "}" that closes the body, or at the ";" of an expression body.</summary>
+        public bool EndsAt(char c)
+        {
+            switch (c)
+            {
+                case '(' or '[':
+                    if (!_opened) _nest++;
+                    return false;
+                case ')' or ']':
+                    if (!_opened) _nest--;
+                    return false;
+                case '{' when _opened || _nest <= 0:
+                    _opened = true;
+                    _depth++;
+                    return false;
+                case '}' when _opened:
+                    return --_depth == 0;
+                case ';':
+                    return !_opened && _nest <= 0;
+                default:
+                    return false;
+            }
+        }
     }
 
     /// <summary>Yields the characters of C# source that are code (not in strings, chars or comments), across lines.</summary>
@@ -106,50 +121,69 @@ internal static class TestSourceRange
         private Mode _mode;
         private int _raw; // quotes of a raw string literal's delimiter
 
-        public int Nest { get; set; }
-
         public IEnumerable<char> Code(string s)
         {
-            for (var i = 0; i < s.Length; i++)
+            var i = 0;
+            while (i < s.Length)
             {
-                var c = s[i];
-                var next = i + 1 < s.Length ? s[i + 1] : '\0';
-                switch (_mode)
+                if (_mode != Mode.Code)
                 {
-                    case Mode.Line:
-                        if (c == '\n') _mode = Mode.Code;
-                        break;
-                    case Mode.Block:
-                        if (c == '*' && next == '/') { _mode = Mode.Code; i++; }
-                        break;
-                    case Mode.Str:
-                        if (c == '\\') i++;
-                        else if (c == '"' || c == '\n') _mode = Mode.Code;
-                        break;
-                    case Mode.Verbatim:
-                        if (c == '"' && next == '"') i++;
-                        else if (c == '"') _mode = Mode.Code;
-                        break;
-                    case Mode.Raw:
-                        if (c == '"' && Quotes(s, i) is var closing && closing >= _raw) { i += closing - 1; _mode = Mode.Code; }
-                        break;
-                    case Mode.Char:
-                        if (c == '\\') i++;
-                        else if (c == '\'' || c == '\n') _mode = Mode.Code;
-                        break;
-                    default:
-                        if (c == '/' && next == '/') _mode = Mode.Line;
-                        else if (c == '/' && next == '*') { _mode = Mode.Block; i++; }
-                        else if (c == '"')
-                        {
-                            var q = Quotes(s, i);
-                            if (q >= 3) { _mode = Mode.Raw; _raw = q; i += q - 1; }
-                            else _mode = i > 0 && s[i - 1] == '@' || i > 1 && s[i - 1] == '$' && s[i - 2] == '@' ?Mode.Verbatim : Mode.Str;
-                        }
-                        else if (c == '\'') _mode = Mode.Char;
-                        else yield return c;
-                        break;
+                    i += InLiteral(s, i);
+                    continue;
                 }
+                var (length, code) = InCode(s, i);
+                if (code) yield return s[i];
+                i += length;
+            }
+        }
+
+        /// <summary>At a character of code: it starts a comment or a literal, or it is code. Returns how far to move on.</summary>
+        private (int Length, bool Code) InCode(string s, int i)
+        {
+            var c = s[i];
+            var next = i + 1 < s.Length ? s[i + 1] : '\0';
+            if (c == '/' && next == '/') { _mode = Mode.Line; return (1, false); }
+            if (c == '/' && next == '*') { _mode = Mode.Block; return (2, false); }
+            if (c == '\'') { _mode = Mode.Char; return (1, false); }
+            if (c != '"') return (1, true);
+            var quotes = Quotes(s, i);
+            if (quotes >= 3)
+            {
+                _mode = Mode.Raw;
+                _raw = quotes;
+                return (quotes, false);
+            }
+            var verbatim = i > 0 && s[i - 1] == '@' || i > 1 && s[i - 1] == '$' && s[i - 2] == '@';
+            _mode = verbatim ? Mode.Verbatim : Mode.Str;
+            return (1, false);
+        }
+
+        /// <summary>At a character in a comment or literal: how far to move on; at its end the mode goes back to code.</summary>
+        private int InLiteral(string s, int i)
+        {
+            var c = s[i];
+            var next = i + 1 < s.Length ? s[i + 1] : '\0';
+            switch (_mode)
+            {
+                case Mode.Line:
+                    if (c == '\n') _mode = Mode.Code;
+                    return 1;
+                case Mode.Block:
+                    if (c != '*' || next != '/') return 1;
+                    _mode = Mode.Code;
+                    return 2;
+                case Mode.Str or Mode.Char:
+                    if (c == '\\') return 2;
+                    if (c == '\n' || c == (_mode == Mode.Str ? '"' : '\'')) _mode = Mode.Code;
+                    return 1;
+                case Mode.Verbatim:
+                    if (c == '"' && next == '"') return 2;
+                    if (c == '"') _mode = Mode.Code;
+                    return 1;
+                default: // Raw
+                    if (c != '"' || Quotes(s, i) is var closing && closing < _raw) return 1;
+                    _mode = Mode.Code;
+                    return closing;
             }
         }
 

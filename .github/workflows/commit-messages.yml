@@ -2,7 +2,8 @@ name: Commit messages
 
 # Pull requests are squash merged with the PR title as the commit message, so the title decides the release
 # (feat -> minor, fix / perf -> patch, see CONTRIBUTING.md "Commit messages and releases"): it must follow the Angular
-# format. The commits inside the PR are checked too, as a warning only (squash merging replaces them).
+# format. The commits inside the PR are checked too, as a warning only (squash merging replaces them; a PR merged with
+# a merge commit keeps them, and then they decide the release).
 # Rules: commitlint.config.mjs.
 
 on:

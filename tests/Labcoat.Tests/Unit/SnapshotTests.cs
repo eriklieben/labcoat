@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Labcoat;
 
@@ -28,7 +29,7 @@ public class SnapshotTests
     public static string Message(string dir, string section = "NotEqual", params string[] names)
     {
         var sb = new StringBuilder($"Test method P.Tests.ReceiptTests.Render threw exception:\nVerifyException: Directory: {dir}\n{section}:\n");
-        foreach (var n in names) sb.Append($"  - Received: {n}.received.txt\n    Verified: {n}.verified.txt\n");
+        foreach (var n in names) sb.Append(CultureInfo.InvariantCulture, $"  - Received: {n}.received.txt\n    Verified: {n}.verified.txt\n");
         sb.Append("\nFileContent:\n\nNotEqual:\n\nReceived: Other.received.txt\nnew\nVerified: Other.verified.txt\nold\n");
         return sb.ToString();
     }
@@ -158,7 +159,7 @@ public class SnapshotTests
         Assert.AreEqual(Snaps, dir);
         CollectionAssert.AreEquivalent(new[] { "ReceiptTests.Render#chart.verified.png", "ReceiptTests.Render.verified.txt", "ReceiptTests.Render_n=2.verified.txt" },
             files.Select(f => f.Name).ToArray());
-        Assert.AreEqual(SnapshotKind.Image, files.Single(f => f.Name.EndsWith(".png")).Kind);
+        Assert.AreEqual(SnapshotKind.Image, files.Single(f => f.Name.EndsWith(".png", StringComparison.Ordinal)).Kind);
 
         // nested class names use the last segment; no class / missing directory -> nothing
         Assert.HasCount(3, VerifySnapshots.Find(Node(null, cls: "Outer+ReceiptTests"), Project).Files);

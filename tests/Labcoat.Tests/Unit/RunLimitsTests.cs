@@ -1,4 +1,5 @@
 using Labcoat;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Labcoat.Tests.Unit;
 
@@ -313,17 +314,23 @@ public class RunLimitsTests
     }
 
     [TestMethod]
-    public async Task The_project_watcher_reports_at_the_latest_after_MaxDelay_and_nothing_after_dispose()
+    public void The_project_watcher_reports_at_the_latest_after_MaxDelay_and_nothing_after_dispose()
     {
+        var time = new FakeTimeProvider();
         var bursts = 0;
-        var w = new ProjectWatcher([], _ => Interlocked.Increment(ref bursts)) { Quiet = TimeSpan.FromSeconds(10), MaxDelay = TimeSpan.FromMilliseconds(200) };
+        var w = new ProjectWatcher([], _ => bursts++, time: time) { Quiet = TimeSpan.FromSeconds(10), MaxDelay = TimeSpan.FromMilliseconds(200) };
         w.OnChange("/x/A.csproj");
-        await WaitUntilAsync(() => Volatile.Read(ref bursts) == 1);
+        time.Advance(TimeSpan.FromMilliseconds(150));
+        w.OnChange("/x/B.csproj"); // still changing: Quiet would wait another 10 s
+        time.Advance(TimeSpan.FromMilliseconds(49));
+        Assert.AreEqual(0, bursts);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.AreEqual(1, bursts, "MaxDelay after the first change");
         w.Dispose();
-        w.OnChange("/x/B.csproj");
+        w.OnChange("/x/C.csproj");
         w.Dispose(); // twice is fine
-        await Task.Delay(300);
-        Assert.AreEqual(1, Volatile.Read(ref bursts));
+        time.Advance(TimeSpan.FromSeconds(20));
+        Assert.AreEqual(1, bursts);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 10_000)
@@ -354,6 +361,47 @@ public class RunLimitsTests
     }
 
     [TestMethod]
+    public void The_duration_budget_is_a_run_option()
+    {
+        Assert.AreEqual(TimeSpan.FromMilliseconds(500), StartOptions.Parse(["--run", "--max-test-duration", "500ms"], out var error)!.MaxTestDuration);
+        Assert.IsNull(error);
+        Assert.AreEqual(TimeSpan.FromSeconds(2), StartOptions.Parse(["--run", "--max-test-duration=2s"], out _)!.MaxTestDuration);
+        Assert.IsNull(StartOptions.Parse(["--run", "--max-test-duration", "slow"], out error));
+        StringAssert.Contains(error, "--max-test-duration needs seconds or a duration");
+        Assert.IsNull(StartOptions.Parse(["--max-test-duration", "2s"], out error));
+        StringAssert.Contains(error, "--max-test-duration");
+        StringAssert.EndsWith(error, "need --run.");
+    }
+
+    [TestMethod]
+    public void The_duration_budget_comes_from_the_command_line_then_the_environment_then_the_settings_files()
+    {
+        var dir = Directory.CreateTempSubdirectory("labcoat-budget-");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir.FullName, ".git"));
+            File.WriteAllText(Path.Combine(dir.FullName, ".labcoat.json"), """{ "maxTestDuration": "5s" }""");
+            var config = LabcoatConfig.Load(new LabcoatConfig.Inputs { WorkspaceRoot = dir.FullName, Home = Path.Combine(dir.FullName, "home"), NoUserConfig = true });
+            Assert.IsEmpty(config.Warnings);
+            Assert.AreEqual(TimeSpan.FromSeconds(5), config.MaxTestDuration);
+
+            var env = new Dictionary<string, string?>();
+            Assert.AreEqual(TimeSpan.FromSeconds(5), StartupSettings.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n)).EffectiveMaxTestDuration);
+            env[RunLimits.MaxTestDurationEnv] = "2";
+            Assert.AreEqual(TimeSpan.FromSeconds(2), StartupSettings.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n)).EffectiveMaxTestDuration);
+            var cli = StartOptions.Parse(["--run", "--max-test-duration", "off"], out _)!;
+            Assert.AreEqual(TimeSpan.Zero, StartupSettings.ResolveRunLimits(cli, config, n => env.GetValueOrDefault(n)).EffectiveMaxTestDuration);
+            Assert.AreEqual(TimeSpan.Zero, RunLimitOptions.Default.EffectiveMaxTestDuration);
+
+            File.WriteAllText(Path.Combine(dir.FullName, ".labcoat.json"), """{ "maxTestDuration": "soon" }""");
+            config = LabcoatConfig.Load(new LabcoatConfig.Inputs { WorkspaceRoot = dir.FullName, Home = Path.Combine(dir.FullName, "home"), NoUserConfig = true });
+            StringAssert.Contains(config.Warnings.Single(), "'maxTestDuration' must be seconds or a duration");
+            Assert.IsNull(config.MaxTestDuration);
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [TestMethod]
     public void Run_limits_come_from_the_command_line_then_the_environment_then_the_settings_files()
     {
         var dir = Directory.CreateTempSubdirectory("labcoat-limits-");
@@ -367,16 +415,16 @@ public class RunLimitsTests
             Assert.AreEqual((3, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(30)), (config.MaxParallelProjects, config.HangThreshold, config.TestTimeout));
 
             var none = new Dictionary<string, string?>();
-            var fromFile = LabcoatApp.ResolveRunLimits(new StartOptions(), config, n => none.GetValueOrDefault(n));
+            var fromFile = StartupSettings.ResolveRunLimits(new StartOptions(), config, n => none.GetValueOrDefault(n));
             Assert.AreEqual(new RunLimitOptions(3, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(30)), fromFile);
 
             var env = new Dictionary<string, string?> { [RunLimits.MaxParallelEnv] = "6", [RunLimits.HangThresholdEnv] = "45", [RunLimits.TestTimeoutEnv] = "nope" };
-            var fromEnv = LabcoatApp.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n));
+            var fromEnv = StartupSettings.ResolveRunLimits(new StartOptions(), config, n => env.GetValueOrDefault(n));
             Assert.AreEqual(new RunLimitOptions(6, TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(30)), fromEnv);
             StringAssert.Contains(config.Warnings.Single(), "LABCOAT_TEST_TIMEOUT: 'nope' is not a duration");
 
             var cli = StartOptions.Parse(["--max-parallel", "1", "--test-timeout", "0"], out _)!;
-            var fromCli = LabcoatApp.ResolveRunLimits(cli, config, n => env.GetValueOrDefault(n));
+            var fromCli = StartupSettings.ResolveRunLimits(cli, config, n => env.GetValueOrDefault(n));
             Assert.AreEqual((1, TimeSpan.Zero), (fromCli.EffectiveMaxParallel, fromCli.EffectiveTestTimeout));
 
             Assert.AreEqual((RunLimits.DefaultMaxParallel, RunLimits.DefaultHangThreshold, TimeSpan.Zero),
@@ -398,7 +446,7 @@ public class RunLimitsTests
         try
         {
             var sub = Directory.CreateDirectory(Path.Combine(dir.FullName, "sub")).FullName;
-            var roots = LabcoatApp.WorkspaceRootsOf([dir.FullName, Path.Combine(sub, "All.slnx"), Path.Combine(sub, "A.csproj"), dir.FullName]);
+            var roots = WorkspaceDiscovery.WorkspaceRootsOf([dir.FullName, Path.Combine(sub, "All.slnx"), Path.Combine(sub, "A.csproj"), dir.FullName]);
             CollectionAssert.AreEqual(new[] { dir.FullName, sub }, roots);
         }
         finally { dir.Delete(recursive: true); }

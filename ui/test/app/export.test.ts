@@ -106,18 +106,21 @@ describe("command palette entries", () => {
     expect(none.map((c) => c.label)).toEqual([
       "Export run as HTML report",
       "Export run as JUnit XML",
+      "Export run as Markdown",
+      "Export run as TRX",
+      "Export run as SARIF",
       "Export coverage as lcov",
       "Export coverage as Cobertura XML",
     ]);
     expect(none.every((c) => c.disabled && c.icon === "arrowDownload")).toBe(true);
     expect(none[0].detail).toBe("no runs yet");
-    expect(none[2].detail).toBe("no coverage report yet");
+    expect(none[5].detail).toBe("no coverage report yet");
 
     const some = exportCommands({ viewingRunId: "r2", hasRuns: true, hasCoverage: true });
     expect(some.some((c) => c.disabled)).toBe(false);
     expect(some[1].detail).toContain("the viewed run");
     some[1].run();
-    some[2].run();
+    some[5].run();
     const fetch = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
     expect(String((fetch.mock.calls[0] as unknown[])[0])).toContain("/api/runs/r2/export?format=junit");
     expect(String((fetch.mock.calls[1] as unknown[])[0])).toContain("/api/coverage/export?format=lcov&scope=full");

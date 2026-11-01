@@ -5,7 +5,7 @@ using Labcoat;
 namespace Labcoat.Tests.Unit;
 
 /// <summary>
-/// Run affected (GitAffected.cs): changed files from a scratch git repository (working tree, branch vs base, commit
+/// Run affected (AffectedPlanner.cs, GitAffected.cs): changed files from a scratch git repository (working tree, branch vs base, commit
 /// ranges, untracked files, renames, deletions, detached HEAD, shallow clones, no commits) mapped to tests through test
 /// files, the impact map, cached per-test coverage and the project fallback.
 /// </summary>
@@ -129,7 +129,7 @@ public class GitAffectedTests
         r.RecordImpact();
         r.Write("src/Shop/Orders.cs", Repo.Orders.Replace("qty > 0", "qty > 1"));
 
-        var plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        var plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual("working", plan.Base);
         Assert.AreEqual("impactMap", plan.Strategy);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1" }, Ids(plan));
@@ -146,14 +146,14 @@ public class GitAffectedTests
 
         // A change outside both methods (the namespace line): every test that touches the file.
         r.Write("src/Shop/Orders.cs", Repo.Orders.Replace("namespace Shop;", "namespace Shop; // x"));
-        plan = await r.Explorer.PlanAffectedAsync(null, "ignored for working", TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync(null, "ignored for working", TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1", "Shop.Tests/t2" }, Ids(plan));
         Assert.AreEqual("Orders.cs changed (outside executed methods, per-test data)", plan.Tests[1].Reasons.Single());
         Assert.AreEqual("HEAD", plan.Ref); // a ref is ignored for "working"
 
         // Deleted: every test that touched it, no line ranges.
         System.IO.File.Delete(r.P("src/Shop/Orders.cs"));
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         f = File(plan, "src/Shop/Orders.cs");
         Assert.AreEqual(("deleted", 2), (f.Status, f.Tests));
         Assert.IsNull(f.Lines);
@@ -168,7 +168,7 @@ public class GitAffectedTests
         r.Write("tests/Shop.Tests/OrdersTests.cs", "class OrdersTests { int x; }\n");
         await r.GitAsync("add", "tests/Shop.Tests/OrdersTests.cs");
         r.Write("README.md", "# shop!");
-        var plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        var plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual("testFile", plan.Strategy);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1", "Shop.Tests/t2", "Shop.Tests/t3" }, Ids(plan));
         Assert.AreEqual("OrdersTests.cs changed (test file)", plan.Tests[0].Reasons.Single());
@@ -178,7 +178,7 @@ public class GitAffectedTests
 
         // a product csproj → the test projects that reference it
         r.Write("src/Shop/Shop.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup /></Project>");
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1", "Shop.Tests/t2", "Shop.Tests/t3" }, Ids(plan));
         Assert.AreEqual("Shop.csproj changed: all tests of Shop.Tests", plan.Tests[0].Reasons.Single());
         Assert.AreEqual(("project", "project", 3), (File(plan, "src/Shop/Shop.csproj").Kind, File(plan, "src/Shop/Shop.csproj").Mapping, File(plan, "src/Shop/Shop.csproj").Tests));
@@ -187,7 +187,7 @@ public class GitAffectedTests
 
         // Directory.Build.props at the root → every test project below it
         r.Write("Directory.Build.props", "<Project><PropertyGroup /></Project>");
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual("project", plan.Strategy);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1", "Shop.Tests/t2", "Shop.Tests/t3", "Other.Tests/o1" }, Ids(plan));
         Assert.AreEqual(2, plan.Counts.Projects);
@@ -196,7 +196,7 @@ public class GitAffectedTests
         // A test project's own csproj; another .props imported from a folder outside every project → all projects
         r.Write("tests/Other.Tests/Other.Tests.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup /></Project>");
         r.Write("build/Common.props", "<Project />");
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         CollectionAssert.Contains(plan.Tests.Single(t => t.Id == "o1").Reasons, "Other.Tests.csproj changed: all tests of Other.Tests");
         CollectionAssert.Contains(plan.Tests.Single(t => t.Id == "t1").Reasons, "Common.props added: all tests of Shop.Tests");
         Assert.AreEqual(("untracked", "project"), (File(plan, "build/Common.props").Status, File(plan, "build/Common.props").Mapping));
@@ -207,12 +207,12 @@ public class GitAffectedTests
         // output of test runs (Verify, TestResults) selects nothing
         r.Write("tests/Shop.Tests/OrdersTests.Total.received.txt", "x");
         r.Write("tests/Shop.Tests/TestResults/log.json", "{}");
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual((2, 0, "none"), (plan.Counts.Files, plan.Counts.Tests, plan.Strategy));
         await r.GitAsync("clean", "-qfd");
 
         // nothing changed at all
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual(("none", 0, 0), (plan.Strategy, plan.Counts.Files, plan.Counts.Tests));
     }
 
@@ -222,7 +222,7 @@ public class GitAffectedTests
         await using var r = await Repo.CreateAsync();
         // untracked product file: no impact data, no coverage → all tests of the project whose closure contains it
         r.Write("src/Shop/Helpers.cs", "namespace Shop; static class Helpers {}\n");
-        var plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        var plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual("project", plan.Strategy);
         Assert.IsTrue(plan.NeedsImpactMap);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1", "Shop.Tests/t2", "Shop.Tests/t3" }, Ids(plan));
@@ -240,7 +240,7 @@ public class GitAffectedTests
             Files = [new FileCoverage { Path = r.P("src/Shop/Prices.cs"), RelativePath = "Prices.cs", Module = "Shop", LinesCovered = 1, LinesValid = 1, LineRate = 1, Lines = [] }],
         };
         lock (r.Explorer.Sync) r.Explorer.CoverageCacheState.Store("Shop.Tests", report, "stamp");
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         Assert.AreEqual("coverage", plan.Strategy);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t2" }, Ids(plan));
         Assert.AreEqual("Prices.cs changed (covered by cached coverage)", plan.Tests[0].Reasons.Single());
@@ -248,7 +248,7 @@ public class GitAffectedTests
         // a non-code file inside a test project (test data) → all tests of that project, no impact map needed
         await r.GitAsync("checkout", "-q", "--", ".");
         r.Write("tests/Other.Tests/data.json", "{}");
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "Other.Tests/o1" }, Ids(plan));
         Assert.AreEqual("data.json added: all tests of Other.Tests", plan.Tests[0].Reasons.Single());
         Assert.IsNull(plan.NeedsImpactMap);
@@ -270,7 +270,7 @@ public class GitAffectedTests
         await r.GitAsync("checkout", "-q", "feature");
         r.Write("tests/Shop.Tests/New.cs", "class New {}\n"); // untracked, counts too
 
-        var plan = await r.Explorer.PlanAffectedAsync("branch", null, TestContext.CancellationToken);
+        var plan = await r.Explorer.Affected.PlanAsync("branch", null, TestContext.CancellationToken);
         Assert.AreEqual(("main", mainSha), (plan.Ref, plan.MergeBase));
         CollectionAssert.AreEquivalent(new[] { "src/Shop/Orders.cs", "tests/Shop.Tests/New.cs" }, plan.Files.Select(f => f.RelativePath).ToArray());
         Assert.AreEqual("mixed", plan.Strategy);
@@ -278,28 +278,28 @@ public class GitAffectedTests
         Assert.AreEqual("main", plan.Git.DefaultBase);
 
         // explicit base, unknown base, invalid ref
-        Assert.AreEqual("main", (await r.Explorer.PlanAffectedAsync("branch", "main", TestContext.CancellationToken)).Ref);
-        var unknown = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.PlanAffectedAsync("branch", "nope", TestContext.CancellationToken));
+        Assert.AreEqual("main", (await r.Explorer.Affected.PlanAsync("branch", "main", TestContext.CancellationToken)).Ref);
+        var unknown = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.Affected.PlanAsync("branch", "nope", TestContext.CancellationToken));
         Assert.AreEqual((404, "unknownRef"), (unknown.Status, unknown.Code));
-        var bad = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.PlanAffectedAsync("branch", "--output=/tmp/x", TestContext.CancellationToken));
+        var bad = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.Affected.PlanAsync("branch", "--output=/tmp/x", TestContext.CancellationToken));
         Assert.AreEqual((400, "badRef"), (bad.Status, bad.Code));
 
         // range: one commit, A..B, A...B
-        var one = await r.Explorer.PlanAffectedAsync("range", "HEAD", TestContext.CancellationToken);
+        var one = await r.Explorer.Affected.PlanAsync("range", "HEAD", TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "src/Shop/Orders.cs" }, one.Files.Select(f => f.RelativePath).ToArray());
         Assert.AreEqual("HEAD", one.Ref);
-        var twoDots = await r.Explorer.PlanAffectedAsync("range", "main..feature", TestContext.CancellationToken);
+        var twoDots = await r.Explorer.Affected.PlanAsync("range", "main..feature", TestContext.CancellationToken);
         CollectionAssert.AreEquivalent(new[] { "src/Shop/Orders.cs", "tests/Other.Tests/OtherTests.cs" }, twoDots.Files.Select(f => f.RelativePath).ToArray());
-        var threeDots = await r.Explorer.PlanAffectedAsync("range", "main...feature", TestContext.CancellationToken);
+        var threeDots = await r.Explorer.Affected.PlanAsync("range", "main...feature", TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "src/Shop/Orders.cs" }, threeDots.Files.Select(f => f.RelativePath).ToArray());
         var root = await r.GitAsync("rev-list", "--max-parents=0", "HEAD");
-        Assert.AreEqual(9, (await r.Explorer.PlanAffectedAsync("range", root, TestContext.CancellationToken)).Counts.Files); // the root commit: everything it added
-        Assert.AreEqual("added", (await r.Explorer.PlanAffectedAsync("range", root, TestContext.CancellationToken)).Files[0].Status);
+        Assert.AreEqual(9, (await r.Explorer.Affected.PlanAsync("range", root, TestContext.CancellationToken)).Counts.Files); // the root commit: everything it added
+        Assert.AreEqual("added", (await r.Explorer.Affected.PlanAsync("range", root, TestContext.CancellationToken)).Files[0].Status);
 
         foreach (var (b, rf, status, code) in new[] { ("range", (string?)null, 400, "refRequired"), ("range", "a..b..c", 400, "badRef"),
                      ("range", "nope..HEAD", 404, "unknownRef"), ("range", "nope", 404, "unknownRef"), ("sideways", null, 400, "badBase") })
         {
-            var ex = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.PlanAffectedAsync(b, rf, TestContext.CancellationToken));
+            var ex = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.Affected.PlanAsync(b, rf, TestContext.CancellationToken));
             Assert.AreEqual((status, code), (ex.Status, ex.Code), $"{b} {rf}");
         }
     }
@@ -309,24 +309,24 @@ public class GitAffectedTests
     {
         await using var r = await Repo.CreateAsync();
         await r.GitAsync("mv", "src/Shop/Prices.cs", "src/Shop/Pricing.cs");
-        var plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        var plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         var f = File(plan, "src/Shop/Pricing.cs");
         Assert.AreEqual(("renamed", "src/Shop/Prices.cs"), (f.Status, f.OldPath));
         Assert.AreEqual("no impact data for Pricing.cs: all tests of Shop.Tests", plan.Tests[0].Reasons.Single());
         await r.CommitAllAsync("rename");
 
         await r.GitAsync("checkout", "-q", "--detach", "HEAD~1");
-        var info = await r.Explorer.GitInfoAsync(TestContext.CancellationToken);
+        var info = await r.Explorer.Affected.GitInfoAsync(TestContext.CancellationToken);
         Assert.AreEqual((true, (string?)null, 0), (info.Detached, info.Branch, info.Dirty));
         Assert.IsNotNull(info.Head);
-        plan = await r.Explorer.PlanAffectedAsync("branch", null, TestContext.CancellationToken); // detached HEAD vs main: main is ahead, nothing of ours
+        plan = await r.Explorer.Affected.PlanAsync("branch", null, TestContext.CancellationToken); // detached HEAD vs main: main is ahead, nothing of ours
         Assert.AreEqual(0, plan.Counts.Files);
 
         // affectedBase (server option) wins over the detected default
         await r.GitAsync("checkout", "-q", "main");
         await r.GitAsync("branch", "develop", "HEAD~1");
         await using var e = new Explorer(new EventHub(), [r.ShopTests], null, [r.Root]) { AffectedBase = "develop" };
-        plan = await e.PlanAffectedAsync("branch", null, TestContext.CancellationToken);
+        plan = await e.Affected.PlanAsync("branch", null, TestContext.CancellationToken);
         Assert.AreEqual("develop", plan.Ref);
         CollectionAssert.AreEquivalent(new[] { "src/Shop/Pricing.cs" }, plan.Files.Select(x => x.RelativePath).ToArray());
         Assert.AreEqual(("develop", "develop"), (plan.Git.DefaultBase, plan.Git.AffectedBase));
@@ -348,11 +348,11 @@ public class GitAffectedTests
         Assert.AreEqual(0, code, err);
         Assert.AreEqual(0, (await GitRepo.RunAsync(clone, ["checkout", "-q", "feature"], TestContext.CancellationToken)).Code);
         await using var e = new Explorer(new EventHub(), [Path.Combine(clone, "tests", "Shop.Tests", "Shop.Tests.csproj")], null, [clone]);
-        var info = await e.GitInfoAsync(TestContext.CancellationToken);
+        var info = await e.Affected.GitInfoAsync(TestContext.CancellationToken);
         Assert.AreEqual(("origin/main", true, "feature", "origin/feature"), (info.DefaultBase, info.Shallow, info.Branch, info.Upstream));
         Assert.AreEqual((0, 0), (info.Ahead, info.Behind));
 
-        var plan = await e.PlanAffectedAsync("branch", null, TestContext.CancellationToken);
+        var plan = await e.Affected.PlanAsync("branch", null, TestContext.CancellationToken);
         Assert.AreEqual("origin/main", plan.Ref);
         Assert.IsNull(plan.MergeBase);
         Assert.Contains("Shallow clone", plan.Warnings![0]);
@@ -365,15 +365,15 @@ public class GitAffectedTests
     public async Task A_repository_without_commits_and_a_folder_without_git()
     {
         await using var r = await Repo.CreateAsync(commit: false);
-        var info = await r.Explorer.GitInfoAsync(TestContext.CancellationToken);
+        var info = await r.Explorer.Affected.GitInfoAsync(TestContext.CancellationToken);
         Assert.AreEqual((true, "main", (string?)null, (string?)null), (info.Available, info.Branch, info.Head, info.DefaultBase));
-        var plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken); // everything is untracked
+        var plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken); // everything is untracked
         Assert.AreEqual(9, plan.Counts.Files);
         Assert.IsTrue(plan.Files.All(f => f.Status == "untracked"));
         Assert.AreEqual(4, plan.Counts.Tests);
         await r.GitAsync("add", "src/Shop/Orders.cs"); // staged against the empty tree
-        Assert.AreEqual("added", File(await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken), "src/Shop/Orders.cs").Status);
-        var noBase = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.PlanAffectedAsync("branch", null, TestContext.CancellationToken));
+        Assert.AreEqual("added", File(await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken), "src/Shop/Orders.cs").Status);
+        var noBase = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.Affected.PlanAsync("branch", null, TestContext.CancellationToken));
         Assert.AreEqual((404, "noBase"), (noBase.Status, noBase.Code));
 
         var plain = Directory.CreateTempSubdirectory("labcoat-nogit-");
@@ -382,11 +382,11 @@ public class GitAffectedTests
             var proj = Path.Combine(plain.FullName, "A.Tests.csproj");
             System.IO.File.WriteAllText(proj, "<Project />");
             await using var e = new Explorer(new EventHub(), [proj], null, [plain.FullName]);
-            var none = await e.GitInfoAsync(TestContext.CancellationToken);
+            var none = await e.Affected.GitInfoAsync(TestContext.CancellationToken);
             Assert.IsFalse(none.Available);
             Assert.Contains("not in a git repository", none.Error!);
-            Assert.AreSame(none, await e.GitInfoAsync(TestContext.CancellationToken)); // cached
-            var ex = await Assert.ThrowsExactlyAsync<AffectedException>(() => e.PlanAffectedAsync("working", null, TestContext.CancellationToken));
+            Assert.AreSame(none, await e.Affected.GitInfoAsync(TestContext.CancellationToken)); // cached
+            var ex = await Assert.ThrowsExactlyAsync<AffectedException>(() => e.Affected.PlanAsync("working", null, TestContext.CancellationToken));
             Assert.AreEqual((409, "notGitRepo"), (ex.Status, ex.Code));
             var reply = await e.HandleCommandAsync(new ClientCommand { Type = "runAffected" });
             Assert.AreEqual(409, ((CommandRejectedEvent)reply!).Status);
@@ -403,10 +403,10 @@ public class GitAffectedTests
         GitRepo.Executable = Path.Combine(r.Dir.FullName, "no-such-git");
         try
         {
-            var info = await r.Explorer.GitInfoAsync(TestContext.CancellationToken);
+            var info = await r.Explorer.Affected.GitInfoAsync(TestContext.CancellationToken);
             Assert.IsFalse(info.Available);
             Assert.Contains("git is not available", info.Error!);
-            var ex = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken));
+            var ex = await Assert.ThrowsExactlyAsync<AffectedException>(() => r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken));
             Assert.AreEqual((409, "gitUnavailable"), (ex.Status, ex.Code));
         }
         finally { GitRepo.Executable = original; }
@@ -421,9 +421,9 @@ public class GitAffectedTests
         r.Write("tests/Other.Tests/data.json", "{}");
         using (await r.Explorer.HoldOperationAsync("discovery"))
         {
-            var result = await r.Explorer.RunAffectedAsync("working", null, coverage: null, buildImpactMap: false, trigger: "api", TestContext.CancellationToken);
+            var result = await r.Explorer.Affected.RunAsync("working", null, coverage: null, buildImpactMap: false, trigger: "api", TestContext.CancellationToken);
             Assert.AreEqual((202, true), (result.Run!.Status, result.Run.Queued));
-            var pending = typeof(Explorer).GetField("_pendingRun", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(r.Explorer)!;
+            var pending = r.Explorer.PendingRunRequest!;
             var selection = (Dictionary<string, HashSet<string>?>)pending.GetType().GetProperty("Selection")!.GetValue(pending)!;
             CollectionAssert.AreEquivalent(new[] { "t1" }, selection["Shop.Tests"]!.ToArray());
             Assert.IsNull(selection["Other.Tests"]); // whole project
@@ -436,7 +436,7 @@ public class GitAffectedTests
         // nothing affected: no run
         await r.GitAsync("checkout", "-q", "--", ".");
         await r.GitAsync("clean", "-qfd");
-        var nothing = await r.Explorer.RunAffectedAsync("working", null, null, false, "user", TestContext.CancellationToken);
+        var nothing = await r.Explorer.Affected.RunAsync("working", null, null, false, "user", TestContext.CancellationToken);
         Assert.IsNull(nothing.Run);
         Assert.AreEqual(0, nothing.Plan!.Counts.Tests);
         Assert.IsNull(await r.Explorer.HandleCommandAsync(new ClientCommand { Type = "runAffected", Base = "working" }));
@@ -454,13 +454,13 @@ public class GitAffectedTests
         await using var r = await Repo.CreateAsync();
         r.Write("src/Shop/Helpers.cs", "namespace Shop; static class Helpers {}\n");
         r.Explorer.DotnetOverride = (_, _, _) => Task.FromResult((1, "error : no build here"));
-        var result = await r.Explorer.RunAffectedAsync("working", null, null, buildImpactMap: true, trigger: "user", TestContext.CancellationToken);
+        var result = await r.Explorer.Affected.RunAsync("working", null, null, buildImpactMap: true, trigger: "user", TestContext.CancellationToken);
         Assert.IsTrue(result.ImpactMapFirst);
         Assert.IsNull(result.Run);
         CollectionAssert.AreEqual(new[] { "Shop.Tests" }, result.Plan!.ProjectsNeedingImpactMap);
         // the pass (build fails here) and the run after it happen in the background; wait until the log says so
         var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (DateTime.UtcNow < deadline && !r.Explorer.Snapshot(includeLogs: true).Logs!.Any(l => l.Message.StartsWith("Run affected (uncommitted changes)")))
+        while (DateTime.UtcNow < deadline && !r.Explorer.Snapshot(includeLogs: true).Logs!.Any(l => l.Message.StartsWith("Run affected (uncommitted changes)", StringComparison.Ordinal)))
             await Task.Delay(50, TestContext.CancellationToken);
         Assert.Contains("building the impact map for Shop.Tests first", string.Join("\n", r.Explorer.Snapshot(includeLogs: true).Logs!.Select(l => l.Message)));
         r.Explorer.Cancel();
@@ -520,7 +520,7 @@ public class GitAffectedTests
             r.Explorer.ImpactMapState.Record("Shop.Tests", ["t1", "t2", "t3"], new() { [file] = [new LineSpan(4, 7) { Name = "Validate" }, new LineSpan(8, 11) { Name = "Total" }] });
         r.Write("src/Shop/Orders.cs", Repo.Orders.Replace("qty > 0", "qty > 1"));
 
-        var plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        var plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1", "Shop.Tests/t2", "Shop.Tests/t3" }, Ids(plan));
         Assert.AreEqual("Orders.cs changed (method Validate, class-level data)", plan.Tests[0].Reasons.Single());
         Assert.IsTrue(plan.Tests.All(t => t.Granularity == "class"));
@@ -529,7 +529,7 @@ public class GitAffectedTests
         // refinement (auto) has no test app to run here: it skips the project and the plan stays class level
         await r.Explorer.RefineImpactMapAsync(plan.ClassLevel);
         await r.Explorer.RefineImpactMapAsync([("Shop.Tests", "gone")]);
-        Assert.AreEqual("class", (await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken)).Tests[0].Granularity);
+        Assert.AreEqual("class", (await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken)).Tests[0].Granularity);
 
         // per-test data for t1 (e.g. after the refinement): only t1 executes Validate
         lock (r.Explorer.Sync)
@@ -538,7 +538,7 @@ public class GitAffectedTests
             r.Explorer.ImpactMapState.Record("Shop.Tests", ["t2"], new() { [file] = [new LineSpan(8, 11) { Name = "Total" }] });
             r.Explorer.ImpactMapState.Record("Shop.Tests", ["t3"], new() { [file] = [new LineSpan(8, 11) { Name = "Total" }] });
         }
-        plan = await r.Explorer.PlanAffectedAsync("working", null, TestContext.CancellationToken);
+        plan = await r.Explorer.Affected.PlanAsync("working", null, TestContext.CancellationToken);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t1" }, Ids(plan));
         Assert.AreEqual(("test", "Orders.cs changed (method Validate, per-test data)"), (plan.Tests[0].Granularity, plan.Tests[0].Reasons.Single()));
         Assert.IsEmpty(plan.ClassLevel);
@@ -582,7 +582,7 @@ public class GitAffectedTests
     public async Task Only_the_tests_whose_lines_were_edited_are_changed()
     {
         await using var r = await CreateWithTestLinesAsync();
-        var none = await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken);
+        var none = await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken);
         Assert.IsTrue(none.Available);
         Assert.AreEqual("branch", none.Base);
         Assert.IsEmpty(none.Tests);
@@ -590,8 +590,8 @@ public class GitAffectedTests
         // a line inside t2, and a product file (no tests of its own)
         r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests.Replace("void t2()\n    {\n    }", "void t2()\n    {\n        var x = 1;\n    }"));
         r.Write("src/Shop/Prices.cs", "namespace Shop;\npublic static class Prices { public const int Base = 2; }\n");
-        r.Explorer.InvalidateChangedTests();
-        CollectionAssert.AreEqual(new[] { "Shop.Tests/t2" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+        r.Explorer.Affected.InvalidateChangedTests();
+        CollectionAssert.AreEqual(new[] { "Shop.Tests/t2" }, Changed(await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken)));
     }
 
     [TestMethod]
@@ -602,14 +602,14 @@ public class GitAffectedTests
         r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests.Replace("void t1()\n    {\n    }", "void t1()\n    {\n        var y = 1;\n    }"));
         await r.CommitAllAsync("edit t1");
         r.Write("tests/Other.Tests/OtherTests.cs", "class OtherTests { void o1() {} }\n"); // o1 has no line range: its file counts
-        var changed = await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken);
+        var changed = await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken);
         Assert.AreEqual("main", changed.Ref);
         CollectionAssert.AreEquivalent(new[] { "Shop.Tests/t1", "Other.Tests/o1" }, Changed(changed));
 
         // a test in a newly added (untracked) file is changed as a whole
         r.Write("tests/Other.Tests/NewTests.cs", "class NewTests {}\n");
         r.Explorer.SeedTests([r.Node("Other.Tests", "n1", "tests/Other.Tests/NewTests.cs")]);
-        CollectionAssert.Contains(Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)), "Other.Tests/n1");
+        CollectionAssert.Contains(Changed(await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken)), "Other.Tests/n1");
     }
 
     [TestMethod]
@@ -618,7 +618,7 @@ public class GitAffectedTests
         await using var r = await CreateWithTestLinesAsync();
         await r.GitAsync("branch", "-m", "trunk"); // no main / master: no base branch
         r.Write("tests/Shop.Tests/OrdersTests.cs", OrdersTests.Replace("void t3()\n    {\n    }", "void t3()\n    {\n        var z = 1;\n    }"));
-        var changed = await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken);
+        var changed = await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken);
         Assert.AreEqual("working", changed.Base);
         CollectionAssert.AreEqual(new[] { "Shop.Tests/t3" }, Changed(changed));
 
@@ -628,7 +628,7 @@ public class GitAffectedTests
             var project = Path.Combine(dir.FullName, "A.Tests.csproj");
             System.IO.File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
             await using var explorer = new Explorer(new EventHub(), [project], null, [dir.FullName]);
-            var outside = await explorer.ChangedTestsAsync(TestContext.CancellationToken);
+            var outside = await explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken);
             Assert.IsFalse(outside.Available);
             Assert.IsNotNull(outside.Error);
             Assert.IsEmpty(outside.Tests);
@@ -706,12 +706,12 @@ public class GitAffectedTests
         ]);
         // body-only edits of Adds_an_item (line 8) and Untouched (line 26)
         r.Write("tests/Shop.Tests/CartTests.cs", CartTests.Replace("Assert.AreEqual(1, 1)", "Assert.AreEqual(2, 2)").Replace("Assert.IsTrue(true)", "Assert.IsFalse(false)"));
-        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/mstest", "Shop.Tests/tunit" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/mstest", "Shop.Tests/tunit" }, Changed(await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken)));
 
         // an edit inside the NUnit test (the raw string line) and the expression-bodied one
         r.Write("tests/Shop.Tests/CartTests.cs", CartTests.Replace("Task.Delay(n)", "Task.Delay(n + 1)").Replace("1 + 2", "1 + 3"));
-        r.Explorer.InvalidateChangedTests();
-        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/nunit", "Shop.Tests/xunit" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+        r.Explorer.Affected.InvalidateChangedTests();
+        CollectionAssert.AreEquivalent(new[] { "Shop.Tests/nunit", "Shop.Tests/xunit" }, Changed(await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken)));
     }
 
     [TestMethod]
@@ -739,17 +739,17 @@ public class GitAffectedTests
         (nunit.MethodName, nunit.Line, nunit.LineEnd) = ("Removes_an_item", null, null);
         r.Explorer.SeedTests([mstest, nunit]);
         r.Write("tests/Shop.Tests/CartTests.cs", crlf.Replace("Assert.AreEqual(1, 1)", "Assert.AreEqual(2, 2)"));
-        CollectionAssert.AreEqual(new[] { "Shop.Tests/mstest" }, Changed(await r.Explorer.ChangedTestsAsync(TestContext.CancellationToken)));
+        CollectionAssert.AreEqual(new[] { "Shop.Tests/mstest" }, Changed(await r.Explorer.Affected.ChangedTestsAsync(TestContext.CancellationToken)));
     }
 
     [TestMethod]
     public void A_pure_rename_changes_no_test_and_line_ranges_must_overlap()
     {
         var test = new TestNode { Id = "t", ProjectId = "P", DisplayName = "t", Line = 10, LineEnd = 12 };
-        Assert.IsFalse(Explorer.IsChanged(test, new GitChange("a.cs", "renamed", "b.cs")));
-        Assert.IsTrue(Explorer.IsChanged(test, new GitChange("a.cs", "modified")));
-        Assert.IsTrue(Explorer.IsChanged(test, new GitChange("a.cs", "modified") { Lines = [new LineSpan(12, 14)] }));
-        Assert.IsFalse(Explorer.IsChanged(test, new GitChange("a.cs", "modified") { Lines = [new LineSpan(13, 14), new LineSpan(1, 9)] }));
+        Assert.IsFalse(AffectedPlanner.IsChanged(test, new GitChange("a.cs", "renamed", "b.cs")));
+        Assert.IsTrue(AffectedPlanner.IsChanged(test, new GitChange("a.cs", "modified")));
+        Assert.IsTrue(AffectedPlanner.IsChanged(test, new GitChange("a.cs", "modified") { Lines = [new LineSpan(12, 14)] }));
+        Assert.IsFalse(AffectedPlanner.IsChanged(test, new GitChange("a.cs", "modified") { Lines = [new LineSpan(13, 14), new LineSpan(1, 9)] }));
     }
 
     [TestMethod]

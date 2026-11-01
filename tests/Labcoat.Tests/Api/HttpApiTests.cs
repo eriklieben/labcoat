@@ -108,6 +108,30 @@ public class HttpApiTests
     }
 
     [TestMethod]
+    public async Task Slowest_tests_come_with_their_duration_trend()
+    {
+        await using var h = await ApiHost.StartAsync();
+        var slow = h.Test("slow", Outcome.Passed);
+        slow.DurationMs = 900;
+        slow.LastRunAt = "2026-01-03T00:00:00Z";
+        slow.History = [new HistoryEntry(Outcome.Passed, 100, "2026-01-01T00:00:00Z"), new HistoryEntry(Outcome.Passed, 300, "2026-01-02T00:00:00Z"),
+            new HistoryEntry(Outcome.Passed, 900, "2026-01-03T00:00:00Z")];
+        var fast = h.Test("fast", Outcome.Passed);
+        fast.DurationMs = 5;
+        h.Seed(slow, fast, h.Test("unrun"));
+
+        var all = await h.GetJson($"/api/tests/slowest?projectId={ApiHost.ProjectId}");
+        Assert.AreEqual(2, all["total"]!.GetValue<int>());
+        Assert.AreEqual("slow", all["tests"]![0]!["id"]!.GetValue<string>());
+        Assert.AreEqual(200, all["tests"]![0]!["medianMs"]!.GetValue<double>());
+        Assert.AreEqual(3, all["tests"]![0]!["trend"]!.AsArray().Count);
+        Assert.AreEqual("fast", (await h.GetJson("/api/tests/slowest?limit=2"))["tests"]![1]!["id"]!.GetValue<string>());
+        Assert.HasCount(1, (await h.GetJson("/api/tests/slowest?limit=1"))["tests"]!.AsArray());
+        await AssertStatus(HttpStatusCode.NotFound, h.Client.GetAsync("/api/tests/slowest?projectId=Other", TestContext.CancellationToken), "Unknown project 'Other'");
+        await AssertStatus(HttpStatusCode.BadRequest, h.Client.GetAsync("/api/tests/slowest?limit=0", TestContext.CancellationToken), "limit");
+    }
+
+    [TestMethod]
     public async Task Persisted_runs_are_listed_and_fetched()
     {
         await using (var empty = await ApiHost.StartAsync())

@@ -4,7 +4,7 @@ using System.Text;
 namespace Labcoat;
 
 /// <summary>
-/// One <c>dotnet build</c> for several test projects (Explorer.Parallel.cs): a generated solution lists them, so MSBuild
+/// One <c>dotnet build</c> for several test projects (ProjectBuilder.cs): a generated solution lists them, so MSBuild
 /// builds them in parallel (<c>-m</c>, the default of <c>dotnet build</c>), restores them as one graph and builds a
 /// shared dependency once, instead of one build per project. The output is then split per project: which ones built
 /// (<c>Name -&gt; path</c> lines, or exit code 0) and the diagnostics of each one and its ProjectReferences, so the UI

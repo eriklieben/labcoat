@@ -84,6 +84,18 @@ public sealed class LabcoatOptions
     /// </summary>
     public TimeSpan? TestTimeout { get; set; }
 
+    /// <summary>
+    /// Duration budget of <c>labcoat --run</c> (<see cref="LabcoatRunLimitsExtensions.WithMaxTestDuration"/>): a test that took
+    /// longer fails the run. Null or <see cref="TimeSpan.Zero"/> = no budget (the default).
+    /// </summary>
+    public TimeSpan? MaxTestDuration { get; set; }
+
+    /// <summary>
+    /// The test runners to use (<see cref="LabcoatResourceBuilderExtensions.WithRunners"/>): "dotnet" and runner packages
+    /// such as "vitest" (Labcoat.Vitest). Empty = dotnet plus every runner package the AppHost references.
+    /// </summary>
+    public IList<string> Runners { get; } = new List<string>();
+
     /// <summary>A fixed host port for the UI instead of a random one (<see cref="LabcoatResourceBuilderExtensions.WithHostPort"/>).</summary>
     public int? HostPort { get; set; }
 
@@ -108,6 +120,7 @@ public sealed class LabcoatOptions
         ArgumentNullException.ThrowIfNull(section);
         ReadTestProjects(section);
         ReadList(section, nameof(PassThroughEnvironment), PassThroughEnvironment);
+        ReadList(section, nameof(Runners), Runners);
         ReadList(section, nameof(CoverageInclude), CoverageInclude);
         ReadList(section, nameof(CoverageExclude), CoverageExclude);
         if (section[nameof(CoverageSettings)] is { Length: > 0 } coverageSettings) CoverageSettings = coverageSettings.Trim();
@@ -122,6 +135,7 @@ public sealed class LabcoatOptions
         MaxParallelProjects = ReadMaxParallel(section) ?? MaxParallelProjects;
         HangThreshold = ReadDuration(section, nameof(HangThreshold)) ?? HangThreshold;
         TestTimeout = ReadDuration(section, nameof(TestTimeout)) ?? TestTimeout;
+        MaxTestDuration = ReadDuration(section, nameof(MaxTestDuration)) ?? MaxTestDuration;
         Ui.Bind(section.GetSection(nameof(Ui)));
         return this;
     }

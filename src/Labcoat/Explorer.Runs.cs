@@ -4,90 +4,21 @@ namespace Labcoat;
 // REST callers (Aspire dashboard commands), suite summary, debug runs, target framework selection, lean payloads.
 public sealed partial class Explorer
 {
-    /// <summary>A validated run request. Selection: projectId -> test ids (null = every test of the project).</summary>
-    private sealed class RunRequest
-    {
-        public required string RunId { get; init; }
-        public required string RequestedAt { get; init; }
-        public required Dictionary<string, HashSet<string>?> Selection { get; set; }
-        public bool? Coverage { get; init; }
-        public int Iterations { get; init; } = 1;
-        public string? Trigger { get; set; }
-        public AffectedRun? Affected { get; set; }
-        public WatchContext? Watch { get; set; }
-        public bool Debug { get; init; }
-        public int Requests { get; set; } = 1;
-        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public bool IsSubset => Selection.Values.All(ids => ids is not null);
-
-        public PendingRunInfo Info() => new()
-        {
-            RunId = RunId,
-            RequestedAt = RequestedAt,
-            Scope = IsSubset ? "subset" : "all",
-            ProjectIds = [.. Selection.Keys],
-            TestCount = IsSubset ? Selection.Values.Sum(ids => ids!.Count) : null,
-            Coverage = Coverage,
-            Repeat = Iterations > 1 ? Iterations : null,
-            Trigger = Trigger,
-            Requests = Requests,
-        };
-    }
-
-    /// <summary>Result of <see cref="RequestRun"/>: HTTP-like status (202 accepted, 400 / 404 rejected).</summary>
+    /// <summary>Result of <see cref="RequestRun(RunRequestOptions)"/>: HTTP-like status (202 accepted, 400 / 404 rejected).</summary>
     public sealed record RunRequestResult(int Status, string? RunId = null, string? Error = null, bool Queued = false, bool Merged = false,
         List<string>? UnknownTestIds = null, List<string>? KnownProjects = null, Task? Completion = null);
 
     /// <summary>Lifecycle of a run request, for <c>GET /api/runs/{runId}/status</c>.</summary>
     public sealed record RunRequestStatus(string RunId, string State, string? Reason = null, RunSummary? Run = null, string? SupersededBy = null);
 
-    private RunRequest? _pendingRun;
-    private readonly Dictionary<string, RunRequestStatus> _runStatus = [];
-    private readonly Queue<string> _runStatusOrder = new();
-    /// <summary>Name of the operation holding the op lock ("run", "discover", ...), null when idle.</summary>
-    private volatile string? _activeOp;
-
-    private void SetRunStatus(string runId, string state, string? reason = null, RunSummary? run = null, string? supersededBy = null)
-    {
-        lock (Sync)
-        {
-            if (!_runStatus.ContainsKey(runId))
-            {
-                _runStatusOrder.Enqueue(runId);
-                while (_runStatusOrder.Count > 200) _runStatus.Remove(_runStatusOrder.Dequeue());
-            }
-            _runStatus[runId] = new RunRequestStatus(runId, state, reason, run?.Copy(), supersededBy);
-        }
-    }
+    private readonly RunStatuses _runStatuses = new();
 
     /// <summary>
     /// "queued" | "building" (build + discovery before the run) | "running" | "finished" | "cancelled" | "aborted" |
     /// "skipped" (nothing could run, e.g. the build failed) | "superseded" (replaced by another request, see supersededBy);
     /// null when unknown (or older than the last 200 requests).
     /// </summary>
-    public RunRequestStatus? GetRunStatus(string runId)
-    {
-        lock (Sync) return _runStatus.GetValueOrDefault(runId);
-    }
-
-    private async Task<bool> AcquireOpAsync(string name, CancellationToken ct)
-    {
-        try { await _opLock.WaitAsync(ct); }
-        catch (OperationCanceledException) { return false; }
-        _activeOp = name;
-        return true;
-    }
-
-    private void ReleaseOp()
-    {
-        _activeOp = null;
-        _cancelling = false;
-        _opLock.Release();
-    }
-
-    /// <summary>Cancel was requested and the operation it stops has not ended yet (SummaryInfo.Cancelling).</summary>
-    private volatile bool _cancelling;
+    public RunRequestStatus? GetRunStatus(string runId) => _runStatuses.Get(runId);
 
     /// <summary>A run request (<see cref="RequestRun(RunRequestOptions)"/>): what to run and how.</summary>
     public sealed record RunRequestOptions
@@ -99,6 +30,10 @@ public sealed partial class Explorer
         public bool? Coverage { get; init; }
         public string? Trigger { get; init; }
         public int? Repeat { get; init; }
+        /// <summary>"random": run the tests one at a time in a seeded random order (<see cref="RandomOrder"/>).</summary>
+        public string? Order { get; init; }
+        /// <summary>The seed of a random order; a new one is generated when null.</summary>
+        public int? Seed { get; init; }
         public AffectedRun? Affected { get; init; }
         public WatchContext? WatchContext { get; init; }
         public bool Debug { get; init; }
@@ -110,7 +45,7 @@ public sealed partial class Explorer
     /// Validates a run request and queues it. Unknown project → 404; test ids of which none is known → 404 (some unknown →
     /// they are ignored and listed in <see cref="RunRequestResult.UnknownTestIds"/>). At most one request waits while
     /// another operation runs; a further request is merged into it (union of the selected tests, "run all" absorbs
-    /// subsets) when coverage / repeat / debug match, otherwise it replaces the waiting one ("superseded").
+    /// subsets) when coverage / repeat / debug / order + seed match, otherwise it replaces the waiting one ("superseded").
     /// </summary>
     public RunRequestResult RequestRun(string? projectId, IReadOnlyCollection<string>? testIds) =>
         RequestRun(new RunRequestOptions { ProjectId = projectId, TestIds = testIds });
@@ -120,6 +55,12 @@ public sealed partial class Explorer
     {
         var iterations = o.Repeat is null or <= 1 ? 1 : Math.Min(o.Repeat.Value, MaxRepeat);
         if (o.Repeat > MaxRepeat) Log(null, LogLevels.Warning, $"repeat is limited to {MaxRepeat}; running {MaxRepeat} times");
+        var (order, orderError) = RandomOrder.ParseOrder(o.Order);
+        if (orderError is not null) return new RunRequestResult(400, Error: orderError);
+        if (o.Seed is not null && order is null) return new RunRequestResult(400, Error: "seed needs order \"random\".");
+        if (o.Seed is <= 0) return new RunRequestResult(400, Error: "seed must be a positive number.");
+        if (order is not null && o.Debug) return new RunRequestResult(400, Error: "order random can't be combined with debug.");
+        if (order is not null && iterations > 1) return new RunRequestResult(400, Error: "order random can't be combined with repeat.");
         RunRequest req;
         List<string>? unknown;
         RunRequest? superseded;
@@ -131,6 +72,9 @@ public sealed partial class Explorer
             unknown = unknownIds;
             if (o.Debug && !IsTestsOfOneProject(selection))
                 return new RunRequestResult(400, Error: "debug needs testIds of exactly one project.");
+            // A runner package's host has no wait-for-debugger switch (docs/runners.md).
+            if (o.Debug && _state.FindProject(selection.Keys.Single())?.Project.Runner is { } runner)
+                return new RunRequestResult(400, Error: $"debug isn't supported for {runner} tests: run them, or debug them in your editor.");
 
             (req, merged, superseded) = QueueLocked(new RunRequest
             {
@@ -139,12 +83,14 @@ public sealed partial class Explorer
                 Selection = selection,
                 Coverage = o.Debug ? false : o.Coverage,
                 Iterations = o.Debug ? 1 : iterations,
+                Order = order,
+                Seed = order is null ? null : o.Seed ?? RandomOrder.NewSeed(),
                 Trigger = TriggerOf(o),
                 Affected = o.Affected,
                 Watch = o.WatchContext,
                 Debug = o.Debug,
             });
-            queued = _activeOp is not null || _opLock.CurrentCount == 0;
+            queued = _gate.IsBusy;
             Emit(new PendingRunEvent(req.Info()));
         }
 
@@ -161,15 +107,15 @@ public sealed partial class Explorer
     {
         if (superseded is not null)
         {
-            SetRunStatus(superseded.RunId, "superseded", "A different run request replaced it while it was waiting.", supersededBy: req.RunId);
+            _runStatuses.Set(superseded.RunId, "superseded", "A different run request replaced it while it was waiting.", supersededBy: req.RunId);
             superseded.Completion.TrySetResult();
             Log(null, LogLevels.Info, $"Queued run request replaced by a new one ({(req.Debug ? "debug" : DescribeOptions(req))}).");
         }
         if (merged) Log(null, LogLevels.Info, $"Run request merged into the queued run ({req.Requests} requests).");
         else
         {
-            SetRunStatus(req.RunId, "queued");
-            _ = ProcessPendingRunAsync(CurrentToken());
+            _runStatuses.Set(req.RunId, "queued");
+            _ = ProcessPendingRunAsync(_gate.CurrentToken());
         }
     }
 
@@ -188,20 +134,20 @@ public sealed partial class Explorer
     /// </summary>
     private (Dictionary<string, HashSet<string>?> Selection, List<string>? Unknown, RunRequestResult? Rejected) ResolveSelectionLocked(RunRequestOptions o)
     {
-        var known = _projects.Select(p => p.Project.Id).ToList();
+        var known = _state.Projects.Select(p => p.Project.Id).ToList();
         // An exact per-project selection (run affected): known projects only; null = every test of the project.
         if (o.Selection is not null)
         {
             var selection = o.Selection.Where(kv => known.Contains(kv.Key))
-                .ToDictionary(kv => kv.Key, kv => kv.Value is null ? null : kv.Value.Where(id => _tests.ContainsKey((kv.Key, id))).ToHashSet());
+                .ToDictionary(kv => kv.Key, kv => kv.Value is null ? null : kv.Value.Where(id => _state.Tests.ContainsKey((kv.Key, id))).ToHashSet());
             selection = selection.Where(kv => kv.Value is null || kv.Value.Count > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
             return selection.Count == 0
                 ? ([], null, new RunRequestResult(404, Error: "None of the selected tests is known.", KnownProjects: known))
                 : (selection, null, null);
         }
         List<ProjectEntry> projects;
-        if (o.ProjectId is null) projects = [.. _projects];
-        else if (_projects.FirstOrDefault(p => p.Project.Id == o.ProjectId) is { } p) projects = [p];
+        if (o.ProjectId is null) projects = [.. _state.Projects];
+        else if (_state.Projects.FirstOrDefault(p => p.Project.Id == o.ProjectId) is { } p) projects = [p];
         else return ([], null, new RunRequestResult(404, Error: $"Unknown project '{o.ProjectId}'.", KnownProjects: known));
         if (projects.Count == 0) return ([], null, new RunRequestResult(404, Error: "No test projects.", KnownProjects: known));
 
@@ -219,7 +165,7 @@ public sealed partial class Explorer
         var ids = testIds.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
         foreach (var pid in projects.Select(pr => pr.Project.Id))
         {
-            var inProject = ids.Where(id => _tests.ContainsKey((pid, id))).ToHashSet();
+            var inProject = ids.Where(id => _state.Tests.ContainsKey((pid, id))).ToHashSet();
             if (inProject.Count > 0) selection[pid] = inProject;
         }
         var unknown = ids.Where(id => !selection.Values.Any(s => s!.Contains(id))).ToList();
@@ -235,9 +181,9 @@ public sealed partial class Explorer
     /// </summary>
     private (RunRequest Req, bool Merged, RunRequest? Superseded) QueueLocked(RunRequest req)
     {
-        if (_pendingRun is not { } pending)
+        if (_state.Run.Pending is not { } pending)
         {
-            _pendingRun = req;
+            _state.Run.Pending = req;
             return (req, false, null);
         }
         if (CanMerge(pending, req))
@@ -245,16 +191,18 @@ public sealed partial class Explorer
             Merge(pending, req);
             return (pending, true, null);
         }
-        _pendingRun = req;
+        _state.Run.Pending = req;
         return (req, false, pending);
     }
 
     private static string DescribeOptions(RunRequest r) =>
         (r.IsSubset ? $"{r.Selection.Values.Sum(s => s!.Count)} tests" : "all tests") +
-        r.Coverage switch { true => ", coverage", false => ", no coverage", null => "" } + (r.Iterations > 1 ? $", repeat {r.Iterations}" : "");
+        r.Coverage switch { true => ", coverage", false => ", no coverage", null => "" } + (r.Iterations > 1 ? $", repeat {r.Iterations}" : "") +
+        (r.Order is not null ? $", random order (seed {r.Seed})" : "");
 
     private static bool CanMerge(RunRequest a, RunRequest b) =>
-        !a.Debug && !b.Debug && a.Coverage == b.Coverage && a.Iterations == b.Iterations;
+        !a.Debug && !b.Debug && a.Coverage == b.Coverage && a.Iterations == b.Iterations &&
+        a.Order == b.Order && a.Seed == b.Seed;
 
     /// <summary>Union of <paramref name="from"/>'s selection into <paramref name="into"/>; "all tests of a project" absorbs subsets.</summary>
     private static void Merge(RunRequest into, RunRequest from)
@@ -292,34 +240,35 @@ public sealed partial class Explorer
     /// <summary>Waits for the op lock, then runs whatever request is pending at that moment (there may be none any more).</summary>
     private async Task ProcessPendingRunAsync(CancellationToken ct)
     {
-        if (!await AcquireOpAsync("run", ct)) return; // cancelled while waiting: Cancel() cleared the queue
+        if (!await _gate.AcquireAsync("run", ct)) return; // cancelled while waiting: Cancel() cleared the queue
         RunRequest? req;
         lock (Sync)
         {
-            req = _pendingRun;
-            _pendingRun = null;
+            req = _state.Run.Pending;
+            _state.Run.Pending = null;
             if (req is not null) Emit(new PendingRunEvent(null));
         }
         if (req is null)
         {
-            ReleaseOp();
+            _gate.Release();
             return;
         }
         try { await ExecuteRunAsync(req, ct); }
         finally
         {
-            ReleaseOp();
+            _gate.Release();
             req.Completion.TrySetResult();
         }
     }
 
     /// <summary>Waits until the request with this id is done (tests / embedding; REST callers poll the status).</summary>
     public Task RunAsync(string? projectId, IReadOnlyCollection<string>? testIds, bool? coverage = null, AffectedRun? affected = null,
-        string? trigger = null, int? repeat = null, WatchContext? watchContext = null)
+        string? trigger = null, int? repeat = null, WatchContext? watchContext = null, string? order = null, int? seed = null)
     {
         var r = RequestRun(new RunRequestOptions
         {
             ProjectId = projectId, TestIds = testIds, Coverage = coverage, Trigger = trigger, Repeat = repeat, Affected = affected, WatchContext = watchContext,
+            Order = order, Seed = seed,
         });
         if (r.Status != 202) Log(null, LogLevels.Warning, "Run not started: " + r.Error);
         return r.Completion ?? Task.CompletedTask;
@@ -330,29 +279,22 @@ public sealed partial class Explorer
 
     public CancelResult Cancel()
     {
-        CancellationTokenSource old, oldOperation;
+        OperationGate.Cancellation cancellation;
         RunRequest? pending;
-        string? active;
         lock (Sync)
         {
-            old = _cancel;
-            oldOperation = _operation;
-            _cancel = new CancellationTokenSource();
-            _operation = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token, _shutdownToken);
-            _operationToken = _operation.Token;
-            pending = _pendingRun;
-            _pendingRun = null;
-            active = _activeOp;
+            cancellation = _gate.BeginCancel();
+            pending = _state.Run.Pending;
+            _state.Run.Pending = null;
             if (pending is not null) Emit(new PendingRunEvent(null));
-            if (active is not null) _cancelling = true;
             // Tests of the current run that have not started will not run: cancelled now, not once the test host has
             // stopped (that can take the cancel grace period). A result that still arrives replaces it.
-            if (_currentRequested is { } keys)
+            if (_state.Run.CurrentRequested is { } keys)
             {
                 var changed = new List<TestNode>();
                 foreach (var k in keys)
                 {
-                    if (_tests.TryGetValue(k, out var t) && t.Outcome == Outcome.Queued)
+                    if (_state.Tests.TryGetValue(k, out var t) && t.Outcome == Outcome.Queued)
                     {
                         t.Outcome = Outcome.Cancelled;
                         changed.Add(t);
@@ -363,15 +305,14 @@ public sealed partial class Explorer
         }
         if (pending is not null)
         {
-            SetRunStatus(pending.RunId, "cancelled", "Cancelled while queued.");
+            _runStatuses.Set(pending.RunId, "cancelled", "Cancelled while queued.");
             pending.Completion.TrySetResult();
         }
+        var active = cancellation.Active;
         Log(null, LogLevels.Info, "Cancellation requested" +
             (active is not null ? $" (stopping the current {active})" : " (nothing was running)") +
-            (pending is not null ? $"; cleared the queued run ({pending.Requests} request{Plural(pending.Requests)})" : ""));
-        old.Cancel(); // cancels oldOperation (linked) too
-        oldOperation.Dispose(); // unregisters it from _shutdown; tokens already handed out stay cancelled
-        old.Dispose();
+            (pending is not null ? $"; cleared the queued run ({pending.Requests} request{Words.Plural(pending.Requests)})" : ""));
+        OperationGate.EndCancel(cancellation);
         return new CancelResult(active is not null, active, pending?.RunId, pending?.Requests ?? 0);
     }
 
@@ -390,7 +331,7 @@ public sealed partial class Explorer
         {
             int passed = 0, failed = 0, skipped = 0, notRun = 0, running = 0, queued = 0, cancelled = 0;
             var perProject = new Dictionary<string, int>();
-            foreach (var t in _tests.Values)
+            foreach (var t in _state.Tests.Values)
             {
                 perProject[t.ProjectId] = perProject.GetValueOrDefault(t.ProjectId) + 1;
                 switch (t.Outcome)
@@ -405,11 +346,11 @@ public sealed partial class Explorer
                 }
             }
             return new SummaryInfo(Cli.Version, _workspaceName,
-                new OutcomeCounts(_tests.Count, passed, failed, skipped, notRun, running, queued, cancelled),
-                _currentRun?.Copy(), _lastRun?.Copy(), _pendingRun?.Info(), _activeOp, _watch, _coverageEnabled,
-                _projects.Select(p => new ProjectSummary(p.Project.Id, p.Project.Name, p.Project.Status, p.Project.HostState, p.Project.LastError,
+                new OutcomeCounts(_state.Tests.Count, passed, failed, skipped, notRun, running, queued, cancelled),
+                _state.Run.Current?.Copy(), _state.Run.Last?.Copy(), _state.Run.Pending?.Info(), _gate.Active, WatchMode.Enabled, _coverageEnabled,
+                _state.Projects.Select(p => new ProjectSummary(p.Project.Id, p.Project.Name, p.Project.Status, p.Project.HostState, p.Project.LastError,
                     perProject.GetValueOrDefault(p.Project.Id), p.Project.TargetFramework)).ToList(),
-                _cancelling && _activeOp is not null ? true : null);
+                _gate.Cancelling && _gate.Active is not null ? true : null);
         }
     }
 
@@ -420,8 +361,8 @@ public sealed partial class Explorer
     {
         lock (Sync)
         {
-            var key = _order.FirstOrDefault(k => k.Id == id && (projectId is null || k.ProjectId == projectId));
-            return key.Id is null ? null : _tests[key].Copy();
+            var key = _state.Order.FirstOrDefault(k => k.Id == id && (projectId is null || k.ProjectId == projectId));
+            return key.Id is null ? null : _state.Tests[key].Copy();
         }
     }
 
@@ -430,8 +371,8 @@ public sealed partial class Explorer
     {
         lock (Sync)
         {
-            return _order.Where(k => (projectId is null || k.ProjectId == projectId) && (id is null || k.Id == id))
-                .Select(k => _tests[k])
+            return _state.Order.Where(k => (projectId is null || k.ProjectId == projectId) && (id is null || k.Id == id))
+                .Select(k => _state.Tests[k])
                 .Where(t => id is not null || t.History is { Count: > 0 })
                 .Select(t => new TestHistoryInfo(t.ProjectId, t.Id, t.History ?? [], t.Flaky))
                 .ToList();
@@ -454,25 +395,6 @@ public sealed partial class Explorer
 
     private readonly OutputStore _outputs = new();
 
-    /// <summary>Caps a fresh result's stdOut/stdErr (<see cref="TestOutput"/>) and keeps the full text of cut outputs.</summary>
-    private void CapOutput(TestNode t)
-    {
-        var fullOut = t.StdOut;
-        var fullErr = t.StdErr;
-        t.StdOut = TestOutput.Cap(fullOut, out var cutOut);
-        t.StdErr = TestOutput.Cap(fullErr, out var cutErr);
-        if (cutOut || cutErr)
-        {
-            t.OutputTruncated = true;
-            _outputs.Put(t.ProjectId, t.Id, fullOut, fullErr);
-        }
-        else
-        {
-            t.OutputTruncated = null;
-            _outputs.Remove(t.ProjectId, t.Id);
-        }
-    }
-
     // ------------------------------------------------------------------ settings broadcasts
 
     /// <summary>A toggle changed: legacy clients get a full <c>state</c>, lean clients a small <c>settingsChanged</c>.</summary>
@@ -484,10 +406,10 @@ public sealed partial class Explorer
             FlushTestsLocked();
             _hub.Publish(new StateEvent(Snapshot()), () => new SettingsChangedEvent(new SettingsInfo
             {
-                Watch = _watch,
+                Watch = WatchMode.Enabled,
                 CoverageEnabled = _coverageEnabled,
                 TracingEnabled = _tracingEnabled,
-                Quarantined = _settings.Quarantined(),
+                Quarantined = Quarantine.KeysLocked(),
                 ImpactMap = _impact.Info(),
             }));
         }
@@ -520,7 +442,7 @@ public sealed partial class Explorer
     public (int Status, string? Error) SetTargetFramework(string? projectId, string? tfm)
     {
         ProjectEntry? p;
-        lock (Sync) p = _projects.FirstOrDefault(x => x.Project.Id == projectId);
+        lock (Sync) p = _state.Projects.FirstOrDefault(x => x.Project.Id == projectId);
         if (p is null) return (404, $"Unknown project '{projectId}'.");
         if (!string.IsNullOrEmpty(tfm) && p.Project.AvailableFrameworks is { } fws && !fws.Contains(tfm, StringComparer.OrdinalIgnoreCase))
             return (400, $"'{tfm}' is not one of the project's target frameworks ({string.Join(", ", fws)}).");

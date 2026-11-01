@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Labcoat.Vitest/Labcoat.Vitest.csproj" />
     <Project Path="src/Labcoat/Labcoat.csproj" />
     <Project Path="src/Labcoat.Aspire.Hosting/Labcoat.Aspire.Hosting.csproj" />
     <Project Path="src/Labcoat.Testing/Labcoat.Testing.csproj" />

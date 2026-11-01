@@ -203,6 +203,21 @@ const shots = {
     await save(page, "failure-stack.png", { x: pane.x, y, width: pane.width, height: trace.y + trace.height + 16 - y });
   },
 
+  "slowest-tests": async () => {
+    const page = await openApp("?mock");
+    await prepare(page);
+    await select(page, "SampleTests"); // the project: its slowest tests with sparklines and "N\u00d7 median"
+    await page.waitForSelector("lc-detail-pane .slowest-item");
+    await settle(page);
+    const section = page.locator("lc-detail-pane .detail-section", { has: page.locator(".section-header h3", { hasText: "Slowest tests" }) }).first();
+    await section.evaluate((e) => e.scrollIntoView({ block: "start" }));
+    await settle(page);
+    const pane = await boxOf(page, page.locator("lc-detail-pane"));
+    const box = await section.boundingBox();
+    const y = Math.max(pane.y, box.y - 12);
+    await save(page, "slowest-tests.png", { x: pane.x, y, width: pane.width, height: Math.min(pane.y + pane.height, box.y + box.height + 12) - y });
+  },
+
   "tree-filters": async () => {
     const page = await openApp("?mock&coverage");
     await prepare(page);
@@ -285,6 +300,38 @@ const shots = {
     await page.keyboard.type("run");
     await settle(page, 600);
     await save(page, "command-palette.png", undefined, { resize: FULL });
+  },
+
+  "random-order": async () => {
+    // a random-order run through the palette (the mock picks seed 48213), then the palette again: "Run in random
+    // order" (the "Run again with seed" command shows when the query matches it), with the run overview's "random order, seed" line behind it
+    const page = await openApp("?mock");
+    await prepare(page);
+    await page.keyboard.press("Control+k");
+    await page.waitForTimeout(300);
+    await page.keyboard.type("random order");
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(400);
+    await idle(page);
+    await settle(page, 600);
+    await page.keyboard.press("Control+k");
+    await page.waitForTimeout(300);
+    await page.keyboard.type("random");
+    await settle(page, 600);
+    await save(page, "random-order.png", undefined, { resize: FULL });
+  },
+
+  "export-menu": async () => {
+    const page = await openApp("?mock");
+    await prepare(page);
+    await page.locator("lc-run-switcher button").first().click();
+    await page.getByText("Export as SARIF").first().waitFor();
+    await settle(page);
+    const menu = await boxOf(page, page.locator(".run-menu-body").first(), 16);
+    // down to the first two runs below the export entries (the rest of the run list is cut off)
+    const sarif = await page.getByText("Export as SARIF").first().boundingBox();
+    await save(page, "export-menu.png", { ...menu, height: Math.min(menu.height, sarif.y + sarif.height + 150 - menu.y) });
   },
 
   "build-errors": async () => {

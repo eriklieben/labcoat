@@ -24,6 +24,8 @@ export const paletteOpen = signal(false);
 
 export interface PaletteActions {
   runAll: () => void;
+  /** run every test one at a time in a random order; with a seed: the order of an earlier run */
+  runRandom?: (seed?: number) => void;
   runFailed: () => void;
   /** undefined when nothing is selected */
   runSelected: (() => void) | undefined;
@@ -211,6 +213,10 @@ export function commandPalette(a: () => PaletteActions): Child {
     const busy = running || !connected;
     return [
       { id: "run-all", label: "Run all tests", icon: "playFilled", shortcut: "Mod+Enter", disabled: busy, run: x.runAll },
+      x.runRandom ? { id: "run-random", label: "Run in random order", detail: "finds tests that depend on each other; one at a time, with a seed", icon: "play", disabled: busy, run: () => x.runRandom!() } : undefined,
+      x.runRandom && s.lastRun?.seed !== undefined
+        ? { id: "run-random-seed", label: `Run again with seed ${s.lastRun.seed}`, detail: "the same random order", icon: "arrowClockwise", disabled: busy, run: () => x.runRandom!(s.lastRun!.seed) }
+        : undefined,
       x.runMatching
         ? { id: "run-matching", label: `Run ${x.runMatching.count} matching`, detail: "the tests the filtered tree shows", icon: "play", disabled: busy || !x.runMatching.count, run: x.runMatching.run }
         : undefined,

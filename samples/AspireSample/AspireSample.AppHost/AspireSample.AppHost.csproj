@@ -14,6 +14,8 @@
     <!-- Labcoat Aspire integration. In your own AppHost: <PackageReference Include="Labcoat.Aspire.Hosting" ... />.
          IsAspireProjectResource=false: this is a library reference, not a project to run as a resource. -->
     <ProjectReference Include="..\..\..\src\Labcoat.Aspire.Hosting\Labcoat.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <!-- Labcoat's Vitest runner (AspireSample.Web). In your own AppHost: <PackageReference Include="Labcoat.Vitest" ... />. -->
+    <ProjectReference Include="..\..\..\src\Labcoat.Vitest\Labcoat.Vitest.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Labcoat;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Labcoat.Tests.Unit;
 
@@ -10,11 +11,11 @@ public class LiveOutputTests
 {
     public TestContext TestContext { get; set; }
 
-    private DateTime _now = new(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc);
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero));
 
-    private LiveOutput Create() => new(clock: () => _now);
+    private LiveOutput Create() => new(time: _time);
 
-    private void Advance(int ms) => _now = _now.AddMilliseconds(ms);
+    private void Advance(int ms) => _time.Advance(TimeSpan.FromMilliseconds(ms));
 
     private static TestNode Test(string id, string? displayName = null, string? ns = "Ns", string? cls = "C", string? method = null) => new()
     {
@@ -248,25 +249,32 @@ public class LiveOutputTests
     }
 
     [TestMethod]
-    public async Task The_flush_timer_publishes_and_reschedules_while_there_is_work()
+    public void The_flush_timer_publishes_and_reschedules_while_there_is_work()
     {
         var published = new List<TestOutputEvent>();
         LiveOutput? live = null;
-        live = new LiveOutput(() => { lock (published) published.AddRange(live!.Drain()); });
+        live = new LiveOutput(() => published.AddRange(live!.Drain()), _time);
         live.Started(Test("A"));
         live.Partial("P", "A", "now\n", null);
         live.HostLine("P", "after the delay", false);
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (sw.ElapsedMilliseconds < 5000)
-        {
-            lock (published) if (published.Count >= 2) break;
-            await Task.Delay(20, TestContext.CancellationToken);
-        }
-        lock (published)
-        {
-            Assert.AreEqual("now\n", published[0].Text);
-            Assert.AreEqual("after the delay\n", published[1].Text);
-        }
+        Advance((int)LiveOutput.FlushInterval.TotalMilliseconds);
+        Assert.AreEqual("now\n", published.Single().Text); // the host line waits for its attribution delay
+        Advance((int)LiveOutput.AttributionDelay.TotalMilliseconds);
+        Assert.HasCount(2, published);
+        Assert.AreEqual("after the delay\n", published[1].Text);
+    }
+
+    [TestMethod]
+    public void The_flush_timer_stops_on_dispose()
+    {
+        var flushes = 0;
+        var live = new LiveOutput(() => flushes++, _time);
+        live.Started(Test("A"));
+        live.Dispose();
+        live.Partial("P", "A", "after dispose\n", null);
+        live.HostLine("P", "after dispose", false);
+        Advance(1000);
+        Assert.AreEqual(0, flushes);
     }
 
     [TestMethod]

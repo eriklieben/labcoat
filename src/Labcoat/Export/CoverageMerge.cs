@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 
-namespace Labcoat;
+namespace Labcoat.Export;
 
 /// <summary>The totals of merged coverage.</summary>
 public sealed record CoverageTotals(int Files, int LinesCovered, int LinesValid, int BranchesCovered, int BranchesValid)
@@ -99,47 +99,46 @@ public sealed partial class CoverageMerge
         var more = r.Read();
         while (more)
         {
-            if (r.NodeType == XmlNodeType.EndElement)
-            {
-                if (r.LocalName == "class") current = null;
-                more = r.Read();
-                continue;
-            }
-            if (r.NodeType != XmlNodeType.Element)
-            {
-                more = r.Read();
-                continue;
-            }
             var moved = false; // Skip / ReadElementContentAs* leave the reader on the next node already
-            switch (r.LocalName)
-            {
-                case "source":
-                    var source = r.ReadElementContentAsString().Trim();
-                    if (source.Length > 0 && !_sources.Contains(source)) _sources.Add(source);
-                    moved = true;
-                    break;
-                case "package":
-                    module = r.GetAttribute("name") ?? "";
-                    break;
-                case "class":
-                    var path = r.GetAttribute("filename") ?? "";
-                    if (path.Length == 0) { r.Skip(); moved = true; break; }
-                    if (!input.TryGetValue(path, out current)) input[path] = current = new FileData();
-                    current.Module ??= module;
-                    if (r.IsEmptyElement) current = null;
-                    break;
-                case "methods": // the same lines again, per method
-                    r.Skip();
-                    moved = true;
-                    break;
-                case "line" when current is not null:
-                    AddCoberturaLine(current, r);
-                    break;
-            }
-            if (!moved) more = r.Read();
-            else more = !r.EOF;
+            if (r.NodeType == XmlNodeType.Element) moved = AddCoberturaElement(r, input, ref module, ref current);
+            else if (r.NodeType == XmlNodeType.EndElement && r.LocalName == "class") current = null;
+            more = moved ? !r.EOF : r.Read();
         }
         Fold(input);
+    }
+
+    /// <summary>One element of a Cobertura file; true when it moved the reader on already.</summary>
+    private bool AddCoberturaElement(XmlReader r, Dictionary<string, FileData> input, ref string module, ref FileData? current)
+    {
+        switch (r.LocalName)
+        {
+            case "source":
+                var source = r.ReadElementContentAsString().Trim();
+                if (source.Length > 0 && !_sources.Contains(source)) _sources.Add(source);
+                return true;
+            case "package":
+                module = r.GetAttribute("name") ?? "";
+                return false;
+            case "class":
+                var path = r.GetAttribute("filename") ?? "";
+                if (path.Length == 0)
+                {
+                    r.Skip();
+                    return true;
+                }
+                if (!input.TryGetValue(path, out current)) input[path] = current = new FileData();
+                current.Module ??= module;
+                if (r.IsEmptyElement) current = null;
+                return false;
+            case "methods": // the same lines again, per method
+                r.Skip();
+                return true;
+            case "line" when current is not null:
+                AddCoberturaLine(current, r);
+                return false;
+            default:
+                return false;
+        }
     }
 
     /// <summary>One line; a file with several classes (nested types) can list a line twice: the larger count counts once.</summary>
@@ -160,9 +159,10 @@ public sealed partial class CoverageMerge
         if (r.GetAttribute("branch") != "true" || ConditionCoverage().Match(r.GetAttribute("condition-coverage") ?? "") is not { Success: true } m) return;
         var covered = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
         var total = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+        var notTaken = hits > 0 ? 0 : NotExecuted; // on a line that ran: not taken; else the line never ran
         for (var b = 0; b < total; b++)
         {
-            var taken = b < covered ? Math.Max(hits, 1) : hits > 0 ? 0 : NotExecuted;
+            var taken = b < covered ? Math.Max(hits, 1) : notTaken;
             var key = (at, 0, b);
             file.Branches[key] = Math.Max(file.Branches.GetValueOrDefault(key, NotExecuted), taken);
         }

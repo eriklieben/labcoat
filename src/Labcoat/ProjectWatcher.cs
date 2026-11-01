@@ -5,15 +5,17 @@ namespace Labcoat;
 /// <c>*.fsproj</c>, <c>*.vbproj</c>), solutions (<c>*.sln</c>, <c>*.slnx</c>, <c>*.slnf</c>) and <c>Directory.*.props</c> /
 /// <c>Directory.*.targets</c>. Changes are debounced: a burst (a branch switch, a <c>dotnet new</c>) is reported once,
 /// after <see cref="Quiet"/> without further changes (at most <see cref="MaxDelay"/> after the first one). bin, obj,
-/// node_modules and dot-folders are ignored.
+/// node_modules and dot-folders are ignored. With runner packages (docs/runners.md) also their project files: package.json
+/// and the runners' config files (<see cref="ProjectFileNames"/>).
 /// </summary>
 public sealed class ProjectWatcher : IDisposable
 {
     private readonly List<FileSystemWatcher> _watchers = [];
     private readonly Action<IReadOnlyCollection<string>> _changed;
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
-    private readonly Timer _timer;
+    private readonly TimeProvider _time;
+    private readonly ITimer _timer;
     private DateTime? _firstPending;
     private bool _disposed;
 
@@ -22,13 +24,18 @@ public sealed class ProjectWatcher : IDisposable
     /// <summary>Longest delay after the first change of a burst.</summary>
     public TimeSpan MaxDelay { get; init; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>More file names that can add or remove a test project (runner packages' package.json and config files).</summary>
+    public IReadOnlySet<string> ProjectFileNames { get; init; } = new HashSet<string>();
+
     /// <param name="roots">Directories watched recursively (missing ones are skipped).</param>
     /// <param name="changed">Called (on a timer thread) with the changed paths of a burst.</param>
     /// <param name="warn">A root that could not be watched (e.g. the inotify limit).</param>
-    public ProjectWatcher(IEnumerable<string> roots, Action<IReadOnlyCollection<string>> changed, Action<string>? warn = null)
+    /// <param name="time">The clock and the timer (tests: a fake one).</param>
+    public ProjectWatcher(IEnumerable<string> roots, Action<IReadOnlyCollection<string>> changed, Action<string>? warn = null, TimeProvider? time = null)
     {
         _changed = changed;
-        _timer = new Timer(_ => Flush(), null, Timeout.Infinite, Timeout.Infinite);
+        _time = time ?? TimeProvider.System;
+        _timer = _time.CreateTimer(_ => Flush(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         foreach (var root in roots.Distinct())
         {
             if (!Directory.Exists(root)) continue;
@@ -106,12 +113,12 @@ public sealed class ProjectWatcher : IDisposable
     {
         var relative = Relative(path);
         var folder = structural && Directory.Exists(path) && !IsIgnored(relative + Path.DirectorySeparatorChar + "x");
-        if (!folder && !IsRelevant(relative)) return;
+        if (!folder && !IsRelevant(relative) && !(ProjectFileNames.Contains(Path.GetFileName(relative)) && !IsIgnored(relative))) return;
         lock (_gate)
         {
             if (_disposed) return;
             _pending.Add(path);
-            var now = DateTime.UtcNow;
+            var now = _time.GetUtcNow().UtcDateTime;
             _firstPending ??= now;
             var due = Quiet;
             var latest = _firstPending.Value + MaxDelay - now;

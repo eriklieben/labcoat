@@ -22,6 +22,12 @@ public sealed record LiveOutputChunk(string Stream, string Text, bool? Shared = 
 /// <summary>What the test app's output folder says about live output support (<see cref="LiveOutput.Detect"/>).</summary>
 public sealed record LiveOutputSupport(bool XunitLiveOption, bool TUnit)
 {
+    /// <summary>
+    /// A host that streams by itself, like TUnit (in-progress nodes with the output so far): no command-line options, only
+    /// exact attribution (a runner package's host ignores TUnit's streaming variable).
+    /// </summary>
+    public static LiveOutputSupport Streaming { get; } = new(false, TUnit: true);
+
     public static readonly LiveOutputSupport None = new(false, false);
 }
 
@@ -42,9 +48,9 @@ public sealed record LiveOutputSupport(bool XunitLiveOption, bool TUnit)
 /// Output is buffered per running test and flushed (<see cref="Drain"/>) at most every <see cref="FlushInterval"/>, at most
 /// <see cref="MaxCharsPerFlush"/> characters per test and flush (the tail is kept). Thread safe; <see cref="Drain"/>,
 /// <see cref="Started"/> and <see cref="Finished"/> are called by the Explorer under its lock, <see cref="HostLine"/> from
-/// the process output readers.
+/// the process output readers. <see cref="Dispose"/> stops the flush timer (shutdown).
 /// </summary>
-public sealed partial class LiveOutput
+public sealed partial class LiveOutput : IDisposable
 {
     public const string Marker = "labcoat:live:";
     public const string XunitPrefix = "OUTPUT: [";
@@ -98,11 +104,12 @@ public sealed partial class LiveOutput
         public bool Xunit;       // parse "OUTPUT: [name] text"
     }
 
-    private readonly object _gate = new();
-    private readonly Func<DateTime> _clock;
+    private readonly Lock _gate = new();
+    private readonly TimeProvider _time;
     private readonly Action? _flush;
-    private readonly Timer? _timer;
+    private readonly ITimer? _timer;
     private bool _scheduled;
+    private bool _disposed;
     private readonly Dictionary<(string ProjectId, string Id), TestBuffer> _running = [];
     private readonly Dictionary<string, ProjectMode> _modes = [];
     private readonly Queue<QueuedLine> _hostQueue = new();
@@ -110,12 +117,12 @@ public sealed partial class LiveOutput
     private const int MaxQueued = 10_000;
 
     /// <param name="flush">Called by the flush timer (the owner takes its lock and publishes <see cref="Drain"/>); null = no timer (tests).</param>
-    /// <param name="clock">UTC clock (tests).</param>
-    public LiveOutput(Action? flush = null, Func<DateTime>? clock = null)
+    /// <param name="time">The clock and the flush timer (tests: a fake one).</param>
+    public LiveOutput(Action? flush = null, TimeProvider? time = null)
     {
-        _clock = clock ?? (() => DateTime.UtcNow);
+        _time = time ?? TimeProvider.System;
         _flush = flush;
-        if (flush is not null) _timer = new Timer(_ => OnTimer(), null, Timeout.Infinite, Timeout.Infinite);
+        if (flush is not null) _timer = _time.CreateTimer(_ => OnTimer(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     // ------------------------------------------------------------------ project / test lifecycle
@@ -187,7 +194,7 @@ public sealed partial class LiveOutput
     /// <summary>A line the test host process wrote to its stdout (<paramref name="err"/> false) or stderr.</summary>
     public void HostLine(string projectId, string line, bool err)
     {
-        var now = _clock();
+        var now = _time.GetUtcNow().UtcDateTime;
         lock (_gate)
         {
             var marker = line.IndexOf(Marker, StringComparison.Ordinal);
@@ -274,7 +281,7 @@ public sealed partial class LiveOutput
     /// <summary>Attributes queued lines and returns the events to publish (one per test and stream run, in order).</summary>
     public List<TestOutputEvent> Drain()
     {
-        var now = _clock();
+        var now = _time.GetUtcNow().UtcDateTime;
         var events = new List<TestOutputEvent>();
         lock (_gate)
         {
@@ -450,18 +457,32 @@ public sealed partial class LiveOutput
         if (_timer is null) return;
         lock (_gate)
         {
-            if (_scheduled) return;
+            if (_scheduled || _disposed) return;
             _scheduled = true;
+            _timer.Change(FlushInterval, Timeout.InfiniteTimeSpan); // under the lock: never on a disposed timer
         }
-        _timer.Change(FlushInterval, Timeout.InfiniteTimeSpan);
     }
 
     private void OnTimer()
     {
-        lock (_gate) _scheduled = false;
+        lock (_gate)
+        {
+            if (_disposed) return; // a callback that was already queued when Dispose ran
+            _scheduled = false;
+        }
         try { _flush?.Invoke(); }
         catch { /* never let a timer callback crash the process */ }
         if (HasWork) Schedule();
+    }
+
+    /// <summary>Stops the flush timer: nothing is flushed after it, buffered output is dropped.</summary>
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _disposed = true;
+            _timer?.Dispose();
+        }
     }
 
     // ------------------------------------------------------------------ detection

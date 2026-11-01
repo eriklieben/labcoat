@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -68,6 +69,9 @@ public static class Cli
           --coverage-include <globs>  Modules or path globs to count although the defaults leave them out
                            (e.g. Labcoat.*). Comma-separated; repeatable.
           --coverage-exclude <globs>  Modules or path globs never to count. Comma-separated; repeatable.
+          --quarantine-file <file>  Shared list of quarantined tests, one name per line (Namespace.Class.Method,
+                           Namespace.Class, '*' wildcards, # comments). They run but do not fail the run,
+                           in addition to the tests quarantined in the UI. Read only.
           --traces         Start with per-test trace collection enabled (only has an effect when hosted by an
                            Aspire AppHost). Off by default; a choice made in the UI is remembered per workspace.
           --trace-filter <expr>  While trace collection is on, trace only the tests that match <expr>, in the
@@ -80,10 +84,18 @@ public static class Cli
           --impact-map <m> Granularity of the impact map that smart watch and "Run affected" use: class (one
                            coverage run per test class), test (one per test: exact, slower) or auto (per class,
                            then refined per test where a change needs it; the default).
+          --runners <list> Test runners to use, comma-separated: dotnet (MSTest, NUnit, xUnit v3, TUnit on
+                           Microsoft.Testing.Platform) and runner packages such as vitest (Labcoat.Vitest). Default:
+                           dotnet plus every installed runner package. A runner package that isn't installed is
+                           fetched from NuGet in Labcoat's version.
+          --runner-path <dir>  Folder with a runner package (its runner.json) or one per subfolder. Repeatable.
           --max-parallel <n>  Test projects discovered and run at the same time (default: processors, max 4).
           --hang-threshold <d>  Mark a test running this long as possibly hanging (default 60s; 0 = off).
           --test-timeout <d>  Per-test timeout: a longer test is marked timed out and its project's run is
                            cancelled (off by default). Durations: 90, 30s, 5m, 1.5h; 0 or off.
+          --max-test-duration <d>  With --run: fail the run (exit 1) and list the tests that took longer than
+                           this, quarantined tests excluded. Nothing is cancelled (unlike --test-timeout);
+                           off by default.
           --config <file>  Settings file to use instead of the nearest .labcoat.json / .config/labcoat.json
                            (searched from the workspace up to the repository root).
           --no-user-config Ignore the user settings file (~/.labcoat.json or the platform config dir).
@@ -98,28 +110,59 @@ public static class Cli
 
         Run once (CI; no UI, no browser):
           --run            Build, run the tests once, write the --export files and exit: 0 when no test
-                           failed, 1 when one failed (or the run was aborted / cancelled), 2 when a project
+                           failed, 1 when one failed or took longer than --max-test-duration (or the run
+                           was aborted / cancelled), 2 when a project
                            did not build or discover (or nothing could run).
-          --export <format>=<file>  Write a report: junit, html, lcov or cobertura. Repeatable; lcov and
-                           cobertura collect coverage (like --coverage) and hold this run's coverage.
+          --export <format>=<file>  Write a report: junit, html, markdown, trx (Visual Studio / Azure DevOps),
+                           sarif (code scanning), lcov or cobertura. Repeatable; lcov and cobertura
+                           collect coverage (like --coverage) and hold this run's coverage. On GitHub
+                           Actions --run also appends the Markdown summary to $GITHUB_STEP_SUMMARY and
+                           annotates failed tests (flaky ones as warnings) at their source line.
           --filter <pattern>  Only the tests whose name, Namespace.Class(.Method) or project contains it
                            ('*' = wildcard over the whole name). Comma-separated; repeatable.
+          --retry-failed <n>  After the run, rerun only the failed tests, up to n times (1-10). A test that
+                           passes on a retry is reported as flaky and does not fail the run; one that never
+                           passes stays failed. Quarantined tests are not retried.
           --export-paths <m>  Source paths in lcov / cobertura: relative (to the workspace root; default)
                            or absolute.
+          --min-coverage <percent>  Fail the run (exit 1) when the line coverage of this run is below the
+                           percentage (0-100). Collects coverage like --coverage. Not with --affected.
+          --min-diff-coverage <percent>  Fail the run (exit 1) when the lines changed versus the base
+                           (--affected-base, else origin/HEAD, main or master; plus uncommitted changes; with
+                           --affected the changes it planned with) are covered less than the percentage.
+                           Lists the uncovered lines; non-executable lines don't count. Collects coverage like
+                           --coverage.
           --shard <i>/<n>  Run shard i of n (1-based) of the tests, for parallel CI jobs. Every shard
                            must get the same test list and --shard-timings. Shards without tests exit 0.
           --shard-by <u>   What is split: class (default), test or project.
           --shard-timings <file>  JUnit XML of an earlier run (--export junit; a pattern like
                            out/*/results.xml works) that balances the shards by duration. Repeatable.
                            Without it the shards are dealt out evenly by name.
+          --order random   Run the tests one at a time in a random order, to find tests that depend on
+                           each other. The seed is printed (and written to the junit / html reports);
+                           it can't be combined with --coverage, --min-coverage, --min-diff-coverage or an
+                           lcov / cobertura export. See docs/features.md.
+          --seed <n>       With --order random: the seed of an earlier run, to run the same order again.
+          --affected [base]  Only the tests the changes in git affect: working (uncommitted), branch (against
+                           the base branch, see --affected-base; the default) or a commit range such as
+                           origin/main..HEAD (--affected=<ref> for a single commit). Prints the plan; when
+                           nothing is affected it says so, writes the reports and exits 0. With --filter
+                           only the tests matching both run; --shard splits the affected tests.
+          --impact-map-file <file>  The impact map to use for --affected, so a changed product file selects
+                           the tests that run it instead of every test of its projects. Ignored with a
+                           warning when it is unusable. '.gz' compresses it.
+          --build-impact-map  Run the impact-map pass (one coverage run per test class; --impact-map test:
+                           per test) and save it to --impact-map-file. Run it on your main branch, cache
+                           the file, use it in pull request jobs (docs/standalone.md). Not with --shard.
 
         Merge shard reports (CI; builds and runs nothing):
           merge --export <format>=<file> <inputs...>
                            Combines the report files of a split run into one: JUnit XML, lcov and Cobertura
                            inputs are found by content. Inputs are paths (a shell-expanded list) or a pattern with
-                           * / ? in the file name part (shards/results-*.xml; not in the folders). --export is repeatable: junit, lcov or cobertura (lcov and cobertura inputs merge
-                           into one coverage report that either is written from). A test seen twice keeps the last
-                           one (with a warning); coverage hit counts are summed per source file and line.
+                           * / ? in the file name part (shards/results-*.xml; not in the folders). --export is
+                           repeatable: junit, lcov or cobertura (lcov and cobertura inputs merge into one coverage
+                           report that either is written from). A test seen twice keeps the last one (with a
+                           warning); coverage hit counts are summed per source file and line.
                            Exit codes: 0 when no merged test failed, 1 when one failed or errored (or a report could
                            not be written), 2 for a usage error or an input that is missing or unreadable.
 
@@ -155,8 +198,10 @@ public static class Cli
           LABCOAT_AFFECTED_BASE   base ref of "Run affected: branch vs …" (like --affected-base)
           LABCOAT_IMPACT_MAP      class, test or auto (like --impact-map)
           LABCOAT_TRACE_FILTER    the tests to trace (like --trace-filter)
-          LABCOAT_MAX_PARALLEL, LABCOAT_HANG_THRESHOLD, LABCOAT_TEST_TIMEOUT
-                                  like --max-parallel, --hang-threshold, --test-timeout
+          LABCOAT_RUNNERS         the test runners to use (like --runners)
+          LABCOAT_RUNNER_PATH     folders with runner packages, separated like PATH (like --runner-path)
+          LABCOAT_MAX_PARALLEL, LABCOAT_HANG_THRESHOLD, LABCOAT_TEST_TIMEOUT, LABCOAT_MAX_TEST_DURATION
+                                  like --max-parallel, --hang-threshold, --test-timeout, --max-test-duration
           LABCOAT_LIVE_OUTPUT     0 = no live output of running tests (no extra test host options or
                                   variables, no liveOutput events)
           LABCOAT_LOG_LEVEL       host log level: trace, debug, information, warning (default), error,
@@ -169,9 +214,12 @@ public static class Cli
           labcoat                                  tests of the current project / solution
           labcoat tests/MyApp.Tests --watch        one project, watch mode
           labcoat MyApp.slnx --port 5000 --no-open
+          labcoat --runners dotnet,vitest          .NET and Vitest tests (Labcoat.Vitest)
           labcoat --theme dracula --mode dark      UI defaults for this start
           labcoat --run --export junit=out/results.xml --export html=out/report.html
                                                    CI: run everything once, write JUnit + HTML reports
+          labcoat --run --export markdown=out/summary.md --export sarif=out/tests.sarif
+                                                   CI: a PR-comment Markdown report and SARIF failures
         """;
 
     /// <summary>Default base directory for history / settings / caches ($LABCOAT_HISTORY_DIR overrides it).</summary>
@@ -362,7 +410,7 @@ public static class Cli
             }
             Launch(command, args, url, displayName);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
             NoBrowser(url, ex.Message);
         }
@@ -421,7 +469,7 @@ public static class Cli
         {
             // xdg-open exits non-zero when it found nothing to open the URL with.
             int code;
-            try { code = process.ExitCode; } catch { return; }
+            try { code = process.ExitCode; } catch (InvalidOperationException) { return; }
             if (code != 0) NoBrowser(url, $"{displayName} exited with code {code}");
         };
         process.Start();

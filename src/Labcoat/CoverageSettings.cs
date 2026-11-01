@@ -43,14 +43,19 @@ public sealed record CoverageSettingsInfo
 {
     public required string ProjectId { get; init; }
     /// <summary>"file" (a coverage settings / runsettings file), "testconfig" (the codeCoverage section of the test app's
-    /// testconfig.json, read by the extension itself) or "defaults" (Labcoat's built-in defaults).</summary>
+    /// testconfig.json, read by the extension itself), "defaults" (Labcoat's built-in defaults) or "runner" (a runner
+    /// package's project: the runner's own settings, <see cref="Path"/> its config file, <see cref="Origin"/> its name).</summary>
     public required string Source { get; init; }
+
+    /// <summary><see cref="Source"/> and <see cref="Instrumentation"/> of a runner package's project.</summary>
+    public const string RunnerSource = "runner";
     /// <summary>The settings file (absolute); null for "defaults".</summary>
     public string? Path { get; init; }
     /// <summary>How the file was found: "option" (Coverage.Settings / --coverage-settings of Labcoat), "msbuild"
     /// (--coverage-settings in TestingPlatformCommandLineArguments) or "convention" (a file name Labcoat looks for).</summary>
     public string? Origin { get; init; }
-    /// <summary>"dynamic" (the CLR profiler; no file is rewritten) or "static" (assemblies instrumented in place).</summary>
+    /// <summary>"dynamic" (the CLR profiler; no file is rewritten), "static" (assemblies instrumented in place) or "runner"
+    /// (the runner package's own coverage).</summary>
     public required string Instrumentation { get; init; }
     /// <summary>"defaults" only: the assemblies counted (the projects the test project references, transitively, minus
     /// Labcoat's own assemblies, test projects and test frameworks); null = every module except those.</summary>
@@ -67,11 +72,12 @@ public sealed record CoverageSettingsInfo
         {
             "file" => $"{Display(Path!, root)} ({Origin switch { "option" => "Coverage.Settings", "msbuild" => "--coverage-settings in TestingPlatformCommandLineArguments", _ => "found by name" }})",
             "testconfig" => $"the codeCoverage section of {System.IO.Path.GetFileName(Path)}",
+            RunnerSource => $"{Origin}'s own settings ({Display(Path!, root)})",
             _ => "Labcoat's defaults (" + (Modules is { Count: > 0 } m ? "referenced projects: " + string.Join(", ", m) : "every module except tests, test frameworks and Labcoat") +
                  "; generated code and obj/ left out)",
         };
         var extra = (Include is { Count: > 0 } i ? "; include " + string.Join(", ", i) : "") + (Exclude is { Count: > 0 } e ? "; exclude " + string.Join(", ", e) : "");
-        return $"{what}, {Instrumentation} instrumentation{extra}";
+        return Source == RunnerSource ? what + extra : $"{what}, {Instrumentation} instrumentation{extra}";
     }
 
     /// <summary><paramref name="path"/> relative to <paramref name="root"/> when it is under it. Both are normalized first, so
@@ -215,7 +221,7 @@ public static class CoverageSettingsResolver
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
         {
-            log?.Invoke("warning", $"Coverage settings {path}: {ex.Message}; passed on as it is.");
+            log?.Invoke(LogLevels.Warning, $"Coverage settings {path}: {ex.Message}; passed on as it is.");
         }
         return (effective, mode);
     }
@@ -232,13 +238,13 @@ public static class CoverageSettingsResolver
             var s = options.Settings.Trim();
             var candidates = SettingsCandidates(s, projectDir, options.BaseDirectory);
             if (candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists) is { } explicitFile) return (explicitFile, "option");
-            log?.Invoke("warning", $"Coverage.Settings: {s} was not found (looked in {string.Join(", ", candidates.Select(c => Path.GetDirectoryName(Path.GetFullPath(c))).Distinct())}); looking for the project's own settings instead.");
+            log?.Invoke(LogLevels.Warning, $"Coverage.Settings: {s} was not found (looked in {string.Join(", ", candidates.Select(c => Path.GetDirectoryName(Path.GetFullPath(c))).Distinct())}); looking for the project's own settings instead.");
         }
         if (SettingsArgument(project.TestingPlatformArguments) is { } fromMsBuild)
         {
             var full = Path.GetFullPath(Path.Combine(projectDir, fromMsBuild));
             if (File.Exists(full)) return (full, "msbuild");
-            log?.Invoke("warning", $"TestingPlatformCommandLineArguments names --coverage-settings {fromMsBuild}, which does not exist.");
+            log?.Invoke(LogLevels.Warning, $"TestingPlatformCommandLineArguments names --coverage-settings {fromMsBuild}, which does not exist.");
         }
         var testConfig = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(project.TargetPath) + ".testconfig.json");
         if (HasCodeCoverageSection(testConfig, json: true)) return (testConfig, "testconfig");
