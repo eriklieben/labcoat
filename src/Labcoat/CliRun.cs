@@ -230,7 +230,7 @@ public static class CliRun
     {
         var over = explorer.Exports.Run(runId) is { } export ? DurationBudget.OverBudget(export, budget) : [];
         if (over.Count == 0) return over;
-        Console.Error.WriteLine($"{ErrorLabel} {over.Count} test{(over.Count == 1 ? "" : "s")} took longer than maxTestDuration ({RunLimits.Describe(budget)}):");
+        Console.Error.WriteLine($"{ErrorLabel} {over.Count} test{Words.Plural(over.Count)} took longer than maxTestDuration ({RunLimits.Describe(budget)}):");
         foreach (var t in over)
             Console.Error.WriteLine($"  {HtmlReport.Duration(t.DurationMs)}  {(t.ClassName is { Length: > 0 } c ? c + "." : "")}{t.Name} [{t.ProjectId}]" +
                                     (t.Outcome is Outcome.Passed ? "" : Cli.Dim($" ({t.Outcome})")));

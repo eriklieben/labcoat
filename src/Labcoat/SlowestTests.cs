@@ -49,3 +49,15 @@ public static class SlowestTests
     private static double Median(List<double> sorted) =>
         sorted.Count % 2 == 1 ? sorted[sorted.Count / 2] : (sorted[sorted.Count / 2 - 1] + sorted[sorted.Count / 2]) / 2;
 }
+
+// GET /api/tests/slowest on the explorer's tests (Explorer.Slowest.cs).
+internal sealed class SlowestTestsService(WorkspaceState state, WorkspaceSettings settings)
+{
+    /// <summary>The slowest tests of <paramref name="projectId"/> (null: of every project).</summary>
+    public SlowestTestsResult Get(string? projectId, int limit)
+    {
+        var quarantined = settings.Quarantined().ToHashSet(StringComparer.Ordinal);
+        lock (state.Sync)
+            return SlowestTests.Compute(projectId, state.Order.Where(k => projectId is null || k.ProjectId == projectId).Select(k => state.Tests[k]), quarantined, limit);
+    }
+}

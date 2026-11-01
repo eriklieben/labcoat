@@ -219,7 +219,7 @@ public static partial class LabcoatApp
     {
         if (projectId is not null && !explorer.HasProject(projectId)) return UnknownProject(projectId);
         if (limit is < 1) return Results.BadRequest(new { error = "limit must be a positive number" });
-        return Results.Json(explorer.GetSlowest(projectId, limit ?? SlowestTests.DefaultLimit), Json.Options);
+        return Results.Json(explorer.Slowest.Get(projectId, limit ?? SlowestTests.DefaultLimit), Json.Options);
     }
 
     private static IResult TestOutput(Explorer explorer, string? projectId, string? id)
