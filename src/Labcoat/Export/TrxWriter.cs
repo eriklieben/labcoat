@@ -27,6 +27,8 @@ namespace Labcoat.Export;
 /// </summary>
 public static class TrxWriter
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarAnalyzer.CSharp", "S5332:Using http protocol is insecure",
+        Justification = "The TRX XML namespace: an identifier that TRX readers match exactly, never fetched.")]
     private const string Ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
     /// <summary>The "unit test" test type of VSTest.</summary>
     private const string UnitTestType = "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b";

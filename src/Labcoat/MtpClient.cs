@@ -575,19 +575,7 @@ public sealed class MtpConnection : IAsyncDisposable
 
         if (method is null && idNode is not null)
         {
-            // Response to one of our requests.
-            var id = idNode.GetValue<int>();
-            if (_pending.TryRemove(id, out var tcs))
-            {
-                // read leniently: a response that fails to parse would leave its request waiting forever
-                if (obj[ErrorMember] is JsonObject err)
-                    tcs.TrySetException(new MtpRpcException(
-                        err["code"] is JsonValue c && c.TryGetValue<int>(out var code) ? code : 0,
-                        err["message"] is JsonValue m && m.TryGetValue<string>(out var text) ? text : "error",
-                        err["data"]?.ToJsonString()));
-                else
-                    tcs.TrySetResult(obj["result"]);
-            }
+            CompleteRequest(idNode.GetValue<int>(), obj);
             return;
         }
 
@@ -607,6 +595,23 @@ public sealed class MtpConnection : IAsyncDisposable
         if (method is not null)
             _onNotification(method, obj["params"]);
     }
+
+    /// <summary>A response to one of our requests: completes it with its result or its error.</summary>
+    private void CompleteRequest(int id, JsonObject response)
+    {
+        if (!_pending.TryRemove(id, out var tcs)) return;
+        if (response[ErrorMember] is JsonObject err) tcs.TrySetException(RpcException(err));
+        else tcs.TrySetResult(response["result"]);
+    }
+
+    /// <summary>
+    /// The exception for a JSON-RPC error, read leniently: an error that fails to parse would leave its request waiting
+    /// forever.
+    /// </summary>
+    private static MtpRpcException RpcException(JsonObject err) => new(
+        err["code"] is JsonValue c && c.TryGetValue<int>(out var code) ? code : 0,
+        err["message"] is JsonValue m && m.TryGetValue<string>(out var text) ? text : "error",
+        err["data"]?.ToJsonString());
 
     public async ValueTask DisposeAsync()
     {

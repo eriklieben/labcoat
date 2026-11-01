@@ -8,6 +8,8 @@ internal sealed record BuildFailure(List<BuildDiagnostic> Diagnostics, int Error
 
 // Builds (docs/features.md "Running tests"): one build for every project that needs one (BuildBatch.cs), then each
 // project's evaluation (TargetPath, frameworks, references) before it is discovered or run.
+[System.Diagnostics.CodeAnalysis.SuppressMessage("SonarAnalyzer.CSharp", "S107:Methods should not have too many parameters",
+    Justification = "Built once, by Explorer, from its services and callbacks: they don't form a group of their own.")]
 internal sealed class ProjectBuilder(WorkspaceState state, IExplorerEffects effects, PlatformCheck platform, TestHostPool hosts, WatchMode watch,
     WorkspaceSettings settings, int maxParallel, Func<string[], string, CancellationToken, Task<(int ExitCode, string Output)>> runDotnetAsync)
 {

@@ -2,6 +2,8 @@ namespace Labcoat;
 
 // Code coverage runs: which settings a project's run uses (CoverageSettings.cs), what happens to its warm test host, and
 // the reports a run publishes (its own, and the full report of the Coverage page: FullCoverage.cs).
+[System.Diagnostics.CodeAnalysis.SuppressMessage("SonarAnalyzer.CSharp", "S107:Methods should not have too many parameters",
+    Justification = "Built once, by Explorer, from its services and callbacks: they don't form a group of their own.")]
 internal sealed class CoverageService(WorkspaceState state, IExplorerEffects effects, OperationGate gate, TestHostPool hosts,
     FullCoverage fullCoverage, CoverageOptions options, IReadOnlyList<string> inputRoots, Func<HashSet<string>> testAssemblyNames,
     Func<string[], string, CancellationToken, Task<(int ExitCode, string Output)>> runDotnetAsync)

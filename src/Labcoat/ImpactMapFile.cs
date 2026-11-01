@@ -302,8 +302,13 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
         var rootDir = root();
         var files = doc.Files.Select(f => Abs(rootDir, f)).ToList();
         var profiles = new Dictionary<int, Dictionary<string, List<LineSpan>>>();
-        Dictionary<string, List<LineSpan>> ProfileOf(int index) =>
-            profiles.TryGetValue(index, out var known) ? known : profiles[index] = CoverageOf(doc, files, index);
+        Dictionary<string, List<LineSpan>> ProfileOf(int index)
+        {
+            if (profiles.TryGetValue(index, out var known)) return known;
+            var coverage = CoverageOf(doc, files, index);
+            profiles[index] = coverage;
+            return coverage;
+        }
 
         int loaded = 0, unmatched = 0;
         var usedFiles = new HashSet<int>();
@@ -380,7 +385,10 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
     private static void AddMatches(List<(TestNode, DocTest)> matches, HashSet<string> imported, List<TestNode> hits, DocTest t)
     {
         foreach (var hit in hits)
-            if (imported.Add(hit.Id)) matches.Add((hit, t));
+        {
+            if (!imported.Add(hit.Id)) continue; // matched already, by an exact name
+            matches.Add((hit, t));
+        }
     }
 
     /// <summary>

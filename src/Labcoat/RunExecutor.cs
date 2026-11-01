@@ -9,6 +9,8 @@ namespace Labcoat;
 /// lock while one executes): the projects run in parallel, repetition by repetition, on the warm test host, a coverage
 /// host (CoverageService.cs) or a debug host; results stream into the test tree as they come.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("SonarAnalyzer.CSharp", "S107:Methods should not have too many parameters",
+    Justification = "Built once, by Explorer, from its services and callbacks: they don't form a group of their own.")]
 internal sealed class RunExecutor(WorkspaceState state, IExplorerEffects effects, ITestHostOwner hostOwner, TestHostPool hosts,
     CoverageService coverage, LiveOutputService live, HangMonitor hang, HistoryStore history, Func<List<string>> quarantinedKeysLocked, OutputStore outputs,
     RunStatuses statuses, int maxParallel, Func<IReadOnlyList<ProjectEntry>, CancellationToken, Task<List<ProjectEntry>>> buildAndDiscover,
