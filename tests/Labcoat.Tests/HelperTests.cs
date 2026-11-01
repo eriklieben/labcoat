@@ -18,6 +18,7 @@ public class HelperTests
             Assert.AreEqual("Shop", WorkspaceName.Resolve(null, [dir.FullName], [Path.Combine(dir.FullName, "A", "A.csproj")]));
             File.Delete(Path.Combine(dir.FullName, "Shop.slnx"));
             Assert.AreEqual("A", WorkspaceName.Resolve(null, [dir.FullName], [Path.Combine(dir.FullName, "A", "A.csproj")]));
+            Assert.AreEqual("Web", WorkspaceName.Resolve(null, [dir.FullName], [Path.Combine(dir.FullName, "Web", "package.json")]));
             Assert.AreEqual(dir.Name, WorkspaceName.Resolve(" ", [dir.FullName],
                 [Path.Combine(dir.FullName, "A", "A.csproj"), Path.Combine(dir.FullName, "B", "B.csproj")]));
         }

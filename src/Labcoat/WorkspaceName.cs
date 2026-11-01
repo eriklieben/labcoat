@@ -6,7 +6,8 @@ public static class WorkspaceName
     /// <summary>
     /// <paramref name="explicitName"/> (LABCOAT_NAME, the Aspire resource name) wins. Otherwise: a single solution
     /// input (or the only solution in a single input directory) gives the solution name; else a single test project
-    /// gives the project name; else the name of the input directory / common root.
+    /// gives the project name (a runner project's folder: every Vitest project file is a package.json); else the name of
+    /// the input directory / common root.
     /// </summary>
     public static string Resolve(string? explicitName, IEnumerable<string> inputPaths, IEnumerable<string> projectPaths)
     {
@@ -14,7 +15,7 @@ public static class WorkspaceName
         var inputs = inputPaths.Select(Path.GetFullPath).ToList();
         var projects = projectPaths.ToList();
         if (inputs.Count == 1 && SolutionName(inputs[0]) is { } solution) return solution;
-        if (projects.Count == 1) return Path.GetFileNameWithoutExtension(projects[0]);
+        if (projects.Count == 1) return ProjectDiscovery.ProjectNameOf(projects[0]);
         var root = PathUtil.CommonRoot(inputs.Count > 0 ? inputs : projects);
         var name = root is null ? null : Path.GetFileName(Path.TrimEndingDirectorySeparator(root));
         return string.IsNullOrEmpty(name) ? "Labcoat" : name;
