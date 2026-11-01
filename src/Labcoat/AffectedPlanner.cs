@@ -245,8 +245,6 @@ internal sealed class AffectedPlanner
 
     private static StringComparer PathComparer => PathUtil.Comparison == StringComparison.Ordinal ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 
-    private static bool InOrUnder(string path, string dir) => string.Equals(path, dir, PathUtil.Comparison) || PathUtil.IsUnder(path, dir);
-
     /// <summary>
     /// A loaded impact map file knows the hash of every source file when its coverage was recorded: a changed file whose
     /// old side (the revision the changes start from) hashes differently changed after the map was built, so the map's
@@ -258,13 +256,13 @@ internal sealed class AffectedPlanner
         bool hashes;
         lock (_state.Sync) hashes = _impact.HasHashes;
         if (!hashes) return stale;
-        foreach (var change in changes.Files.Where(c => c.Status is GitStatuses.Modified or GitStatuses.TypeChanged))
+        foreach (var path in changes.Files.Where(c => c.Status is GitStatuses.Modified or GitStatuses.TypeChanged).Select(change => change.Path))
         {
-            var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, change.Path.Replace('/', Path.DirectorySeparatorChar)));
+            var abs = PathUtil.CanonicalizeOrSelf(Path.Combine(repo.Root, path.Replace('/', Path.DirectorySeparatorChar)));
             string? recorded;
             lock (_state.Sync) recorded = _impact.HashOf(abs);
             if (recorded is null) continue;
-            var old = changes.From is null ? null : await repo.FileAtAsync(changes.From, change.Path, ct);
+            var old = changes.From is null ? null : await repo.FileAtAsync(changes.From, path, ct);
             if (old is null || ImpactMapFile.HashText(old) != recorded) stale.Add(abs);
         }
         return stale;
@@ -581,17 +579,19 @@ internal sealed class AffectedPlanner
             foreach (var w in _wholeProjects[key.ProjectId].Where(w => !why.Contains(w))) why.Add(w);
             return why;
         }
+
+        /// <summary>Files test runs leave behind: Verify's <c>*.received.*</c> and anything under a <c>TestResults</c> folder.</summary>
+        private static bool IsTestArtifact(string relativePath) =>
+            relativePath.Split('/') is var parts
+            && (parts[^1].Contains(".received.", StringComparison.OrdinalIgnoreCase)
+                || parts[..^1].Any(p => p.Equals("TestResults", StringComparison.OrdinalIgnoreCase)));
+
+        private static bool IsBuildFile(string name, string ext) =>
+            ProjectFileExtensions.Contains(ext) || ext.Equals(".props", StringComparison.OrdinalIgnoreCase) || ext.Equals(".targets", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("global.json", StringComparison.OrdinalIgnoreCase) || name.Equals("NuGet.config", StringComparison.OrdinalIgnoreCase);
+
+        private static bool InOrUnder(string path, string dir) => string.Equals(path, dir, PathUtil.Comparison) || PathUtil.IsUnder(path, dir);
     }
-
-    /// <summary>Files test runs leave behind: Verify's <c>*.received.*</c> and anything under a <c>TestResults</c> folder.</summary>
-    private static bool IsTestArtifact(string relativePath) =>
-        relativePath.Split('/') is var parts
-        && (parts[^1].Contains(".received.", StringComparison.OrdinalIgnoreCase)
-            || parts[..^1].Any(p => p.Equals("TestResults", StringComparison.OrdinalIgnoreCase)));
-
-    private static bool IsBuildFile(string name, string ext) =>
-        ProjectFileExtensions.Contains(ext) || ext.Equals(".props", StringComparison.OrdinalIgnoreCase) || ext.Equals(".targets", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("global.json", StringComparison.OrdinalIgnoreCase) || name.Equals("NuGet.config", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>ProjectReference closure directories read from the project files (projects not evaluated yet).</summary>
     private static List<string> ClosureDirsFromProjectFile(string projectPath)

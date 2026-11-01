@@ -364,13 +364,13 @@ public sealed class LabcoatUiSettings
     public JsonObject ToJson()
     {
         var o = new JsonObject();
-        void Choice<T>(string key, T? v) where T : struct, Enum
+        void Choice<T>(string name, T? v) where T : struct, Enum
         {
-            if (v is { } value) o[key] = value.ToString().ToLowerInvariant();
+            if (v is { } value) o[name] = value.ToString().ToLowerInvariant();
         }
-        void Flag(string key, bool? v)
+        void Flag(string name, bool? v)
         {
-            if (v is { } value) o[key] = value;
+            if (v is { } value) o[name] = value;
         }
         Choice("theme", Theme);
         Choice("mode", Mode);

@@ -18,7 +18,7 @@ READY=/run/firewall.ok
 DNSUSER=nobody
 
 UPSTREAM=$(awk '/^nameserver/ && $2 ~ /^[0-9.]+$/ {print $2; exit}' /etc/resolv.conf)
-[ -n "$UPSTREAM" ] || { echo "no IPv4 nameserver in resolv.conf" >&2; exit 1; }
+[[ -n "$UPSTREAM" ]] || { echo "no IPv4 nameserver in resolv.conf" >&2; exit 1; }
 DNSUID=$(id -u "$DNSUSER")
 
 hosts() { cat "$DOMAINS" "$DOMAINS_LOCAL" 2>/dev/null | sed -e 's/#.*//' -e 's/[[:space:]]//g' | grep -v '^$' | sort -u || true; }
@@ -65,7 +65,11 @@ for _ in $(seq 1 20); do dig +short +time=1 +tries=1 @127.0.0.1 "$(hosts | head 
 
 # Prove it before reporting ready. Probes run as root here, so they cannot use the system resolver
 # (only dnsmasq may send DNS out): ask dnsmasq, then connect to the answer.
-probe() { local ip; ip=$(dig +short +time=2 +tries=1 @127.0.0.1 "$1" 2>/dev/null | grep -E '^[0-9.]+$' | head -1); [ -n "$ip" ] && curl -sS --connect-timeout 6 -o /dev/null --resolve "$1:443:$ip" "https://$1"; }
+probe() {
+  local host=$1 ip
+  ip=$(dig +short +time=2 +tries=1 @127.0.0.1 "$host" 2>/dev/null | grep -E '^[0-9.]+$' | head -1)
+  [[ -n "$ip" ]] && curl -sS --connect-timeout 6 -o /dev/null --resolve "$host:443:$ip" "https://$host"
+}
 first=$(hosts | head -1)
 probe "$first" || { echo "FAIL: allowed host $first not reachable" >&2; exit 1; }
 if probe example.com; then echo "FAIL: example.com is reachable" >&2; exit 1; fi

@@ -206,23 +206,27 @@ public sealed class TestRunners
         var found = new List<RunnerPlugin>();
         foreach (var dir in dirs.Select(Path.GetFullPath).Distinct(PathUtil.Comparison == StringComparison.Ordinal ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase))
         {
-            if (!Directory.Exists(dir)) continue;
-            IEnumerable<string> manifests;
-            try
-            {
-                var own = Path.Combine(dir, RunnerPlugin.ManifestFileName);
-                manifests = File.Exists(own)
-                    ? [own]
-                    : Directory.EnumerateDirectories(dir).Order(StringComparer.Ordinal)
-                        .Select(d => Path.Combine(d, RunnerPlugin.ManifestFileName)).Where(File.Exists).ToList();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* unreadable folder: no runners there */ continue; }
-            foreach (var manifest in manifests)
+            foreach (var manifest in ManifestsIn(dir))
             {
                 if (RunnerPlugin.Load(manifest, warn) is { } plugin && found.All(p => p.Id != plugin.Id)) found.Add(plugin);
             }
         }
         return found;
+    }
+
+    /// <summary>The runner.json of <paramref name="dir"/> itself, else the one of each subfolder that has one.</summary>
+    private static List<string> ManifestsIn(string dir)
+    {
+        if (!Directory.Exists(dir)) return [];
+        try
+        {
+            var own = Path.Combine(dir, RunnerPlugin.ManifestFileName);
+            return File.Exists(own)
+                ? [own]
+                : Directory.EnumerateDirectories(dir).Order(StringComparer.Ordinal)
+                    .Select(d => Path.Combine(d, RunnerPlugin.ManifestFileName)).Where(File.Exists).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* unreadable folder: no runners there */ return []; }
     }
 
     /// <summary>

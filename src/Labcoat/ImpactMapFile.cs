@@ -190,6 +190,14 @@ internal static class ImpactMapFile
         doc.Hashes.AddRange(Strings(root, "hashes"));
         doc.Names.AddRange(Strings(root, "names"));
         if (doc.Hashes.Count != doc.Files.Count) throw new ImpactMapFileException("files and hashes do not match");
+        ReadSpans(root, doc);
+        ReadProfiles(root, doc);
+        ReadProjects(root, doc);
+        return doc;
+    }
+
+    private static void ReadSpans(JsonElement root, ImpactMapDocument doc)
+    {
         foreach (var span in root.GetProperty("spans").EnumerateArray())
         {
             var values = span.EnumerateArray().Select(x => x.GetInt32()).ToArray();
@@ -197,6 +205,11 @@ internal static class ImpactMapFile
                 throw new ImpactMapFileException("a span points outside the file and name lists");
             doc.Spans.Add(values);
         }
+    }
+
+    /// <summary>The profiles, back from differences to span indices (see <see cref="Write"/>).</summary>
+    private static void ReadProfiles(JsonElement root, ImpactMapDocument doc)
+    {
         foreach (var p in root.GetProperty("profiles").EnumerateArray())
         {
             var values = p.EnumerateArray().Select(x => x.GetInt32()).ToArray();
@@ -207,6 +220,10 @@ internal static class ImpactMapFile
             }
             doc.Profiles.Add(values);
         }
+    }
+
+    private static void ReadProjects(JsonElement root, ImpactMapDocument doc)
+    {
         foreach (var p in root.GetProperty("projects").EnumerateArray())
         {
             var classes = new List<DocClass>();
@@ -214,7 +231,6 @@ internal static class ImpactMapFile
                 classes.Add(new DocClass(c.GetProperty("name").GetString() ?? "", c.GetProperty("tests").EnumerateArray().Select(t => ReadTest(t, doc.Profiles.Count)).ToList()));
             doc.Projects.Add(new DocProject(p.GetProperty("path").GetString() ?? "", classes));
         }
-        return doc;
     }
 
     private static DocTest ReadTest(JsonElement t, int profiles)
@@ -289,14 +305,9 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
         Dictionary<string, List<LineSpan>> ProfileOf(int index)
         {
             if (profiles.TryGetValue(index, out var known)) return known;
-            var coverage = new Dictionary<string, List<LineSpan>>(ImpactMap.PathComparer);
-            foreach (var s in doc.Profiles[index].Select(i => doc.Spans[i]))
-            {
-                var span = new LineSpan(s[1], s[2]) { Name = s[3] >= 0 ? doc.Names[s[3]] : null };
-                if (!coverage.TryGetValue(files[s[0]], out var list)) coverage[files[s[0]]] = list = [];
-                list.Add(span);
-            }
-            return profiles[index] = coverage;
+            var coverage = CoverageOf(doc, files, index);
+            profiles[index] = coverage;
+            return coverage;
         }
 
         int loaded = 0, unmatched = 0;
@@ -313,32 +324,13 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
                 }
                 var pid = entry.Project.Id;
                 var current = state.Order.Where(k => k.ProjectId == pid).Select(k => state.Tests[k]).ToList();
-                var exact = current.ToLookup(t => (Explorer.ClassKeyOf(t), t.MethodName ?? "", t.DisplayName));
-                var byMethod = current.ToLookup(t => (Explorer.ClassKeyOf(t), t.MethodName ?? ""));
-                var imported = new HashSet<string>();
-
-                void Import(TestNode test, DocTest t)
+                var matches = Match(project, current, out var missing);
+                unmatched += missing;
+                foreach (var (test, t) in matches)
                 {
-                    if (!imported.Add(test.Id)) return;
                     impact.Import(pid, test.Id, t.PerTest, ProfileOf(t.Profile));
                     loaded++;
-                    foreach (var i in doc.Profiles[t.Profile]) usedFiles.Add(doc.Spans[i][0]);
-                }
-
-                // Exact matches first; a test whose display name changed (data rows) shares the data of its method.
-                var pending = new List<(DocClass Class, DocTest Test)>();
-                foreach (var c in project.Classes)
-                    foreach (var t in c.Tests)
-                    {
-                        var hits = exact[(c.Name, t.Method, t.DisplayName)].ToList();
-                        if (hits.Count == 0) pending.Add((c, t));
-                        foreach (var hit in hits) Import(hit, t);
-                    }
-                foreach (var (c, t) in pending)
-                {
-                    var hits = byMethod[(c.Name, t.Method)].Where(x => !imported.Contains(x.Id)).ToList();
-                    if (hits.Count == 0) unmatched++;
-                    foreach (var hit in hits) Import(hit, t with { PerTest = false });
+                    usedFiles.UnionWith(doc.Profiles[t.Profile].Select(i => doc.Spans[i][0]));
                 }
             }
             foreach (var i in usedFiles) impact.SetHash(files[i], doc.Hashes[i]);
@@ -346,6 +338,57 @@ internal sealed class ImpactMapFileService(WorkspaceState state, ImpactMap impac
             publishSettingsLocked();
         }
         return new ImpactMapLoadResult(true, loaded, unmatched, usedFiles.Count, doc.BuiltAt, doc.Commit, null);
+    }
+
+    /// <summary>The line spans of profile <paramref name="index"/> by file (<paramref name="files"/>: the document's files as absolute paths).</summary>
+    private static Dictionary<string, List<LineSpan>> CoverageOf(ImpactMapDocument doc, List<string> files, int index)
+    {
+        var coverage = new Dictionary<string, List<LineSpan>>(ImpactMap.PathComparer);
+        foreach (var s in doc.Profiles[index].Select(i => doc.Spans[i]))
+        {
+            var span = new LineSpan(s[1], s[2]) { Name = s[3] >= 0 ? doc.Names[s[3]] : null };
+            if (!coverage.TryGetValue(files[s[0]], out var list)) coverage[files[s[0]]] = list = [];
+            list.Add(span);
+        }
+        return coverage;
+    }
+
+    /// <summary>
+    /// The discovered tests (<paramref name="current"/>) each test of <paramref name="project"/> in the file gives its data
+    /// to, a discovered test at most once. Exact matches first; a test whose display name changed (data rows) shares the
+    /// data of its method. <paramref name="unmatched"/>: the tests of the file that match none.
+    /// </summary>
+    private static List<(TestNode Test, DocTest Doc)> Match(DocProject project, List<TestNode> current, out int unmatched)
+    {
+        var exact = current.ToLookup(t => (Explorer.ClassKeyOf(t), t.MethodName ?? "", t.DisplayName));
+        var byMethod = current.ToLookup(t => (Explorer.ClassKeyOf(t), t.MethodName ?? ""));
+        var matches = new List<(TestNode, DocTest)>();
+        var imported = new HashSet<string>();
+        var pending = new List<(DocClass Class, DocTest Test)>();
+        foreach (var c in project.Classes)
+            foreach (var t in c.Tests)
+            {
+                var hits = exact[(c.Name, t.Method, t.DisplayName)].ToList();
+                if (hits.Count == 0) pending.Add((c, t));
+                AddMatches(matches, imported, hits, t);
+            }
+        unmatched = 0;
+        foreach (var (c, t) in pending)
+        {
+            var hits = byMethod[(c.Name, t.Method)].Where(x => !imported.Contains(x.Id)).ToList();
+            if (hits.Count == 0) unmatched++;
+            AddMatches(matches, imported, hits, t with { PerTest = false });
+        }
+        return matches;
+    }
+
+    private static void AddMatches(List<(TestNode, DocTest)> matches, HashSet<string> imported, List<TestNode> hits, DocTest t)
+    {
+        foreach (var hit in hits)
+        {
+            if (!imported.Add(hit.Id)) continue; // matched already, by an exact name
+            matches.Add((hit, t));
+        }
     }
 
     /// <summary>

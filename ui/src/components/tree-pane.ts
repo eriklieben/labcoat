@@ -91,11 +91,15 @@ const OVERSCAN = 8;
 /** Run N× from the context menu (same as the detail pane's "Run 20×") */
 const REPEAT = 20;
 
-const CHIPS: { id: StatusFilter; label: string }[] = [
+const CHIPS: { id: StatusFilter; label: string; title?: string }[] = [
   { id: "all", label: "All" },
   { id: "failed", label: "Failed" },
-  { id: "new", label: "New" },
-  { id: "changed", label: "Changed" },
+  { id: "new", label: "New", title: "New failures: failing now, passed in the previous full run (or a new test)" },
+  {
+    id: "changed",
+    label: "Changed",
+    title: "Tests added or modified on this branch: since it left the base branch, plus uncommitted changes",
+  },
   { id: "passed", label: "Passed" },
   { id: "skipped", label: "Skipped" },
   { id: "notRun", label: "Not run" },
@@ -614,7 +618,7 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
           chips,
           (c) => c.id,
           (c) => {
-            const { id, label } = c.peek();
+            const { id, label, title } = c.peek();
             return chip({
               id,
               label,
@@ -622,12 +626,7 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
               active: () => this.status() === id,
               tabIndex: () => (this.status() === id ? 0 : -1),
               onclick: () => this.setStatus(id),
-              title:
-                id === "new"
-                  ? "New failures: failing now, passed in the previous full run (or a new test)"
-                  : id === "changed"
-                    ? "Tests added or modified on this branch: since it left the base branch, plus uncommitted changes"
-                    : undefined,
+              title,
             });
           },
         ),

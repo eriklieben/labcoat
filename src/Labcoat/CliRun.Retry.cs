@@ -30,26 +30,33 @@ public static partial class CliRun
             var request = explorer.RequestRun(new Explorer.RunRequestOptions { TestIds = pending.Select(k => k.Item2).Distinct().ToList(), Coverage = false, Trigger = RetryTrigger });
             if (request.Status != 202)
             {
-                Console.Error.WriteLine($"{WarningLabel} Could not retry the failed tests: {request.Error}");
+                await Console.Error.WriteLineAsync($"{WarningLabel} Could not retry the failed tests: {request.Error}");
                 break;
             }
             await request.Completion!;
             if (explorer.Exports.Run(request.RunId!) is not { } export || export.Run is { Aborted: true } or { Cancelled: true }) break;
-            var results = export.Tests.ToDictionary(Key);
-            var stillFailing = new List<(string, string)>();
-            foreach (var key in pending)
-            {
-                if (!results.TryGetValue(key, out var result)) continue; // not run: stays failed, not retried again
-                if (result.Outcome == Outcome.Passed) passed[key] = (result, attempt);
-                else if (ExportKinds.IsFailed(result.Kind))
-                {
-                    failures[key].Add(result);
-                    stillFailing.Add(key);
-                }
-            }
-            pending = stillFailing;
+            pending = Record(export, attempt, pending, failures, passed);
         }
         return Merge(first, failures, passed);
+    }
+
+    /// <summary>Records the outcome of one retry round in <paramref name="failures"/> / <paramref name="passed"/>; returns the tests that are still failing.</summary>
+    private static List<(string, string)> Record(RunExport export, int attempt, List<(string, string)> pending,
+        Dictionary<(string, string), List<ExportTest>> failures, Dictionary<(string, string), (ExportTest Test, int Attempt)> passed)
+    {
+        var results = export.Tests.ToDictionary(Key);
+        var stillFailing = new List<(string, string)>();
+        foreach (var key in pending)
+        {
+            if (!results.TryGetValue(key, out var result)) continue; // not run: stays failed, not retried again
+            if (result.Outcome == Outcome.Passed) passed[key] = (result, attempt);
+            else if (ExportKinds.IsFailed(result.Kind))
+            {
+                failures[key].Add(result);
+                stillFailing.Add(key);
+            }
+        }
+        return stillFailing;
     }
 
     private static (string, string) Key(ExportTest t) => (t.ProjectId, t.Id);

@@ -17,6 +17,9 @@ public sealed partial class HistoryStore
     /// <summary>One character per <see cref="Outcome"/> (indexed by its value).</summary>
     private const string OutcomeCodes = "nqrpfstc";
 
+    /// <summary>The project index of a test key (<see cref="TestModel.Project"/>, <see cref="KeyModel.Project"/>).</summary>
+    private const string ProjectField = "project";
+
     private static char Code(Outcome o) => OutcomeCodes[(int)o];
 
     private static Outcome FromCode(char c) =>
@@ -126,11 +129,11 @@ public sealed partial class HistoryStore
         var keys = new List<(string ProjectId, string Id)>();
         foreach (var t in model.History ?? [])
         {
-            var projectId = Item(projectIds, t.Project, "project");
+            var projectId = Item(projectIds, t.Project, ProjectField);
             keys.Add((projectId, t.Id));
             tests[(projectId, t.Id)] = new Entry(projectId, t.Id) { Runs = HistoryEntries(t, runIds), Last = t.Last };
         }
-        foreach (var k in model.ExtraKeys ?? []) keys.Add((Item(projectIds, k.Project, "project"), k.Id));
+        foreach (var k in model.ExtraKeys ?? []) keys.Add((Item(projectIds, k.Project, ProjectField), k.Id));
         var runs = (model.PastRuns ?? []).Where(r => r.Run is not null).Select(r => StoredRunOf(r, keys)).ToList();
         return (tests, runs);
     }
@@ -275,7 +278,7 @@ public sealed partial class HistoryStore
         foreach (var (p, id) in tables.ExtraKeys)
         {
             w.WriteStartObject();
-            w.WriteNumber("project", tables.ProjectIndex[p]);
+            w.WriteNumber(ProjectField, tables.ProjectIndex[p]);
             w.WriteString("id", id);
             w.WriteEndObject();
             MaybeFlush(w);
@@ -298,7 +301,7 @@ public sealed partial class HistoryStore
     {
         var runs = t.Runs;
         w.WriteStartObject();
-        w.WriteNumber("project", tables.ProjectIndex[t.ProjectId]);
+        w.WriteNumber(ProjectField, tables.ProjectIndex[t.ProjectId]);
         w.WriteString("id", t.Id);
         var buffer = runs.Count <= codes.Length ? codes[..runs.Count] : new char[runs.Count];
         for (var i = 0; i < runs.Count; i++) buffer[i] = Code(runs[i].Outcome);

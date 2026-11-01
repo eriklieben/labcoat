@@ -58,17 +58,17 @@ async function errorOf(res: Response): Promise<string> {
   return `the host answered ${res.status}`;
 }
 
-/** Saves a Blob under `name` (a temporary object URL on a download link). */
+/**
+ * Saves a Blob under `name` (a temporary object URL on a download link). The link is never added to the page: a click on
+ * a detached download link starts the download in every current browser.
+ */
 export function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
   a.rel = "noopener";
-  a.style.display = "none";
-  document.body.append(a);
   a.click();
-  a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 

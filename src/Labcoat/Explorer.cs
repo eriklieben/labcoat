@@ -47,6 +47,8 @@ public sealed partial class Explorer : IAsyncDisposable, IExplorerEffects
     /// <param name="workspaceName">Display name (ExplorerState.workspaceName); null = derived from the project paths.</param>
     /// <param name="tracingOnStart">Initial trace collection state (<c>--traces</c>); a persisted runtime choice wins.</param>
     /// <param name="runners">The test runners in use (null = only the .NET runner): which runner package runs a project.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarAnalyzer.CSharp", "S107:Methods should not have too many parameters",
+        Justification = "The workspace as LabcoatApp and the tests start it: separate optional settings, most left at their default.")]
     public Explorer(EventHub hub, IEnumerable<string> projectPaths, string? aspireDashboardUrl, IEnumerable<string>? inputRoots = null,
         string? workspaceName = null, bool tracingOnStart = false, IEnumerable<string>? inputPaths = null, TestRunners? runners = null)
     {

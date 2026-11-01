@@ -16,21 +16,25 @@ internal static partial class ExportLocation
     /// <summary>The source file ('/' separators, relative to <paramref name="root"/> when it is under it) and line, or nulls.</summary>
     public static (string? File, int? Line) Of(string? stackTrace, string? declaredFile, int? declaredLine, string? root)
     {
-        if (!string.IsNullOrEmpty(stackTrace))
-        {
-            try
-            {
-                foreach (Match m in FrameRe().Matches(stackTrace))
-                {
-                    var file = m.Groups["file"].Value.Trim();
-                    if (!int.TryParse(m.Groups["line"].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var line) || line <= 0) continue;
-                    if (root is not null ? Under(file, root) : Path.IsPathRooted(file)) return (Normalize(file, root), line);
-                }
-            }
-            catch (RegexMatchTimeoutException) { /* fall back to the declaration */ }
-        }
+        if (!string.IsNullOrEmpty(stackTrace) && WorkspaceFrame(stackTrace, root) is { } frame) return frame;
         if (string.IsNullOrEmpty(declaredFile)) return (null, null);
         return (Normalize(declaredFile, root), declaredLine is > 0 ? declaredLine : null);
+    }
+
+    /// <summary>The first frame of <paramref name="stackTrace"/> with a file and line inside the workspace, or null.</summary>
+    private static (string File, int Line)? WorkspaceFrame(string stackTrace, string? root)
+    {
+        try
+        {
+            foreach (var groups in FrameRe().Matches(stackTrace).Select(m => m.Groups))
+            {
+                var file = groups["file"].Value.Trim();
+                if (!int.TryParse(groups["line"].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out var line) || line <= 0) continue;
+                if (root is not null ? Under(file, root) : Path.IsPathRooted(file)) return (Normalize(file, root), line);
+            }
+        }
+        catch (RegexMatchTimeoutException) { /* fall back to the declaration */ }
+        return null;
     }
 
     private static bool Under(string file, string root)

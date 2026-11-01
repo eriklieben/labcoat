@@ -79,7 +79,8 @@ public static class GitHubActions
     private static string Message(string? errorMessage, Outcome outcome)
     {
         var message = ExportText.Cap(ExportText.Clean(errorMessage).Trim(), MaxMessageChars);
-        return message.Length > 0 ? message : outcome == Outcome.TimedOut ? "Timed out" : "Failed";
+        if (message.Length > 0) return message;
+        return outcome == Outcome.TimedOut ? "Timed out" : "Failed";
     }
 
     private static string Command(string command, ExportTest t, string message)

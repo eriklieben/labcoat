@@ -29,10 +29,10 @@
 }
 /* reduced motion: crossfade only */
 :root[data-motion="reduced"] .lc-copy > .icon {
-  transform: none !important;
+  transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion]) .lc-copy > .icon {
-    transform: none !important;
+    transform: none;
   }
 }

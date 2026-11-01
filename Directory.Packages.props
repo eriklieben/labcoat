@@ -18,6 +18,7 @@
   <ItemGroup Label="Build">
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <PackageVersion Include="Microsoft.Sbom.Targets" Version="4.1.13" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.35.0.4138" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">

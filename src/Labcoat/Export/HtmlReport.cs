@@ -271,9 +271,12 @@ public static partial class HtmlReport
     }
 
     /// <summary>"Flaky: passed on attempt 2 (first failure: …)" for a test that passed on a retry, else null.</summary>
-    private static string? FlakyNote(ExportTest t) => t.IsFlaky
-        ? $"Flaky: passed on attempt {t.Attempts}" + (t.FailedAttempts?.FirstOrDefault() is { } first ? $" (first failure: {Export.ExportText.FirstLine(first.ErrorMessage, 200)})" : "")
-        : null;
+    private static string? FlakyNote(ExportTest t)
+    {
+        if (!t.IsFlaky) return null;
+        var note = $"Flaky: passed on attempt {t.Attempts}";
+        return t.FailedAttempts?.FirstOrDefault() is { } first ? $"{note} (first failure: {Export.ExportText.FirstLine(first.ErrorMessage, 200)})" : note;
+    }
 
     private static string DefaultMessage(ExportTest t) => t.Outcome == Outcome.TimedOut ? "Timed out" : FailedText;
 

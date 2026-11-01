@@ -95,18 +95,18 @@ public sealed partial class Explorer
     public CoverageReport? GetCachedTestCoverage(string? projectId, IReadOnlyCollection<string> testIds)
     {
         if (testIds.Count == 0) return null;
-        (CoverageReport Report, string Stamp)? hit = null;
-        ProjectEntry? project = null;
+        (ProjectEntry Project, CoverageReport Report, string Stamp)? hit = null;
         lock (Sync)
         {
             foreach (var p in SelectProjects(projectId))
             {
-                hit = _coverageCache.Find(p.Project.Id, testIds);
-                if (hit is not null) { project = p; break; }
+                if (_coverageCache.Find(p.Project.Id, testIds) is not { } found) continue;
+                hit = (p, found.Report, found.Stamp);
+                break;
             }
         }
         if (hit is not { } h) return null;
-        var stale = project?.TargetPath is not { } targetPath || !File.Exists(targetPath) || RunnerProjects.CodeStampOf(project) != h.Stamp;
+        var stale = h.Project.TargetPath is not { } targetPath || !File.Exists(targetPath) || RunnerProjects.CodeStampOf(h.Project) != h.Stamp;
         return stale ? h.Report with { Stale = true } : h.Report;
     }
 }

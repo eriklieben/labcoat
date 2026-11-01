@@ -213,16 +213,16 @@ public sealed class UiLayer(ConfigLayer layer, string origin)
         var result = new JsonObject();
         var sources = new JsonObject();
         var locks = new List<(string Key, string Layer)>(); // each locked key with the layer that locked it
-        foreach (var key in UiSettings.All.Select(def => def.Key))
+        foreach (var setting in UiSettings.All.Select(def => def.Key))
         {
-            var setter = list.LastOrDefault(l => l.Values.ContainsKey(key));
+            var setter = list.LastOrDefault(l => l.Values.ContainsKey(setting));
             if (setter is not null)
             {
-                result[key] = setter.Values[key].DeepClone();
-                sources[key] = UiSettings.LayerName(setter.Layer);
+                result[setting] = setter.Values[setting].DeepClone();
+                sources[setting] = UiSettings.LayerName(setter.Layer);
             }
-            var locker = list.LastOrDefault(l => l.Locked.Contains(key));
-            if (locker is not null) locks.Add((key, UiSettings.LayerName(locker.Layer)));
+            var locker = list.LastOrDefault(l => l.Locked.Contains(setting));
+            if (locker is not null) locks.Add((setting, UiSettings.LayerName(locker.Layer)));
         }
         // same key order as always: locked, sources, lockedBy
         if (locks.Count > 0) result[LockedKey] = new JsonArray([.. locks.Select(l => (JsonNode)l.Key)]);

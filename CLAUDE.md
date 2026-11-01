@@ -42,6 +42,9 @@ the commit format are there. This file adds what an agent tends to get wrong in 
 - CI builds with `-warnaserror`, with the .NET analyzers on. Fix the finding. Don't make it pass with `NoWarn`,
   `#pragma warning disable`, a `[SuppressMessage]` without a `Justification`, a skipped test, a weaker assertion or a
   package version outside `Directory.Packages.props`. If none of that fits, stop and say so.
+- SonarQube Cloud's C# rules run in the build too (`S` warnings, `src/sonar.globalconfig`): the usual ones are cognitive
+  complexity over 15 (S3776; split the method into named helpers) and nested ternaries (S3358). For UI, runner and
+  script changes, `node eng/sonar.mjs` lists what SonarQube Cloud would add (docs/releasing.md, "Code analysis").
 - A local `-warnaserror` build can fail on NU1507 when your NuGet config has more than one package source; add
   `-warnAsMessage:NU1507`.
 - Tests assert behavior, not lines touched. For timing, pass a `FakeTimeProvider` (`LiveOutput`, `ProjectWatcher`)

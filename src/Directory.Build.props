@@ -49,6 +49,9 @@
   </PropertyGroup>
   <ItemGroup Label="Code analysis">
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)CodeMetricsConfig.txt" Visible="false" />
+    <!-- SonarQube Cloud's C# rules in the build: the project's quality profile (eng/sonar-rules.mjs writes the file). -->
+    <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all" />
+    <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)sonar.globalconfig" />
   </ItemGroup>
 
   <PropertyGroup Label="Native AOT" Condition="'$(MSBuildProjectName)' != 'Labcoat'">

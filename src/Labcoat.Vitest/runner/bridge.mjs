@@ -330,7 +330,10 @@ const reporter = {
   onUserConsoleLog(entry) {
     if (!entry.taskId) return;
     let buffer = output.get(entry.taskId);
-    if (!buffer) output.set(entry.taskId, (buffer = { stdout: "", stderr: "", sent: 0 }));
+    if (!buffer) {
+      buffer = { stdout: "", stderr: "", sent: 0 };
+      output.set(entry.taskId, buffer);
+    }
     if (entry.type === "stderr") buffer.stderr += entry.content;
     else buffer.stdout += entry.content;
     const test = vitest.state.getReportedEntityById?.(entry.taskId);

@@ -77,7 +77,7 @@ internal sealed class WatchMode(WorkspaceState state, IExplorerEffects effects, 
             if (!Enabled) return;
             p.PendingChanges.Add(path);
             p.Debounce?.Dispose();
-            p.Debounce = new Timer(_ => _ = onChanges(p), null, 500, Timeout.Infinite);
+            p.Debounce = new Timer(timerState => _ = onChanges(p), null, 500, Timeout.Infinite);
         }
     }
 }

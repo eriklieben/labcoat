@@ -121,7 +121,7 @@ public static class CoverageGate
                 await Console.Error.WriteLineAsync($"{ErrorLabel} --min-diff-coverage: {ex.Message}");
                 return false;
             }
-            foreach (var warning in changes.Warnings) Console.Error.WriteLine($"{Cli.Yellow("warning")} {warning}");
+            foreach (var warning in changes.Warnings) await Console.Error.WriteLineAsync($"{Cli.Yellow("warning")} {warning}");
         }
         var diff = Diff(report, changes.Files, root);
         var against = $"changes vs {changes.Ref}{(changes.MergeBase is null ? "" : $" ({changes.MergeBase})")}";

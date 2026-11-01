@@ -379,8 +379,11 @@ public sealed partial class Explorer
         {
             var why = string.Join(", ", selection.Unknown.Select(Path.GetFileName).Distinct().Take(3));
             Log(p.Project.Id, LogLevels.Info, $"Watch: {names} changed → rerunning all tests (no impact data for {why})");
-            await RunAsync(p.Project.Id, null, null, new AffectedRun { Strategy = "all", ChangedFiles = [.. changed] }, trigger: WatchTrigger,
-                watchContext: new WatchContext { ChangedFiles = [.. changed], BuildMs = buildMs, Strategy = "all" });
+            await RunAsync(new RunRequestOptions
+            {
+                ProjectId = p.Project.Id, Affected = new AffectedRun { Strategy = "all", ChangedFiles = [.. changed] }, Trigger = WatchTrigger,
+                WatchContext = new WatchContext { ChangedFiles = [.. changed], BuildMs = buildMs, Strategy = "all" },
+            });
             return;
         }
         var ids = selection.Ids;
@@ -393,8 +396,11 @@ public sealed partial class Explorer
             return;
         }
         Log(p.Project.Id, LogLevels.Info, $"Watch: {names} changed → rerunning {ids.Count} affected test{Words.Plural(ids.Count)} ({how})");
-        await RunAsync(p.Project.Id, ids, null, new AffectedRun { Strategy = strategy, ChangedFiles = [.. changed] }, trigger: WatchTrigger,
-            watchContext: new WatchContext { ChangedFiles = [.. changed], BuildMs = buildMs, Strategy = strategy });
+        await RunAsync(new RunRequestOptions
+        {
+            ProjectId = p.Project.Id, TestIds = ids, Affected = new AffectedRun { Strategy = strategy, ChangedFiles = [.. changed] }, Trigger = WatchTrigger,
+            WatchContext = new WatchContext { ChangedFiles = [.. changed], BuildMs = buildMs, Strategy = strategy },
+        });
     }
 
     /// <summary>Build + re-discover for a watch run; the caller acquired the op lock, released here.</summary>

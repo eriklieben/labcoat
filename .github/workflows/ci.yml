@@ -340,12 +340,11 @@ jobs:
         run: dotnet tool restore
 
       - name: Begin analysis
-        # SonarScanner for .NET doesn't read sonar-project.properties: the settings are the /d: arguments below
-        # (docs/releasing.md, "Code analysis", explains each choice). It downloads a JRE itself (no setup-java).
-        # Multi-language analysis (sonar.scanner.scanAll, on by default) adds the TypeScript, JavaScript and CSS files
-        # next to the C# of the MSBuild projects. The scanner classifies tests/** and ui/test/** as test code: analysed
-        # with the test rules, not counted as lines of code. sonar.exclusions only applies to main code; the test
-        # patterns in it are a guard in case a test file is ever classified as main code.
+        # The analysis settings are in eng/SonarQube.Analysis.xml (SonarScanner for .NET doesn't read
+        # sonar-project.properties), shared with a local run (eng/sonar.mjs); docs/releasing.md, "Code analysis", explains
+        # each choice. It downloads a JRE itself (no setup-java). Multi-language analysis (sonar.scanner.scanAll, on by
+        # default) adds the TypeScript, JavaScript and CSS files next to the C# of the MSBuild projects. The scanner
+        # classifies tests/** and ui/test/** as test code: analysed with the test rules, not counted as lines of code.
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
@@ -355,46 +354,8 @@ jobs:
             echo "::error::SONAR_ORGANIZATION is set but the secret SONAR_TOKEN is missing."
             exit 1
           fi
-          args=(
-            /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION"
-            # Not shipped: samples, benchmarks, build output, generated code, the mock backend (?mock), the design
-            # system gallery, build and release scripts, tool configuration.
-            /d:sonar.exclusions="samples/**,benchmarks/**,artifacts/**,**/wwwroot/**,**/bin/**,**/obj/**,**/*.g.cs,**/node_modules/**,ui/coverage/**,ui/test/**,ui/design-system/test/**,ui/scripts/**,ui/bench/**,**/*.test.ts,**/*.bench.ts,ui/src/mock/**,ui/design-system/gallery/**,eng/**,*.mjs,ui/*.config.ts"
-            /d:sonar.coverage.exclusions="eng/**,*.mjs,*.js,ui/*.ts,ui/*.mjs,ui/design-system/*.ts,ui/design-system/gallery/**,ui/src/mock/**,ui/src/main.ts,**/*.d.ts,**/*.css,**/*.html"
-            # Theme data: the families repeat the same token blocks on purpose.
-            /d:sonar.cpd.exclusions="ui/design-system/src/themes/families.ts"
-            /d:sonar.cs.cobertura.reportsPaths="artifacts/coverage/raw/*.cobertura.xml"
-            /d:sonar.javascript.lcov.reportPaths="ui/coverage/lcov.info"
-            # Compiler and analyzer warnings (CA*, MSTEST*, SYSLIB*) are not imported: the build job gates them with
-            # -warnaserror, and the info-level ones would show up twice (as external issues next to Sonar's own rules).
-            /d:sonar.cs.roslyn.ignoreIssues=true
-            # Issue ignores: conventions and false positives only, each scoped as narrowly as the scanner allows (the
-            # reasons are in docs/releasing.md, "Code analysis").
-            /d:sonar.issue.ignore.multicriteria="e1,e2,e3,e4,e5,e6,e7"
-            # S1444 "public static should be readonly": static defaults / hostClass / observedAttributes on custom
-            # elements, which subclasses override.
-            /d:sonar.issue.ignore.multicriteria.e1.ruleKey="typescript:S1444"
-            /d:sonar.issue.ignore.multicriteria.e1.resourceKey="ui/**/components/**"
-            # S2245 Math.random: confetti animation and reconnect backoff jitter, nothing security-relevant.
-            /d:sonar.issue.ignore.multicriteria.e2.ruleKey="typescript:S2245"
-            /d:sonar.issue.ignore.multicriteria.e2.resourceKey="ui/src/confetti.ts"
-            /d:sonar.issue.ignore.multicriteria.e3.ruleKey="typescript:S2245"
-            /d:sonar.issue.ignore.multicriteria.e3.resourceKey="ui/src/transport.ts"
-            # S4782 "redundant | undefined": the undefined comes from shared aliases (Child, ClassValue, AttrValue,
-            # MaybeReactive<T | undefined>), not from the property declarations.
-            /d:sonar.issue.ignore.multicriteria.e4.ruleKey="typescript:S4782"
-            /d:sonar.issue.ignore.multicriteria.e4.resourceKey="ui/design-system/src/**"
-            # S1874 deprecated execCommand("copy"): the fallback when navigator.clipboard is unavailable (insecure context).
-            /d:sonar.issue.ignore.multicriteria.e5.ruleKey="typescript:S1874"
-            /d:sonar.issue.ignore.multicriteria.e5.resourceKey="ui/design-system/src/components/copy-button.ts"
-            # S7758 codePointAt: the project accent hash must keep its values (charCodeAt), or colours would change.
-            /d:sonar.issue.ignore.multicriteria.e6.ruleKey="typescript:S7758"
-            /d:sonar.issue.ignore.multicriteria.e6.resourceKey="ui/src/util.ts"
-            # S5906 in a test that compares identity without .not.toBe on purpose (its failure message deep-compares trees).
-            /d:sonar.issue.ignore.multicriteria.e7.ruleKey="typescript:S5906"
-            /d:sonar.issue.ignore.multicriteria.e7.resourceKey="ui/test/app/tree-filter.test.ts"
-          )
-          dotnet dotnet-sonarscanner begin "${args[@]}" /d:sonar.token="$SONAR_TOKEN"
+          dotnet dotnet-sonarscanner begin /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
+            /s:"$GITHUB_WORKSPACE/eng/SonarQube.Analysis.xml" /d:sonar.token="$SONAR_TOKEN"
 
       - name: Build
         run: dotnet build Labcoat.slnx -c Release
