@@ -369,8 +369,8 @@ public class ExplorerOrchestrationTests
         Assert.AreEqual((400, "Unknown command 'bogus'"), (unknown.Status, unknown.Error));
         Assert.Contains("bogus: Unknown command 'bogus'", w.Logs);
 
-        await ScratchWorkspace.WaitUntilAsync(() => e.Summary().ActiveOperation is null && e.Summary().PendingRun is null, "idle");
-        Assert.Contains("Impact map built in", w.Logs);
+        // the command doesn't wait for the pass, and the pass can still be queued behind the others when nothing is active
+        await ScratchWorkspace.WaitUntilAsync(() => w.Logs.Contains("Impact map built in", StringComparison.Ordinal), "the impact map pass");
     }
 
     [TestMethod]
