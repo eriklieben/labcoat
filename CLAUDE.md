@@ -18,6 +18,8 @@ the commit format are there. This file adds what an agent tends to get wrong in 
 - **A change to an endpoint, a WebSocket message or an event** updates [docs/contract.md](docs/contract.md);
   host internals and the MTP protocol are in [docs/protocol.md](docs/protocol.md), the UI in
   [ui/ARCHITECTURE.md](ui/ARCHITECTURE.md).
+- **A UI change** follows [ACCESSIBILITY.md](ACCESSIBILITY.md); never report assistive technology testing that didn't
+  happen.
 
 ## C# to avoid here
 

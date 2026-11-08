@@ -128,7 +128,8 @@ MSTEST_EXPLORER_URL=http://localhost:4370 pnpm run dev
 ```
 
 Read [`ui/ARCHITECTURE.md`](ui/ARCHITECTURE.md) (reactivity, elements, performance rules) and
-[`ui/MOTION.md`](ui/MOTION.md) (motion rules) before changing UI code.
+[`ui/MOTION.md`](ui/MOTION.md) (motion rules) before changing UI code, and
+[`ACCESSIBILITY.md`](ACCESSIBILITY.md) (what is expected of a UI change).
 
 ### Checks (in `ui/`)
 

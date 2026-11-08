@@ -203,7 +203,8 @@ Contributions are welcome. The maintainer decides what goes into Labcoat, so ple
 before working on anything bigger than a small fix ([what goes into Labcoat](CONTRIBUTING.md#what-goes-into-labcoat)).
 [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build from source, the checks, the
 conventions and the commit message format that drives the automated releases. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md), report vulnerabilities as described in
-[SECURITY.md](SECURITY.md), and see [CHANGELOG.md](CHANGELOG.md) for what changed.
+[SECURITY.md](SECURITY.md), and see [CHANGELOG.md](CHANGELOG.md) for what changed. [ACCESSIBILITY.md](ACCESSIBILITY.md)
+says what is checked for accessibility, what isn't, and how to report a barrier.
 
 ## License
 
