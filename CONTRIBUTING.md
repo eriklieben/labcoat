@@ -356,14 +356,17 @@ User-facing theme docs: [docs/themes.md](docs/themes.md) (add the family there, 
 
 - Keep a PR focused on one change; describe what and why, and how you tested it (the PR template has a checklist).
 - The PR title is the commit message: PRs are squash merged, and the title must follow the
-  [commit message format](#commit-messages-and-releases) (checked by CI). It decides whether the merge releases a new
-  version and is what the changelog says, so write it for users.
+  [commit message format](#commit-messages-and-releases) (checked by CI). It decides what the next release contains
+  and is what the changelog says, so write it for users.
+- A merge doesn't publish anything by itself. The maintainer puts the label **`cut-release`** on the PR that should
+  [release](#how-a-release-happens) what has been merged so far.
 - UI changes: include before/after screenshots in light and dark mode.
 - CI must pass: UI checks, build + tests on Linux, Windows and macOS, and the smoke test of the packed tool.
 
 ## Commit messages and releases
 
-Releases are automatic. [semantic-release](https://github.com/semantic-release/semantic-release) reads the commit
+A release starts from a merged PR with the label `cut-release`; the rest is automatic.
+[semantic-release](https://github.com/semantic-release/semantic-release) reads the commit
 messages on `main` since the last release, works out the next version, writes `CHANGELOG.md` and publishes the packages.
 For that to work, commit messages follow the [Angular commit format](https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md):
 
@@ -435,10 +438,12 @@ check a message by hand: `echo "feat(ui): add a duration filter" | pnpm exec com
 ### How a release happens
 
 1. A PR is squash merged into `main`.
-2. CI runs on `main`. When every job passed, its last job, `release`, starts the Release workflow
-   (`.github/workflows/release.yml`) for that commit, which runs semantic-release (if `main` has moved on meanwhile,
-   the newer commit's CI run releases instead).
-3. No `feat`, `fix`, `perf`, `revert` or breaking-change commit since the last tag: nothing happens. Otherwise
+2. CI runs on `main`. When every job passed, its last job, `release`, checks that a PR merged since the last tag has
+   the label `cut-release` (or `security`). If none has, nothing is released and the commits wait for the next labeled
+   merge. If you forgot the label, add it and re-run that job.
+3. With a label, it starts the Release workflow (`.github/workflows/release.yml`) for that commit, which runs
+   semantic-release (if `main` has moved on meanwhile, the newer commit's CI run releases instead).
+4. No `feat`, `fix`, `perf`, `revert` or breaking-change commit since the last tag: nothing happens. Otherwise
    semantic-release
    - computes the version, e.g. 1.3.0, and writes its release notes to the top of `CHANGELOG.md`;
    - sets `<VersionPrefix>` and the package validation baseline (the previous release) in `src/Directory.Build.props`,
@@ -450,8 +455,8 @@ check a message by hand: `echo "feat(ui): add a duration filter" | pnpm exec com
    - comments on the PRs and issues that went into the release.
    Then the Release workflow attests the build provenance of the packages and their SBOMs, and each package's SBOM
    (`gh attestation verify`, see [docs/releasing.md](docs/releasing.md#verifying-packages)).
-4. Pushes to `next` or `beta` (optional branches) release prereleases such as `1.3.0-beta.1` the same way (NuGet and
-   GitHub prereleases).
+5. Pushes to `next` or `beta` (optional branches) release prereleases such as `1.3.0-beta.1` the same way, without the
+   label (NuGet and GitHub prereleases).
 
 Don't change `<VersionPrefix>`, `CHANGELOG.md` or create `v*` tags by hand.
 
@@ -471,7 +476,7 @@ More on releases (what a release contains, verifying packages, prereleases): [do
 ### Dependency updates
 
 [Renovate](https://docs.renovatebot.com) opens the dependency update PRs ([`.github/renovate.json5`](.github/renovate.json5)),
-weekly, with titles in the format above, so merging one releases only when the dependency ships:
+weekly, with titles in the format above, so one only counts towards a release when the dependency ships:
 
 | PR title | For | Release |
 | --- | --- | --- |
@@ -480,7 +485,8 @@ weekly, with titles in the format above, so merging one releases only when the d
 | `build(deps-dev): ...` | npm `devDependencies`, test packages, the release tooling | none |
 | `ci(deps): ...` | GitHub Actions | none |
 
-Vulnerable dependencies get a separate PR right away, titled `... [security]` (label `security`): GitHub's Dependabot
+Vulnerable dependencies get a separate PR right away, titled `... [security]` (label `security`, which releases it
+without `cut-release`): GitHub's Dependabot
 alerts are the signal, Renovate opens the fix (Dependabot itself opens no PRs). PRs labeled `needs-review`
 (`alien-signals`, the test platform minimum versions) need a closer look; nothing is merged automatically. Review a
 Renovate PR like any other: CI must pass, and check the title before squash merging. The Dependency Dashboard issue
