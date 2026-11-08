@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using Labcoat;
 
@@ -10,12 +11,16 @@ namespace Labcoat.Tests.Unit;
 [TestClass]
 public class WorkspaceDataTests
 {
-    private static TestNode Node(string project, string id, Outcome outcome, string at = "2026-10-09T08:00:00Z") => new()
+    // Relative to now: the entries of a project that is away age out after HistoryStore.OrphanRetention.
+    private static readonly string s_at = DateTimeOffset.UtcNow.AddDays(-1).ToString("o", CultureInfo.InvariantCulture);
+    private static readonly string s_later = DateTimeOffset.UtcNow.AddHours(-23).ToString("o", CultureInfo.InvariantCulture);
+
+    private static TestNode Node(string project, string id, Outcome outcome, string? at = null) => new()
     {
-        Id = id, ProjectId = project, DisplayName = id, Outcome = outcome, DurationMs = 1, LastRunAt = at,
+        Id = id, ProjectId = project, DisplayName = id, Outcome = outcome, DurationMs = 1, LastRunAt = at ?? s_at,
     };
 
-    private static RunSummary Run(string id, string at = "2026-10-09T08:00:00Z") => new() { RunId = id, StartedAt = at, Total = 1 };
+    private static RunSummary Run(string id, string? at = null) => new() { RunId = id, StartedAt = at ?? s_at, Total = 1 };
 
     /// <summary>A temp repository (a .git folder) with project files under tests/.</summary>
     private sealed class Repo : IDisposable
@@ -522,7 +527,7 @@ public class WorkspaceDataTests
 
             // the other one saved a newer result meanwhile, then ended
             other.Dispose();
-            using (var otherSession = new HistoryStore([a])) otherSession.Record(Run("r2", "2026-10-09T09:00:00Z"), [Node("A", "theirs", Outcome.Failed, "2026-10-09T09:00:00Z")]);
+            using (var otherSession = new HistoryStore([a])) otherSession.Record(Run("r2", s_later), [Node("A", "theirs", Outcome.Failed, s_later)]);
 
             mine.Save(); // takes the lock over: merges and writes
             Assert.IsFalse(mine.ReadOnly);
