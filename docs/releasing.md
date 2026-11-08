@@ -9,6 +9,7 @@ releases: [CONTRIBUTING.md, "Commit messages and releases"](../CONTRIBUTING.md#c
 | [`release.config.mjs`](../release.config.mjs) | Branches, tag format `v<version>`, plugins, release notes. |
 | [`eng/release.mjs`](../eng/release.mjs) | The .NET steps: set `<VersionPrefix>`, build the UI, `dotnet pack`, the SBOM release assets, `dotnet nuget push`. |
 | [`eng/release-commit.mjs`](../eng/release-commit.mjs) | The release commit through the GitHub API (signed, *Verified*). Tests: `node --test eng/release-commit.test.mjs`. |
+| [`eng/release-gate.mjs`](../eng/release-gate.mjs) | Whether a push to `main` releases: the `cut-release` label. Tests: `node --test eng/release-gate.test.mjs`. |
 | [`.github/workflows/release.yml`](../.github/workflows/release.yml) | Runs semantic-release; started by `ci.yml` after CI passed, or by hand (dry run). |
 | [`.github/workflows/commit-messages.yml`](../.github/workflows/commit-messages.yml) | Checks PR titles (and, as a warning, PR commits) with [`commitlint.config.mjs`](../commitlint.config.mjs). |
 | [`.github/renovate.json5`](../.github/renovate.json5) | Dependency update PRs (Renovate). |
@@ -18,8 +19,12 @@ releases: [CONTRIBUTING.md, "Commit messages and releases"](../CONTRIBUTING.md#c
 1. A pull request is squash-merged into `main`; its title (checked by CI) is the commit message semantic-release reads.
    A pull request that brings in several features (a branch that merged other PRs) is merged with a merge commit
    instead, so semantic-release reads each of its commits (merge commits themselves have no type and are ignored).
-2. When every CI job passed, CI's last job, `release`, starts the **Release** workflow (`release.yml`) for that commit.
-   If the branch has moved on by then, it releases nothing: the CI run of the newer commit releases both.
+2. When every CI job passed, CI's last job, `release`, checks for a release label: on `main`, a pull request merged since
+   the last tag must have **`cut-release`** (or `security`, Renovate's vulnerability fixes). Without one the job stops
+   there and the commits wait for the next labeled merge. With one, it starts the **Release** workflow (`release.yml`)
+   for that commit. If the branch has moved on by then, it releases nothing: the CI run of the newer commit releases
+   both. Forgot the label? Add it and re-run the `release` job of that CI run. Pushes to `next` and `beta` skip the
+   check.
 3. semantic-release looks at the commits since the last tag `v*`. If one of them releases (see
    [Versioning](#versioning)), it writes `CHANGELOG.md`, sets the version and the package validation baseline in
    `src/Directory.Build.props`, builds the UI and packs (`eng/release.mjs prepare`; a failure stops the release before
@@ -133,10 +138,11 @@ the baseline is a release that contains it.
 ## Dependency updates
 
 [Renovate](https://docs.renovatebot.com) opens the dependency update PRs ([`.github/renovate.json5`](../.github/renovate.json5));
-Dependabot only raises vulnerability alerts. PR titles decide what releases: `fix(deps)` for dependencies that ship
-(NuGet packages of `src/`, the UI's runtime dependencies: a patch release), `build(deps)` for samples, the SDK and build
+Dependabot only raises vulnerability alerts. PR titles decide what the next release contains: `fix(deps)` for dependencies
+that ship (NuGet packages of `src/`, the UI's runtime dependencies: a patch release), `build(deps)` for samples, the SDK and build
 tooling, `build(deps-dev)` for npm dev dependencies and test packages, `ci(deps)` for GitHub Actions (pinned to commit
-SHAs). Updates are weekly and grouped; a vulnerable dependency gets its own PR at once. Automerge is off. After changing
+SHAs). Updates are weekly and grouped; a vulnerable dependency gets its own PR at once, whose `security` label releases
+it without `cut-release`. Automerge is off. After changing
 the config: `pnpm dlx --package renovate@44.115.1 -- renovate-config-validator --strict`.
 
 ## Dry run

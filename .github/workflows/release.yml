@@ -8,8 +8,8 @@ run-name: Release${{ inputs.dry_run && ' (dry run)' || '' }}${{ inputs.commit !=
 # release.config.mjs. Overview: docs/releasing.md.
 #
 # Runs only as a top-level workflow_dispatch run, never as a reusable workflow:
-# - started by ci.yml (job `release`, `gh workflow run`) after every CI job passed on a push to main, next or beta, with
-#   dry_run=false and commit=<the CI run's commit>. If the branch has moved on by then, this run releases nothing: the
+# - started by ci.yml (job `release`, `gh workflow run`) after every CI job passed on a push to main (when a pull request
+#   merged since the last tag has the label cut-release or security), next or beta, with dry_run=false and commit=<the CI run's commit>. If the branch has moved on by then, this run releases nothing: the
 #   CI run of the newer commit starts a release of its own, which includes this commit.
 # - by hand (Actions > Release > Run workflow): a dry run by default (prints the next version and its notes, publishes
 #   nothing). A real manual run requires a green CI run for the branch head (e.g. to retry a failed release).
