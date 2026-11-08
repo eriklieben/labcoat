@@ -24,7 +24,7 @@
     font-weight: 500;
   }
   .overview-section.tone-new .overview-h::after {
-    content: "failing now, passed in the previous full run";
+    content: " failing now, passed in the previous full run"; /* the space keeps it apart in the heading's name */
     margin-left: var(--lc-space-8);
     color: var(--lc-fg-muted);
     font-family: var(--lc-font-sans);

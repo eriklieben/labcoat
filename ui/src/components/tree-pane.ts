@@ -1298,7 +1298,8 @@ export class TreePane extends LabcoatElement<TreePaneProps> {
         ),
         show(
           () => (row().flat ? flatContext(node()) : node().sublabel),
-          (sub) => h("span", { class: "row-sublabel" }, sub),
+          // the separator is for the accessible name: without it the label and the sublabel are read as one word
+          (sub) => [h("span", { class: "visually-hidden" }, ", "), h("span", { class: "row-sublabel" }, sub)],
         ),
         h("span", { class: "visually-hidden" }, () => rowExtra(row())),
       ),

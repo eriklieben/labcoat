@@ -7,12 +7,12 @@
   - radio "Skipped 2"
   - radio "Flaky 1"
 - tree "Test tree":
-  - treeitem "(3,3,10)CalculatorTests.Multiply_ReturnsProduct , failed, 3 ms, from a previous session" [level=1]
-  - treeitem "PlaceOrder_SendsConfirmationEmailOrderServiceTests , failed, 469 ms, from a previous session" [level=1]
-  - treeitem "Render_FormatsReceiptReceiptTests , failed, 13 ms, from a previous session" [level=1]
-  - treeitem "Serialize_ProducesExpectedJsonReceiptTests , failed, 14 ms, from a previous session" [level=1]
-  - treeitem "(\"Ünïcödé café\",\"unicode-cafe\")SlugifyTests.Slugify_ProducesUrlSafeSlug , failed, 1 ms, from a previous session" [level=1]
-  - treeitem "HealthEndpoint_ReportsHealthyApiServiceTests , failed, 154 ms, flaky, from a previous session" [level=1]
-  - treeitem "Cache_RoundTripsValueApiServiceTests , failed, 827 ms, from a previous session" [level=1]
-  - treeitem "WeatherPage_RendersForecastTableWebFrontendTests , timed out, 2.80 s, from a previous session" [level=1]
+  - treeitem "(3,3,10) , CalculatorTests.Multiply_ReturnsProduct , failed, 3 ms, from a previous session" [level=1]
+  - treeitem "PlaceOrder_SendsConfirmationEmail , OrderServiceTests , failed, 469 ms, from a previous session" [level=1]
+  - treeitem "Render_FormatsReceipt , ReceiptTests , failed, 13 ms, from a previous session" [level=1]
+  - treeitem "Serialize_ProducesExpectedJson , ReceiptTests , failed, 14 ms, from a previous session" [level=1]
+  - treeitem "(\"Ünïcödé café\",\"unicode-cafe\") , SlugifyTests.Slugify_ProducesUrlSafeSlug , failed, 1 ms, from a previous session" [level=1]
+  - treeitem "HealthEndpoint_ReportsHealthy , ApiServiceTests , failed, 154 ms, flaky, from a previous session" [level=1]
+  - treeitem "Cache_RoundTripsValue , ApiServiceTests , failed, 827 ms, from a previous session" [level=1]
+  - treeitem "WeatherPage_RendersForecastTable , WebFrontendTests , timed out, 2.80 s, from a previous session" [level=1]
   - treeitem "Inventory.Tests , build failed, 0 of 0 tests match" [level=1]
