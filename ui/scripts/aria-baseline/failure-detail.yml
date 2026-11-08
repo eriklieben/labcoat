@@ -1,0 +1,7 @@
+- navigation "Location":
+  - button "AspireSample.Tests"
+  - button "ApiServiceTests"
+- heading "HealthEndpoint_ReportsHealthy" [level=2]
+- group "Failure":
+  - text: HttpRequestException Connection refused (localhost:6379)
+  - button "Copy error"

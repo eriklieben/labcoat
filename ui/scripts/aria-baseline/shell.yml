@@ -1,0 +1,13 @@
+- banner:
+  - link "Labcoat":
+    - /url: ./
+  - heading "AspireSample" [level=1]
+  - button "Live · 12 runs"
+- navigation "Main":
+  - link "Tests":
+    - /url: "#/tests"
+  - link "Coverage":
+    - /url: "#/coverage"
+  - button "Output , 2 errors"
+  - link "Settings":
+    - /url: "#/settings"

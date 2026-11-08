@@ -1,0 +1,63 @@
+- dialog "Keyboard shortcuts":
+  - heading "Keyboard shortcuts" [level=2]
+  - button "Close"
+  - heading "Anywhere" [level=3]
+  - term:
+    - img "Control+K"
+  - definition: "Command palette: run, go to test, toggle watch, …"
+  - term:
+    - img "Control+Enter"
+  - definition: Run all tests
+  - term:
+    - img "Control+Shift+Enter"
+  - definition: Preview the tests affected by your changes (git)
+  - term:
+    - img "F8"
+  - definition: Next failure
+  - term:
+    - img "Shift+F8"
+  - definition: Previous failure
+  - term:
+    - img "Control+."
+  - definition: Stop the current run
+  - term:
+    - img "W"
+  - definition: Toggle watch mode
+  - term:
+    - img "/"
+  - definition: Filter the test tree
+  - term:
+    - 'img "Control+`"'
+  - definition: Show / hide the output panel
+  - term:
+    - img "Escape"
+  - definition: Close a popup · back to live results (never stops a run)
+  - term:
+    - img "?"
+  - definition: This overview
+  - heading "Test tree" [level=3]
+  - term:
+    - img "Up"
+    - img "Down"
+  - definition: Move the selection
+  - term:
+    - img "Left"
+    - img "Right"
+  - definition: Collapse / expand
+  - term:
+    - img "Space"
+  - definition: Collapse / expand
+  - term:
+    - img "Enter"
+  - definition: Run the selected test or group (also R, double-click)
+  - term:
+    - img "C"
+  - definition: Collect coverage for the selection
+  - term:
+    - img "O"
+  - definition: Open in editor
+  - term:
+    - img "Home"
+    - img "End"
+  - definition: First / last row
+  - paragraph: Single-key shortcuts (W, ?, R, C, O) work when no button, link or field has focus; turn them off in Settings → Keyboard.

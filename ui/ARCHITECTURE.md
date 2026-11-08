@@ -312,7 +312,7 @@ listeners, ResizeObserver, virtualization, keyed rows with per-row bindings, key
 - Real backend: `LABCOAT_HISTORY_DIR=$(mktemp -d) LABCOAT_ALLOWED_ORIGINS=http://localhost:5174 dotnet run --project
   src/Labcoat -- samples/Samples.slnx --no-open --port 4370`, then `MSTEST_EXPLORER_URL=http://localhost:4370 npm run
   dev` (the dev server proxies /api and /ws; the allowed origin lets the proxied page send commands).
-- Checks: `pnpm run check:reactive`, `check:a11y`, `check:keyboard`, `check:leaks` (effect/owner counts must stay
+- Checks: `pnpm run check:reactive`, `check:a11y`, `check:keyboard`, `check:aria`, `check:leaks` (effect/owner counts must stay
   flat), `check:perf` (no long tasks). Each starts its own dev server.
 - CSS refactors: `pnpm run check:styles` (below).
 - Themes: `pnpm run check:themes` (WCAG contrast of every family × mode); look at the families in light and
