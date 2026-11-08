@@ -65,9 +65,10 @@ jobs:
         run: node eng/check-links.mjs
 
       - name: Release script tests
-        # eng/release-commit.mjs: the API-made (verified) release commit, with a mocked GitHub
+        # eng/release-commit.mjs: the API-made (verified) release commit; eng/release-gate.mjs: the cut-release label.
+        # Both with a mocked GitHub
         working-directory: .
-        run: node --test eng/release-commit.test.mjs
+        run: node --test eng/release-commit.test.mjs eng/release-gate.test.mjs
 
       - name: Vitest runner tests
         # src/Labcoat.Vitest/runner against a real Vitest: scratch projects linked to this job's ui/node_modules
@@ -370,7 +371,8 @@ jobs:
     name: Release
     # Only after everything above passed, for pushes to a release branch: starts the Release workflow (release.yml) for
     # this commit, which runs semantic-release; that decides from the commit messages whether there is anything to
-    # release (see release.config.mjs and docs/releasing.md).
+    # release (see release.config.mjs and docs/releasing.md). On main only when a pull request merged since the last
+    # release has the label cut-release or security (eng/release-gate.mjs); next and beta release every push.
     # Not `uses: ./.github/workflows/release.yml`: NuGet trusted publishing fails inside a reusable workflow
     # (https://github.com/NuGet/login/issues/6), and a top-level run of release.yml matches the nuget.org policy. A
     # GITHUB_TOKEN may start workflow_dispatch runs (unlike pushes and most other events it causes).
@@ -382,9 +384,22 @@ jobs:
     timeout-minutes: 5
     permissions:
       actions: write   # start the Release workflow (workflow_dispatch)
-      contents: read   # gh reads release.yml to check its inputs
+      contents: read   # gh reads release.yml to check its inputs; the commits since the last tag
+      pull-requests: read   # the labels of the pull requests merged since the last tag
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check for a release label
+        id: gate
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node eng/release-gate.mjs
+
       - name: Start the Release workflow
+        if: github.ref != 'refs/heads/main' || steps.gate.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
