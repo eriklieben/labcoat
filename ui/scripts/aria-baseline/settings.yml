@@ -1,0 +1,50 @@
+- region "Settings":
+  - text: Labcoat
+  - heading "Settings" [level=2]
+  - button "Reset to defaults" [disabled]
+  - text: Stored in this browser only, except where noted.
+  - heading "Appearance" [level=3]
+  - text: "Theme The color palette: Catppuccin (default; Latte when light, Macchiato when dark) or Aspire (the Aspire dashboard look). More palettes below."
+  - radiogroup "Theme":
+    - radio "Catppuccin Latte / Macchiato" [checked]
+    - radio "Aspire"
+  - button "More themes"
+  - text: Mode Follow the operating system, or always use the light or dark variant of the theme.
+  - radiogroup "Mode":
+    - radio "System" [checked]
+    - radio "Light"
+    - radio "Dark"
+  - text: Motion Small animations that show where things come from and confirm actions. Reduced keeps only short fades; Off turns them all off.
+  - radiogroup "Motion":
+    - radio "System" [checked]
+    - radio "Reduced"
+    - radio "Off"
+  - heading "Keyboard" [level=3]
+  - text: Single-key shortcuts W toggles watch mode, ? shows the shortcuts, R / C / O run, collect coverage or open the selected test. They never fire while a button, link or field has focus. Ctrl/Cmd shortcuts and F8 always work.
+  - switch "Single-key shortcuts" [checked]
+  - heading "Editor" [level=3]
+  - text: "Open files in Used by every “open in editor” action; the Labcoat host launches it on this machine. Not found: JetBrains Rider, Visual Studio (Windows only). Install it (and put its launcher on PATH), then restart Labcoat."
+  - radiogroup "Editor":
+    - radio "Visual Studio Code" [checked]
+    - radio "JetBrains Rider" [disabled]
+    - radio "Visual Studio" [disabled]
+  - heading "Aspire" [level=3]
+  - text: Traces in the Aspire dashboard Jump from a failing integration test to the traces and logs it caused in the Aspire dashboard. Applies from the next run. Stored for this workspace by the Labcoat host.
+  - switch "Traces in the Aspire dashboard"
+  - heading "Coverage" [level=3]
+  - text: "Coverage tint How covered and uncovered lines are marked in the source view: a tint across the full line, or only a bar in the gutter."
+  - radiogroup "Coverage tint":
+    - radio "Full line" [checked]
+    - radio "Gutter only"
+  - heading "Celebrations" [level=3]
+  - text: "Confetti when tests turn green A short confetti burst when a run makes the suite green: the first green run, or the run that fixes failing tests. Further green runs stay quiet. Off when motion is reduced (Appearance → Motion, or the system setting)."
+  - switch "Confetti when tests turn green"
+  - heading "History" [level=3]
+  - text: Show partial runs in history Include runs of a single test, a class or a few tests in the run switcher and in each test's history boxes. When off, only full runs are listed; partial runs are still recorded and count for flaky detection.
+  - switch "Show partial runs in history"
+  - heading "Output" [level=3]
+  - text: Open the output panel on errors Show the output panel automatically when a build or run logs an error.
+  - switch "Open the output panel on errors"
+  - heading "About" [level=3]
+  - text: "Diagnostics For a bug report: the Labcoat, .NET and OS versions, the test projects and their test packages, the settings (secrets left out) and the last log lines, as markdown. Remove anything private before you share it."
+  - button "Copy diagnostics"

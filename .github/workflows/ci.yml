@@ -102,6 +102,9 @@ jobs:
       - name: Keyboard checks
         run: pnpm run check:keyboard
 
+      - name: Accessibility tree (ARIA snapshots)
+        run: pnpm run check:aria
+
       - name: Build (into src/Labcoat/wwwroot)
         run: pnpm run build
 

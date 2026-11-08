@@ -1,0 +1,38 @@
+- radiogroup "Status filter":
+  - radio "All 25" [checked]
+  - radio "Failed 8"
+  - radio "New 1"
+  - radio "Changed 5"
+  - radio "Passed 15"
+  - radio "Skipped 2"
+  - radio "Flaky 1"
+- tree "Test tree":
+  - treeitem "SampleTests , 5 failed of 19, 1.10 s" [expanded] [level=1]
+  - treeitem "SampleTests.Math , 1 failed of 6, 20 ms" [expanded] [level=2]
+  - treeitem "CalculatorTests , 1 failed of 6, 20 ms" [expanded] [level=3]
+  - treeitem "Add_ReturnsSum , passed, 4 ms, from a previous session" [level=4]
+  - treeitem "Subtract_ReturnsDifference , passed, 4 ms, from a previous session" [level=4]
+  - treeitem "Multiply_ReturnsProduct , 1 failed of 3, 8 ms" [level=4]
+  - treeitem "Divide_ByZero_Throws , passed, 4 ms, from a previous session" [level=4]
+  - treeitem "SampleTests.Orders , 3 failed of 7, 1.05 s" [expanded] [level=2]
+  - treeitem "OrderServiceTests , 1 failed of 5, 1.02 s" [expanded] [level=3]
+  - treeitem "PlaceOrder_PersistsOrder , passed, 531 ms, from a previous session" [level=4]
+  - treeitem "PlaceOrder_SendsConfirmationEmail , failed, 469 ms, from a previous session" [level=4]
+  - treeitem "Refund_ReturnsMoney , skipped, 0 ms, from a previous session" [level=4]
+  - treeitem "CalculateTotal_AppliesDiscount , passed, 13 ms, from a previous session" [level=4]
+  - treeitem "Validate_RejectsEmptyCart , passed, 7 ms, from a previous session" [level=4]
+  - treeitem "ReceiptTests , 2 failed of 2, 27 ms" [expanded] [level=3]
+  - treeitem "Render_FormatsReceipt , failed, 13 ms, from a previous session" [level=4]
+  - treeitem "Serialize_ProducesExpectedJson , failed, 14 ms, from a previous session" [level=4]
+  - treeitem "SampleTests.Text , 1 failed of 6, 30 ms" [expanded] [level=2]
+  - treeitem "SlugifyTests , 1 failed of 6, 30 ms" [expanded] [level=3]
+  - treeitem "Slugify_ProducesUrlSafeSlug , 1 failed of 5, 8 ms" [level=4]
+  - treeitem "Slugify_Null_ReturnsEmpty , passed, 22 ms, from a previous session" [level=4]
+  - treeitem "AspireSample.Tests , 3 failed of 6, 6.54 s" [expanded] [level=1]
+  - treeitem "ApiServiceTests , 2 failed of 4, 1.44 s" [expanded] [level=2]
+  - treeitem "GetWeatherForecast_ReturnsFiveDays , passed, 456 ms, from a previous session" [level=3]
+  - treeitem "HealthEndpoint_ReportsHealthy , failed, 154 ms, flaky, from a previous session" [level=3]
+  - treeitem "Cache_RoundTripsValue , failed, 827 ms, from a previous session" [level=3]
+  - treeitem "Postgres_MigrationsApplied , skipped, 0 ms, from a previous session" [level=3]
+  - treeitem "WebFrontendTests , 1 failed of 2, 5.10 s" [expanded] [level=2]
+  - treeitem "GetWebResourceRootReturnsOkStatusCode , passed, 2.30 s, from a previous session" [level=3]

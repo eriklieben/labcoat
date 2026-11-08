@@ -51,6 +51,7 @@ The commands run in `ui/` ([CONTRIBUTING.md](CONTRIBUTING.md#checks-in-ui)).
 | `pnpm run check:a11y`, gallery (`scripts/ds-axe.mjs`) | axe-core on the design-system gallery: every theme family, light and dark; open menu, dialog and tooltip in two themes | Any violation | CI, every PR |
 | `pnpm run check:a11y`, app (`scripts/shell-axe.mjs`) | axe-core on the main page with the mock backend: every theme family, light and dark; default, test selected, watch mode, snapshot panel | Serious or critical violations | CI, every PR |
 | `pnpm run check:keyboard` | Menu, tabs, dialog, split pane, switch, segmented control and tooltip in the gallery | Any failed step | CI, every PR |
+| `pnpm run check:aria` (`scripts/shell-aria.mjs`) | Roles, names and states against committed baselines with the mock backend: header and navigation, test tree, failed filter, failure details, shortcuts dialog, settings; that focus and the announcement follow F8 | Any difference | CI, every PR |
 | `pnpm run check:themes` | Contrast of the token pairs of every theme family | Pair below the minimum | Locally, when changing a theme |
 
 A passing check does not mean the UI is accessible. Automated rules cover only part of WCAG, and these run in Chromium
@@ -58,7 +59,8 @@ at 1440×900.
 
 ### Not evaluated so far
 
-- Screen readers and other assistive technology: there are no recorded test results for any combination.
+- Screen readers and other assistive technology: there are no recorded test results for any combination. The ARIA
+  snapshots check what the browser exposes, not what a screen reader says.
 - Pages other than the main page in the app-level axe check: settings and coverage, for example.
 - The HTML report: it has labels, landmarks and a live region, but no automated check.
 - Browsers other than Chromium, narrow viewports, browser zoom and text spacing.

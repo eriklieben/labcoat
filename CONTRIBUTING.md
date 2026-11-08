@@ -134,7 +134,7 @@ Read [`ui/ARCHITECTURE.md`](ui/ARCHITECTURE.md) (reactivity, elements, performan
 ### Checks (in `ui/`)
 
 Each check starts its own Vite dev server (port 5300 or the next free one; `LABCOAT_CHECK_PORT` changes it) and drives
-Chromium with Playwright. CI runs the first six (unit tests with coverage); `pnpm run check` runs the typecheck, the unit tests and the next three in one go.
+Chromium with Playwright. CI runs the first seven (unit tests with coverage); `pnpm run check` runs the typecheck, the unit tests and the next four in one go.
 `pnpm run gallery` starts the design-system gallery.
 
 | Command | What it checks |
@@ -144,6 +144,7 @@ Chromium with Playwright. CI runs the first six (unit tests with coverage); `pnp
 | `pnpm run check:reactive` | Regression tests of the reactive core (`design-system/test/`). |
 | `pnpm run check:a11y` | axe-core on the design-system gallery (every theme family, light and dark, open overlays) and on the app (mock backend). |
 | `pnpm run check:keyboard` | Keyboard behavior of the primitives (menu, tabs, dialog, split pane, switch, segmented control, tooltip). |
+| `pnpm run check:aria` | The app's accessibility tree (roles, names, states on the mock backend) against the baselines in `scripts/aria-baseline/`, and that focus and the announcement follow F8. After a deliberate change: `-- --update`, and review the diff. |
 | `pnpm run build` | Typecheck + production build. |
 | `pnpm run check:themes` | WCAG contrast of every theme family's token pairs, and the `families.ts` swatches against the CSS. |
 | `pnpm run check:styles` | Style regressions for CSS refactors: freeze a baseline before the change (`-- --update`, stored in the gitignored `ui/.styles-baseline/`), then compare. Prints per screen and element `property before → after`, changed CSS rules and a pixel-diff % per screenshot; exit 1 on any change. See `ui/ARCHITECTURE.md`, "Style regressions". |
